@@ -65,6 +65,7 @@
 						<tr>
 							<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
 							<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Scan Date</th>
+							<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Image Digest</th>
 							<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Vulns</th>
 							<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Critical</th>
 							<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">High</th>
@@ -78,6 +79,9 @@
 							<tr class="hover:bg-gray-50">
 								<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{scan.id}</td>
 								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(scan.scan_date)}</td>
+								<td class="px-6 py-4 text-sm text-gray-500 font-mono max-w-xs truncate" title={scan.image_digest || 'N/A'}>
+									{scan.image_digest || 'N/A'}
+								</td>
 								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{scan.vulnerability_count}</td>
 								<td class="px-6 py-4 whitespace-nowrap text-sm">
 									<span class="text-red-600 font-semibold">{scan.critical_count}</span>

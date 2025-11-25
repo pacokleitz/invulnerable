@@ -72,6 +72,7 @@ func (r *ScanRepository) List(ctx context.Context, limit, offset int, imageID *i
 		SELECT
 			s.*,
 			i.registry || '/' || i.repository || ':' || i.tag as image_name,
+			i.digest as image_digest,
 			COUNT(DISTINCT sv.vulnerability_id) as vulnerability_count,
 			COUNT(DISTINCT CASE WHEN v.severity = 'Critical' THEN v.id END) as critical_count,
 			COUNT(DISTINCT CASE WHEN v.severity = 'High' THEN v.id END) as high_count,
@@ -86,10 +87,10 @@ func (r *ScanRepository) List(ctx context.Context, limit, offset int, imageID *i
 	if imageID != nil {
 		query += ` WHERE s.image_id = $1`
 		args = append(args, *imageID)
-		query += ` GROUP BY s.id, i.registry, i.repository, i.tag ORDER BY s.scan_date DESC LIMIT $2 OFFSET $3`
+		query += ` GROUP BY s.id, i.registry, i.repository, i.tag, i.digest ORDER BY s.scan_date DESC LIMIT $2 OFFSET $3`
 		args = append(args, limit, offset)
 	} else {
-		query += ` GROUP BY s.id, i.registry, i.repository, i.tag ORDER BY s.scan_date DESC LIMIT $1 OFFSET $2`
+		query += ` GROUP BY s.id, i.registry, i.repository, i.tag, i.digest ORDER BY s.scan_date DESC LIMIT $1 OFFSET $2`
 		args = append(args, limit, offset)
 	}
 

@@ -83,6 +83,7 @@ func (r *ImageRepository) GetScanHistory(ctx context.Context, imageID int, limit
 		SELECT
 			s.*,
 			i.registry || '/' || i.repository || ':' || i.tag as image_name,
+			i.digest as image_digest,
 			COUNT(DISTINCT sv.vulnerability_id) as vulnerability_count,
 			COUNT(DISTINCT CASE WHEN v.severity = 'Critical' THEN v.id END) as critical_count,
 			COUNT(DISTINCT CASE WHEN v.severity = 'High' THEN v.id END) as high_count,
@@ -93,7 +94,7 @@ func (r *ImageRepository) GetScanHistory(ctx context.Context, imageID int, limit
 		LEFT JOIN scan_vulnerabilities sv ON sv.scan_id = s.id
 		LEFT JOIN vulnerabilities v ON v.id = sv.vulnerability_id
 		WHERE s.image_id = $1
-		GROUP BY s.id, i.registry, i.repository, i.tag
+		GROUP BY s.id, i.registry, i.repository, i.tag, i.digest
 		ORDER BY s.scan_date DESC
 		LIMIT $2
 	`
