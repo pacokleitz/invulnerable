@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scanner-config
+  namespace: invulnerable
+data:
+  # List of images to scan (one per line)
+  images.txt: |
+    nginx:latest
+    alpine:latest
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vulnerability-scanner
+  namespace: invulnerable
+spec:
+  # Run every day at 2 AM
+  schedule: "0 2 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: vulnerability-scanner
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: scanner
+              image: invulnerable-scanner:latest
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: SCAN_IMAGE
+                  value: "nginx:latest"  # Override this or use ConfigMap
+                - name: API_ENDPOINT
+                  value: "http://backend.invulnerable.svc.cluster.local:8080"
+                - name: SBOM_FORMAT
+                  value: "cyclonedx"
+              resources:
+                requests:
+                  memory: "256Mi"
+                  cpu: "200m"
+                limits:
+                  memory: "1Gi"
+                  cpu: "1000m"
+---
+# Alternative: Scan multiple images using a script
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vulnerability-scanner-batch
+  namespace: invulnerable
+spec:
+  schedule: "0 3 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: vulnerability-scanner-batch
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: scanner
+              image: invulnerable-scanner:latest
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  #!/bin/bash
+                  # Read images from ConfigMap and scan each one
+                  while IFS= read -r image; do
+                    # Skip empty lines and comments
+                    [[ -z "$image" || "$image" =~ ^# ]] && continue
+
+                    echo "Scanning image: $image"
+                    export SCAN_IMAGE="$image"
+                    /scanner.sh
+
+                    # Wait a bit between scans to avoid overwhelming the API
+                    sleep 5
+                  done < /config/images.txt
+              env:
+                - name: API_ENDPOINT
+                  value: "http://backend.invulnerable.svc.cluster.local:8080"
+                - name: SBOM_FORMAT
+                  value: "cyclonedx"
+              volumeMounts:
+                - name: config
+                  mountPath: /config
+              resources:
+                requests:
+                  memory: "512Mi"
+                  cpu: "500m"
+                limits:
+                  memory: "2Gi"
+                  cpu: "2000m"
+          volumes:
+            - name: config
+              configMap:
+                name: scanner-config

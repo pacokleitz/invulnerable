@@ -1,0 +1,318 @@
+version: '3'
+
+vars:
+  NAMESPACE: invulnerable
+  BACKEND_IMAGE: invulnerable-backend:latest
+  FRONTEND_IMAGE: invulnerable-frontend:latest
+  SCANNER_IMAGE: invulnerable-scanner:latest
+  DB_USER: invulnerable
+  DB_PASSWORD: invulnerable
+  DB_NAME: invulnerable
+  DB_HOST: localhost
+  DB_PORT: 5432
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  # Build commands
+  build:backend:
+    desc: Build backend Docker image
+    cmds:
+      - echo "Building backend image..."
+      - docker build -t {{.BACKEND_IMAGE}} backend/
+    sources:
+      - backend/**/*.go
+      - backend/go.mod
+      - backend/go.sum
+      - backend/Dockerfile
+
+  build:frontend:
+    desc: Build frontend Docker image
+    cmds:
+      - echo "Building frontend image..."
+      - docker build -t {{.FRONTEND_IMAGE}} frontend/
+    sources:
+      - frontend/src/**/*
+      - frontend/package.json
+      - frontend/Dockerfile
+
+  build:scanner:
+    desc: Build scanner Docker image
+    cmds:
+      - echo "Building scanner image..."
+      - docker build -t {{.SCANNER_IMAGE}} k8s/cronjob/
+    sources:
+      - k8s/cronjob/Dockerfile
+      - k8s/cronjob/scanner.sh
+
+  build:all:
+    desc: Build all Docker images
+    deps:
+      - build:backend
+      - build:frontend
+      - build:scanner
+    cmds:
+      - echo "✓ All images built successfully!"
+
+  # Deploy commands
+  deploy:namespace:
+    desc: Create Kubernetes namespace
+    cmds:
+      - kubectl apply -f k8s/namespace.yaml
+    status:
+      - kubectl get namespace {{.NAMESPACE}} 2>/dev/null
+
+  deploy:postgres:
+    desc: Deploy PostgreSQL
+    deps:
+      - deploy:namespace
+    cmds:
+      - kubectl apply -f k8s/postgres/
+
+  deploy:migrations:
+    desc: Run database migrations as a Kubernetes Job
+    deps:
+      - deploy:namespace
+    cmds:
+      - kubectl apply -f k8s/backend/migration-configmap.yaml
+      - kubectl apply -f k8s/backend/migration-job.yaml
+
+  deploy:backend:
+    desc: Deploy backend (without auto-migrations)
+    deps:
+      - deploy:namespace
+    cmds:
+      - kubectl apply -f k8s/backend/deployment.yaml
+      - kubectl apply -f k8s/backend/hpa.yaml
+
+  deploy:backend-with-migrations:
+    desc: Deploy backend with init container migrations
+    deps:
+      - deploy:namespace
+    cmds:
+      - kubectl apply -f k8s/backend/migration-configmap.yaml
+      - kubectl apply -f k8s/backend/deployment-with-init-container.yaml
+      - kubectl apply -f k8s/backend/hpa.yaml
+
+  deploy:frontend:
+    desc: Deploy frontend
+    deps:
+      - deploy:namespace
+    cmds:
+      - kubectl apply -f k8s/frontend/
+
+  deploy:ingress:
+    desc: Deploy ingress
+    deps:
+      - deploy:namespace
+    cmds:
+      - kubectl apply -f k8s/ingress.yaml
+
+  deploy:cronjob:
+    desc: Deploy scanner CronJob
+    deps:
+      - deploy:namespace
+    cmds:
+      - kubectl apply -f k8s/cronjob/cronjob.yaml
+
+  deploy:
+    desc: Deploy all components to Kubernetes
+    deps:
+      - deploy:namespace
+      - deploy:postgres
+      - deploy:migrations
+      - deploy:backend
+      - deploy:frontend
+      - deploy:ingress
+      - deploy:cronjob
+    cmds:
+      - echo "All components deployed!"
+      - echo ""
+      - echo "Waiting for migration job to complete..."
+      - kubectl wait --for=condition=complete --timeout=120s job/db-migration -n {{.NAMESPACE}} || true
+      - echo ""
+      - echo "✓ Setup complete! Access the application:"
+      - echo "  kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8080:80"
+
+  # Database commands
+  db:migrate-up:
+    desc: Run database migrations (requires port-forward)
+    cmds:
+      - echo "Running database migrations..."
+      - echo "Make sure PostgreSQL port-forward is active:"
+      - echo "  kubectl port-forward -n {{.NAMESPACE}} svc/postgres 5432:5432"
+      - |
+        migrate -path backend/migrations \
+          -database "postgresql://{{.DB_USER}}:{{.DB_PASSWORD}}@{{.DB_HOST}}:{{.DB_PORT}}/{{.DB_NAME}}?sslmode=disable" \
+          up
+
+  db:migrate-down:
+    desc: Rollback last migration (requires port-forward)
+    cmds:
+      - echo "Rolling back last migration..."
+      - echo "Make sure PostgreSQL port-forward is active:"
+      - echo "  kubectl port-forward -n {{.NAMESPACE}} svc/postgres 5432:5432"
+      - |
+        migrate -path backend/migrations \
+          -database "postgresql://{{.DB_USER}}:{{.DB_PASSWORD}}@{{.DB_HOST}}:{{.DB_PORT}}/{{.DB_NAME}}?sslmode=disable" \
+          down 1
+
+  db:port-forward:
+    desc: Port-forward to PostgreSQL
+    cmds:
+      - kubectl port-forward -n {{.NAMESPACE}} svc/postgres 5432:5432
+
+  # Logs commands
+  logs:backend:
+    desc: Stream backend logs
+    cmds:
+      - kubectl logs -n {{.NAMESPACE}} -l app=backend -f
+
+  logs:frontend:
+    desc: Stream frontend logs
+    cmds:
+      - kubectl logs -n {{.NAMESPACE}} -l app=frontend -f
+
+  logs:scanner:
+    desc: Stream scanner logs
+    cmds:
+      - kubectl logs -n {{.NAMESPACE}} -l app=vulnerability-scanner -f
+
+  logs:migration:
+    desc: View migration job logs
+    cmds:
+      - kubectl logs -n {{.NAMESPACE}} job/db-migration
+
+  # Port-forward commands
+  port-forward:backend:
+    desc: Port-forward to backend service
+    cmds:
+      - kubectl port-forward -n {{.NAMESPACE}} svc/backend 8080:8080
+
+  port-forward:frontend:
+    desc: Port-forward to frontend service
+    cmds:
+      - kubectl port-forward -n {{.NAMESPACE}} svc/frontend 3000:80
+
+  # Development commands
+  dev:backend:
+    desc: Run backend locally
+    dir: backend
+    cmds:
+      - go mod download
+      - go run cmd/server/main.go
+    env:
+      PORT: 8080
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USER: "{{.DB_USER}}"
+      DB_PASSWORD: "{{.DB_PASSWORD}}"
+      DB_NAME: "{{.DB_NAME}}"
+      DB_SSLMODE: disable
+
+  dev:frontend:
+    desc: Run frontend locally
+    dir: frontend
+    cmds:
+      - npm install
+      - npm run dev
+
+  # Cleanup commands
+  clean:
+    desc: Delete all Kubernetes resources
+    prompt: This will delete the entire namespace. Continue?
+    cmds:
+      - kubectl delete namespace {{.NAMESPACE}}
+
+  clean:migrations:
+    desc: Delete migration job
+    cmds:
+      - kubectl delete job db-migration -n {{.NAMESPACE}} --ignore-not-found
+
+  # Status commands
+  status:
+    desc: Show deployment status
+    cmds:
+      - echo "=== Namespace ==="
+      - kubectl get namespace {{.NAMESPACE}} 2>/dev/null || echo "Namespace not found"
+      - echo ""
+      - echo "=== Pods ==="
+      - kubectl get pods -n {{.NAMESPACE}}
+      - echo ""
+      - echo "=== Services ==="
+      - kubectl get services -n {{.NAMESPACE}}
+      - echo ""
+      - echo "=== Jobs ==="
+      - kubectl get jobs -n {{.NAMESPACE}}
+
+  # Test commands
+  test:
+    desc: Run all tests
+    dir: backend
+    cmds:
+      - go test -v -race -coverprofile=coverage.out ./...
+
+  test:unit:
+    desc: Run unit tests only
+    dir: backend
+    cmds:
+      - go test -v -short ./...
+
+  test:coverage:
+    desc: Run tests with coverage report
+    dir: backend
+    cmds:
+      - go test -v -race -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "Coverage report generated - coverage.html"
+
+  test:watch:
+    desc: Run tests in watch mode (requires reflex)
+    dir: backend
+    cmds:
+      - |
+        if ! command -v reflex &> /dev/null; then
+          echo "Installing reflex..."
+          go install github.com/cespare/reflex@latest
+        fi
+      - reflex -r '\.go$' -s -- go test ./...
+
+  lint:
+    desc: Run linter (golangci-lint)
+    dir: backend
+    cmds:
+      - |
+        if ! command -v golangci-lint &> /dev/null; then
+          echo "Installing golangci-lint..."
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+        fi
+      - golangci-lint run ./...
+
+  # Validation commands
+  validate:k8s:
+    desc: Validate Kubernetes manifests
+    cmds:
+      - echo "Validating Kubernetes manifests..."
+      - kubectl apply --dry-run=client -f k8s/namespace.yaml
+      - kubectl apply --dry-run=client -f k8s/postgres/
+      - kubectl apply --dry-run=client -f k8s/backend/
+      - kubectl apply --dry-run=client -f k8s/frontend/
+      - kubectl apply --dry-run=client -f k8s/ingress.yaml
+      - echo "✓ All manifests are valid"
+
+  # Quick start
+  quickstart:
+    desc: Build and deploy everything (one command)
+    cmds:
+      - task: build:all
+      - task: deploy
+      - echo ""
+      - echo "✓ Quickstart complete!"
+      - echo ""
+      - echo "Next steps:"
+      - echo "  1. Check status - task status"
+      - echo "  2. View logs - task logs:backend"
+      - echo "  3. Port-forward - task port-forward:backend"

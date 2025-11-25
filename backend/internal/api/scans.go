@@ -1,0 +1,316 @@
+package api
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/labstack/echo/v4"
+	"github.com/invulnerable/backend/internal/analyzer"
+	"github.com/invulnerable/backend/internal/db"
+	"github.com/invulnerable/backend/internal/models"
+	"go.uber.org/zap"
+)
+
+type ScanHandler struct {
+	logger       *zap.Logger
+	imageRepo    *db.ImageRepository
+	scanRepo     *db.ScanRepository
+	vulnRepo     *db.VulnerabilityRepository
+	sbomRepo     *db.SBOMRepository
+	analyzer     *analyzer.Analyzer
+}
+
+func NewScanHandler(
+	logger *zap.Logger,
+	imageRepo *db.ImageRepository,
+	scanRepo *db.ScanRepository,
+	vulnRepo *db.VulnerabilityRepository,
+	sbomRepo *db.SBOMRepository,
+	analyzer *analyzer.Analyzer,
+) *ScanHandler {
+	return &ScanHandler{
+		logger:    logger,
+		imageRepo: imageRepo,
+		scanRepo:  scanRepo,
+		vulnRepo:  vulnRepo,
+		sbomRepo:  sbomRepo,
+		analyzer:  analyzer,
+	}
+}
+
+type ScanRequest struct {
+	Image        string          `json:"image"`
+	GrypeResult  models.GrypeResult `json:"grype_result"`
+	SBOM         json.RawMessage `json:"sbom"`
+	SBOMFormat   string          `json:"sbom_format"`
+	SBOMVersion  *string         `json:"sbom_version,omitempty"`
+}
+
+// CreateScan handles POST /api/v1/scans - receives scan results from CronJob
+func (h *ScanHandler) CreateScan(c echo.Context) error {
+	var req ScanRequest
+	if err := c.Bind(&req); err != nil {
+		h.logger.Error("failed to bind request", zap.Error(err))
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+
+	ctx := c.Request().Context()
+
+	// Parse image name (registry/repository:tag)
+	registry, repository, tag := parseImageName(req.Image)
+
+	// Get or create image
+	image, err := h.imageRepo.GetByName(ctx, registry, repository, tag)
+	if err != nil {
+		h.logger.Error("failed to get image", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get image")
+	}
+
+	if image == nil {
+		image = &models.Image{
+			Registry:   registry,
+			Repository: repository,
+			Tag:        tag,
+		}
+		if err := h.imageRepo.Create(ctx, image); err != nil {
+			h.logger.Error("failed to create image", zap.Error(err))
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to create image")
+		}
+	}
+
+	// Create scan record
+	syftVersion := "unknown"
+	grypeVersion := req.GrypeResult.Descriptor.Version
+	scan := &models.Scan{
+		ImageID:      image.ID,
+		ScanDate:     time.Now(),
+		SyftVersion:  &syftVersion,
+		GrypeVersion: &grypeVersion,
+		Status:       "completed",
+	}
+
+	if err := h.scanRepo.Create(ctx, scan); err != nil {
+		h.logger.Error("failed to create scan", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create scan")
+	}
+
+	// Store SBOM
+	sbom := &models.SBOM{
+		ScanID:   scan.ID,
+		Format:   req.SBOMFormat,
+		Version:  req.SBOMVersion,
+		Document: req.SBOM,
+	}
+
+	if err := h.sbomRepo.Create(ctx, sbom); err != nil {
+		h.logger.Error("failed to create SBOM", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create SBOM")
+	}
+
+	// Process vulnerabilities
+	for _, match := range req.GrypeResult.Matches {
+		// Determine fix version
+		var fixVersion *string
+		if match.Vulnerability.Fix != nil && len(match.Vulnerability.Fix.Versions) > 0 {
+			fv := match.Vulnerability.Fix.Versions[0]
+			fixVersion = &fv
+		}
+
+		// Get primary URL
+		var url *string
+		if len(match.Vulnerability.URLs) > 0 {
+			url = &match.Vulnerability.URLs[0]
+		}
+
+		vuln := &models.Vulnerability{
+			CVEID:           match.Vulnerability.ID,
+			PackageName:     match.Artifact.Name,
+			PackageVersion:  match.Artifact.Version,
+			PackageType:     &match.Artifact.Type,
+			Severity:        normalizeSeverity(match.Vulnerability.Severity),
+			FixVersion:      fixVersion,
+			URL:             url,
+			Description:     &match.Vulnerability.Description,
+			Status:          "active",
+			FirstDetectedAt: time.Now(),
+			LastSeenAt:      time.Now(),
+		}
+
+		// Check if vulnerability already exists
+		existing, err := h.vulnRepo.GetByUniqueKey(ctx, vuln.CVEID, vuln.PackageName, vuln.PackageVersion)
+		if err != nil {
+			h.logger.Error("failed to check existing vulnerability", zap.Error(err))
+			continue
+		}
+
+		if existing != nil {
+			// Update last_seen_at
+			vuln.ID = existing.ID
+			vuln.FirstDetectedAt = existing.FirstDetectedAt
+		}
+
+		if err := h.vulnRepo.Upsert(ctx, vuln); err != nil {
+			h.logger.Error("failed to upsert vulnerability", zap.Error(err))
+			continue
+		}
+
+		// Link vulnerability to scan
+		if err := h.vulnRepo.LinkToScan(ctx, scan.ID, vuln.ID); err != nil {
+			h.logger.Error("failed to link vulnerability to scan", zap.Error(err))
+		}
+	}
+
+	h.logger.Info("scan created successfully",
+		zap.Int("scan_id", scan.ID),
+		zap.String("image", req.Image),
+		zap.Int("vulnerabilities", len(req.GrypeResult.Matches)))
+
+	return c.JSON(http.StatusCreated, scan)
+}
+
+// ListScans handles GET /api/v1/scans
+func (h *ScanHandler) ListScans(c echo.Context) error {
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	offset, _ := strconv.Atoi(c.QueryParam("offset"))
+	if offset < 0 {
+		offset = 0
+	}
+
+	var imageID *int
+	if imageIDStr := c.QueryParam("image_id"); imageIDStr != "" {
+		id, err := strconv.Atoi(imageIDStr)
+		if err == nil {
+			imageID = &id
+		}
+	}
+
+	scans, err := h.scanRepo.List(c.Request().Context(), limit, offset, imageID)
+	if err != nil {
+		h.logger.Error("failed to list scans", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list scans")
+	}
+
+	return c.JSON(http.StatusOK, scans)
+}
+
+// GetScan handles GET /api/v1/scans/:id
+func (h *ScanHandler) GetScan(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid scan ID")
+	}
+
+	scan, err := h.scanRepo.GetWithDetails(c.Request().Context(), id)
+	if err != nil {
+		h.logger.Error("failed to get scan", zap.Error(err))
+		return echo.NewHTTPError(http.StatusNotFound, "scan not found")
+	}
+
+	// Get vulnerabilities for this scan
+	vulns, err := h.scanRepo.GetVulnerabilities(c.Request().Context(), id)
+	if err != nil {
+		h.logger.Error("failed to get vulnerabilities", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get vulnerabilities")
+	}
+
+	response := map[string]interface{}{
+		"scan":            scan,
+		"vulnerabilities": vulns,
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
+// GetSBOM handles GET /api/v1/scans/:id/sbom
+func (h *ScanHandler) GetSBOM(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid scan ID")
+	}
+
+	document, err := h.sbomRepo.GetDocumentByScanID(c.Request().Context(), id)
+	if err != nil {
+		h.logger.Error("failed to get SBOM", zap.Error(err))
+		return echo.NewHTTPError(http.StatusNotFound, "SBOM not found")
+	}
+
+	return c.JSONBlob(http.StatusOK, document)
+}
+
+// GetScanDiff handles GET /api/v1/scans/:id/diff
+func (h *ScanHandler) GetScanDiff(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid scan ID")
+	}
+
+	diff, err := h.analyzer.CompareScan(c.Request().Context(), id)
+	if err != nil {
+		h.logger.Error("failed to compare scan", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to compare scan")
+	}
+
+	return c.JSON(http.StatusOK, diff)
+}
+
+// Helper functions
+
+func parseImageName(fullName string) (registry, repository, tag string) {
+	// Default tag
+	tag = "latest"
+	repoPath := fullName
+
+	// Find the last '/' to separate registry/repo from tag
+	lastSlash := strings.LastIndex(fullName, "/")
+
+	// Find the last ':' after the last '/' (if any)
+	// This is the tag separator, not a port separator
+	tagSeparator := strings.LastIndex(fullName, ":")
+	if tagSeparator > lastSlash {
+		// There's a tag
+		tag = fullName[tagSeparator+1:]
+		repoPath = fullName[:tagSeparator]
+	}
+
+	// Split registry/repository
+	slashParts := strings.Split(repoPath, "/")
+
+	if len(slashParts) == 1 {
+		// No registry, just repository
+		registry = "docker.io"
+		repository = slashParts[0]
+	} else if strings.Contains(slashParts[0], ".") || strings.Contains(slashParts[0], ":") {
+		// Has registry (either has a dot like gcr.io, or has a port like localhost:5000)
+		registry = slashParts[0]
+		repository = strings.Join(slashParts[1:], "/")
+	} else {
+		// Docker Hub format (e.g., library/nginx)
+		registry = "docker.io"
+		repository = repoPath
+	}
+
+	return
+}
+
+func normalizeSeverity(severity string) string {
+	severity = strings.ToUpper(severity)
+	switch severity {
+	case "CRITICAL":
+		return "Critical"
+	case "HIGH":
+		return "High"
+	case "MEDIUM":
+		return "Medium"
+	case "LOW":
+		return "Low"
+	default:
+		return "Unknown"
+	}
+}

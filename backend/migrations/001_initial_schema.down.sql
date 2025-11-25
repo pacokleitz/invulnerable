@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS scan_vulnerabilities;
+DROP TABLE IF EXISTS vulnerabilities;
+DROP TABLE IF EXISTS sboms;
+DROP TABLE IF EXISTS scans;
+DROP TABLE IF EXISTS images;
