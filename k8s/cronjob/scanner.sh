@@ -60,17 +60,22 @@ GRYPE_CONTENT=$(cat "$GRYPE_FILE")
 # Extract SBOM version if available
 SBOM_VERSION=$(echo "$SBOM_CONTENT" | jq -r '.bomFormat + " " + .specVersion' 2>/dev/null || echo "unknown")
 
+# Extract image digest from Grype source target
+IMAGE_DIGEST=$(echo "$GRYPE_CONTENT" | jq -r '.source.target.imageID // .source.target.repoDigests[0] // empty' 2>/dev/null || echo "")
+
 # Create JSON payload
 PAYLOAD=$(jq -n \
     --arg image "$IMAGE" \
     --arg sbom_format "$SBOM_FORMAT" \
     --arg sbom_version "$SBOM_VERSION" \
+    --arg image_digest "$IMAGE_DIGEST" \
     --argjson sbom "$SBOM_CONTENT" \
     --argjson grype "$GRYPE_CONTENT" \
     '{
         image: $image,
         sbom_format: $sbom_format,
         sbom_version: $sbom_version,
+        image_digest: (if $image_digest != "" then $image_digest else null end),
         sbom: $sbom,
         grype_result: $grype
     }')

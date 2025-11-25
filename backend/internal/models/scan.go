@@ -15,12 +15,13 @@ type Scan struct {
 
 type ScanWithDetails struct {
 	Scan
-	ImageName          string `db:"image_name" json:"image_name"`
-	VulnerabilityCount int    `db:"vulnerability_count" json:"vulnerability_count"`
-	CriticalCount      int    `db:"critical_count" json:"critical_count"`
-	HighCount          int    `db:"high_count" json:"high_count"`
-	MediumCount        int    `db:"medium_count" json:"medium_count"`
-	LowCount           int    `db:"low_count" json:"low_count"`
+	ImageName          string  `db:"image_name" json:"image_name"`
+	ImageDigest        *string `db:"image_digest" json:"image_digest,omitempty"`
+	VulnerabilityCount int     `db:"vulnerability_count" json:"vulnerability_count"`
+	CriticalCount      int     `db:"critical_count" json:"critical_count"`
+	HighCount          int     `db:"high_count" json:"high_count"`
+	MediumCount        int     `db:"medium_count" json:"medium_count"`
+	LowCount           int     `db:"low_count" json:"low_count"`
 }
 
 type ScanDiff struct {

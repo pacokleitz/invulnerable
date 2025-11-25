@@ -69,6 +69,10 @@
 					<dd class="mt-1 text-sm text-gray-900">{scan.image_name}</dd>
 				</div>
 				<div>
+					<dt class="text-sm font-medium text-gray-500">Image Digest</dt>
+					<dd class="mt-1 text-sm text-gray-900 font-mono break-all">{scan.image_digest || 'N/A'}</dd>
+				</div>
+				<div>
 					<dt class="text-sm font-medium text-gray-500">Scan Date</dt>
 					<dd class="mt-1 text-sm text-gray-900">{formatDate(scan.scan_date)}</dd>
 				</div>

@@ -42,11 +42,12 @@ func NewScanHandler(
 }
 
 type ScanRequest struct {
-	Image        string          `json:"image"`
+	Image        string             `json:"image"`
+	ImageDigest  *string            `json:"image_digest,omitempty"`
 	GrypeResult  models.GrypeResult `json:"grype_result"`
-	SBOM         json.RawMessage `json:"sbom"`
-	SBOMFormat   string          `json:"sbom_format"`
-	SBOMVersion  *string         `json:"sbom_version,omitempty"`
+	SBOM         json.RawMessage    `json:"sbom"`
+	SBOMFormat   string             `json:"sbom_format"`
+	SBOMVersion  *string            `json:"sbom_version,omitempty"`
 }
 
 // CreateScan handles POST /api/v1/scans - receives scan results from CronJob
@@ -62,23 +63,16 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 	// Parse image name (registry/repository:tag)
 	registry, repository, tag := parseImageName(req.Image)
 
-	// Get or create image
-	image, err := h.imageRepo.GetByName(ctx, registry, repository, tag)
-	if err != nil {
-		h.logger.Error("failed to get image", zap.Error(err))
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get image")
+	// Get or create image (Create method handles upsert with digest update)
+	image := &models.Image{
+		Registry:   registry,
+		Repository: repository,
+		Tag:        tag,
+		Digest:     req.ImageDigest,
 	}
-
-	if image == nil {
-		image = &models.Image{
-			Registry:   registry,
-			Repository: repository,
-			Tag:        tag,
-		}
-		if err := h.imageRepo.Create(ctx, image); err != nil {
-			h.logger.Error("failed to create image", zap.Error(err))
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to create image")
-		}
+	if err := h.imageRepo.Create(ctx, image); err != nil {
+		h.logger.Error("failed to create/update image", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create/update image")
 	}
 
 	// Create scan record

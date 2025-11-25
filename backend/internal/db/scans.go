@@ -44,6 +44,7 @@ func (r *ScanRepository) GetWithDetails(ctx context.Context, id int) (*models.Sc
 		SELECT
 			s.*,
 			i.registry || '/' || i.repository || ':' || i.tag as image_name,
+			i.digest as image_digest,
 			COUNT(DISTINCT sv.vulnerability_id) as vulnerability_count,
 			COUNT(DISTINCT CASE WHEN v.severity = 'Critical' THEN v.id END) as critical_count,
 			COUNT(DISTINCT CASE WHEN v.severity = 'High' THEN v.id END) as high_count,
@@ -54,7 +55,7 @@ func (r *ScanRepository) GetWithDetails(ctx context.Context, id int) (*models.Sc
 		LEFT JOIN scan_vulnerabilities sv ON sv.scan_id = s.id
 		LEFT JOIN vulnerabilities v ON v.id = sv.vulnerability_id
 		WHERE s.id = $1
-		GROUP BY s.id, i.registry, i.repository, i.tag
+		GROUP BY s.id, i.registry, i.repository, i.tag, i.digest
 	`
 	var scan models.ScanWithDetails
 	if err := r.db.GetContext(ctx, &scan, query, id); err != nil {

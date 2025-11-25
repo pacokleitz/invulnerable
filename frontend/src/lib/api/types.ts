@@ -30,6 +30,7 @@ export interface Scan {
 
 export interface ScanWithDetails extends Scan {
 	image_name: string;
+	image_digest?: string;
 	vulnerability_count: number;
 	critical_count: number;
 	high_count: number;
