@@ -120,7 +120,31 @@ func (r *ScanRepository) GetPreviousScan(ctx context.Context, imageID int, curre
 
 func (r *ScanRepository) GetVulnerabilities(ctx context.Context, scanID int) ([]models.Vulnerability, error) {
 	query := `
-		SELECT v.* FROM vulnerabilities v
+		SELECT
+			v.id,
+			v.cve_id,
+			v.package_name,
+			v.package_version,
+			v.package_type,
+			v.severity,
+			v.fix_version,
+			v.url,
+			v.description,
+			v.status,
+			-- Calculate first detection for this specific image
+			(
+				SELECT MIN(s2.scan_date)
+				FROM scan_vulnerabilities sv2
+				JOIN scans s2 ON s2.id = sv2.scan_id
+				WHERE sv2.vulnerability_id = v.id
+					AND s2.image_id = (SELECT image_id FROM scans WHERE id = $1)
+			) as first_detected_at,
+			v.last_seen_at,
+			v.remediation_date,
+			v.notes,
+			v.created_at,
+			v.updated_at
+		FROM vulnerabilities v
 		JOIN scan_vulnerabilities sv ON sv.vulnerability_id = v.id
 		WHERE sv.scan_id = $1
 		ORDER BY

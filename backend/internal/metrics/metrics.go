@@ -15,13 +15,12 @@ func New(database *db.Database) *Service {
 }
 
 type DashboardMetrics struct {
-	TotalImages            int                    `json:"total_images"`
-	TotalScans             int                    `json:"total_scans"`
-	TotalVulnerabilities   int                    `json:"total_vulnerabilities"`
-	ActiveVulnerabilities  int                    `json:"active_vulnerabilities"`
-	SeverityCounts         SeverityCounts         `json:"severity_counts"`
-	RecentScans            int                    `json:"recent_scans_24h"`
-	VulnerabilityTrend     []VulnerabilityTrendPoint `json:"vulnerability_trend"`
+	TotalImages            int            `json:"total_images"`
+	TotalScans             int            `json:"total_scans"`
+	TotalVulnerabilities   int            `json:"total_vulnerabilities"`
+	ActiveVulnerabilities  int            `json:"active_vulnerabilities"`
+	SeverityCounts         SeverityCounts `json:"severity_counts"`
+	RecentScans            int            `json:"recent_scans_24h"`
 }
 
 type SeverityCounts struct {
@@ -29,11 +28,6 @@ type SeverityCounts struct {
 	High     int `json:"high"`
 	Medium   int `json:"medium"`
 	Low      int `json:"low"`
-}
-
-type VulnerabilityTrendPoint struct {
-	Date   string `json:"date"`
-	Count  int    `json:"count"`
 }
 
 func (s *Service) GetDashboardMetrics(ctx context.Context) (*DashboardMetrics, error) {
@@ -82,23 +76,6 @@ func (s *Service) GetDashboardMetrics(ctx context.Context) (*DashboardMetrics, e
 	// Recent scans (last 24 hours)
 	err = s.db.GetContext(ctx, &metrics.RecentScans,
 		"SELECT COUNT(*) FROM scans WHERE scan_date > NOW() - INTERVAL '24 hours'")
-	if err != nil {
-		return nil, err
-	}
-
-	// Vulnerability trend (last 30 days)
-	metrics.VulnerabilityTrend = []VulnerabilityTrendPoint{}
-	trendQuery := `
-		SELECT
-			DATE(scan_date) as date,
-			COUNT(DISTINCT sv.vulnerability_id) as count
-		FROM scans s
-		LEFT JOIN scan_vulnerabilities sv ON sv.scan_id = s.id
-		WHERE s.scan_date > NOW() - INTERVAL '30 days'
-		GROUP BY DATE(scan_date)
-		ORDER BY date DESC
-	`
-	err = s.db.SelectContext(ctx, &metrics.VulnerabilityTrend, trendQuery)
 	if err != nil {
 		return nil, err
 	}

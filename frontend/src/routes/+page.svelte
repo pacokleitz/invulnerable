@@ -80,31 +80,6 @@
 				</div>
 			</div>
 		</div>
-
-		<!-- Vulnerability Trend -->
-		{#if $metrics.vulnerability_trend && $metrics.vulnerability_trend.length > 0}
-			<div class="card">
-				<h2 class="text-xl font-bold text-gray-900 mb-4">Vulnerability Trend (30 Days)</h2>
-				<div class="overflow-x-auto">
-					<table class="min-w-full divide-y divide-gray-200">
-						<thead>
-							<tr>
-								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Count</th>
-							</tr>
-						</thead>
-						<tbody class="divide-y divide-gray-200">
-							{#each $metrics.vulnerability_trend.slice(0, 10) as point}
-								<tr>
-									<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{point.date}</td>
-									<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{point.count}</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
-			</div>
-		{/if}
 	{:else}
 		<div class="text-center py-12">
 			<p class="text-gray-500">No metrics available</p>

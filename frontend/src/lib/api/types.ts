@@ -82,10 +82,6 @@ export interface DashboardMetrics {
 		low: number;
 	};
 	recent_scans_24h: number;
-	vulnerability_trend: Array<{
-		date: string;
-		count: number;
-	}>;
 }
 
 export interface VulnerabilityUpdate {

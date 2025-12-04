@@ -133,6 +133,7 @@
 								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Version</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Severity</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">First Detected</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fix Version</th>
 							</tr>
 						</thead>
@@ -149,6 +150,9 @@
 									</td>
 									<td class="px-6 py-4 whitespace-nowrap text-sm">
 										<StatusBadge status={vuln.status} />
+									</td>
+									<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+										{formatDate(vuln.first_detected_at)}
 									</td>
 									<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
 										{vuln.fix_version || 'N/A'}
