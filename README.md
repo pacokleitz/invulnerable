@@ -1,6 +1,7 @@
-# Invulnerable - Cloud-Native Vulnerability Management Platform
-
-A cloud-native vulnerability management platform that integrates with Anchore tools (Syft + Grype) for container image scanning and vulnerability detection.
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/3bb63436-14c1-4d92-ab9c-a29f05c9775a" width="300" />
+  <p>A cloud-native vulnerability management platform that integrates with Anchore tools (Syft + Grype) for container image scanning and vulnerability detection.</p>
+</div>
 
 ## Architecture
 
