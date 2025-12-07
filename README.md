@@ -3,14 +3,6 @@
   <p>A cloud-native vulnerability management platform that integrates with Anchore tools (Syft + Grype) for container image scanning and vulnerability detection.</p>
 </div>
 
-## Architecture
-
-- **Backend**: Go 1.21+ with Echo framework, sqlx, and PostgreSQL
-- **Frontend**: SvelteKit with TypeScript and TailwindCSS
-- **Database**: PostgreSQL with JSONB support for SBOM storage
-- **Scanning**: Anchore Syft (SBOM generation) + Grype (vulnerability scanning)
-- **Deployment**: Kubernetes
-
 ## Features
 
 <img width="1470" height="810" alt="Screenshot 2025-12-07 at 02 03 42" src="https://github.com/user-attachments/assets/a6b2fcff-fda0-45ee-8e2b-4d177a37ab9e" />
@@ -24,6 +16,14 @@
 - ✅ RESTful API
 - ✅ Container image inventory
 - ✅ Automated scanning via Kubernetes CronJobs
+
+## Architecture
+
+- **Backend**: Go 1.21+ with Echo framework, sqlx, and PostgreSQL
+- **Frontend**: SvelteKit with TypeScript and TailwindCSS
+- **Database**: PostgreSQL with JSONB support for SBOM storage
+- **Scanning**: Anchore Syft (SBOM generation) + Grype (vulnerability scanning)
+- **Deployment**: Kubernetes
 
 ## Project Structure
 
