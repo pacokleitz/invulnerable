@@ -13,6 +13,9 @@
 
 ## Features
 
+<img width="1470" height="810" alt="Screenshot 2025-12-07 at 02 03 42" src="https://github.com/user-attachments/assets/a6b2fcff-fda0-45ee-8e2b-4d177a37ab9e" />
+
+
 - ✅ SBOM generation and storage (CycloneDX/SPDX)
 - ✅ Vulnerability lifecycle tracking
 - ✅ Scan comparison and diff analysis
