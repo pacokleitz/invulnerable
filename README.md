@@ -327,7 +327,6 @@ task --list
 2. **Scaling**:
    - HPA configured for backend
    - Adjust resource limits based on workload
-   - Consider read replicas for PostgreSQL
 
 3. **Monitoring**:
    - Add Prometheus metrics
@@ -337,33 +336,6 @@ task --list
 4. **Backup**:
    - PostgreSQL backups
    - SBOM retention policy
-
-## Task vs Make
-
-This project uses [Task](https://taskfile.dev) instead of Make for the following benefits:
-
-- **YAML-based**: More readable and easier to maintain than Makefile syntax
-- **Cross-platform**: Works consistently on Linux, macOS, and Windows
-- **Built-in features**: Variables, dependencies, file watching, parallel execution
-- **Better error handling**: Clear error messages and status codes
-- **Developer-friendly**: Autocomplete support and better documentation
-
-### Install Task
-
-```bash
-# macOS
-brew install go-task/tap/go-task
-
-# Linux (via script)
-sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b ~/.local/bin
-
-# Windows (via Scoop)
-scoop install task
-
-# Or download from: https://github.com/go-task/task/releases
-```
-
-**Note:** The Makefile is still included for backwards compatibility, but Task is recommended.
 
 ## License
 
