@@ -1,7 +1,6 @@
 import type {
 	DashboardMetrics,
 	ImageWithStats,
-	Scan,
 	ScanDiff,
 	ScanWithDetails,
 	Vulnerability,
@@ -30,11 +29,19 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
 export const api = {
 	// Scans
 	scans: {
-		list: (params?: { limit?: number; offset?: number; image_id?: number }) => {
+		list: (params?: {
+			limit?: number;
+			offset?: number;
+			image_id?: number;
+			from_date?: string;
+			to_date?: string;
+		}) => {
 			const searchParams = new URLSearchParams();
 			if (params?.limit) searchParams.set('limit', params.limit.toString());
 			if (params?.offset) searchParams.set('offset', params.offset.toString());
 			if (params?.image_id) searchParams.set('image_id', params.image_id.toString());
+			if (params?.from_date) searchParams.set('from_date', params.from_date);
+			if (params?.to_date) searchParams.set('to_date', params.to_date);
 
 			const query = searchParams.toString();
 			return fetchAPI<ScanWithDetails[]>(`/scans${query ? `?${query}` : ''}`);
@@ -55,12 +62,23 @@ export const api = {
 
 	// Vulnerabilities
 	vulnerabilities: {
-		list: (params?: { limit?: number; offset?: number; severity?: string; status?: string }) => {
+		list: (params?: {
+			limit?: number;
+			offset?: number;
+			severity?: string;
+			status?: string;
+			package_name?: string;
+			cve_id?: string;
+			image_id?: number;
+		}) => {
 			const searchParams = new URLSearchParams();
 			if (params?.limit) searchParams.set('limit', params.limit.toString());
 			if (params?.offset) searchParams.set('offset', params.offset.toString());
 			if (params?.severity) searchParams.set('severity', params.severity);
 			if (params?.status) searchParams.set('status', params.status);
+			if (params?.package_name) searchParams.set('package_name', params.package_name);
+			if (params?.cve_id) searchParams.set('cve_id', params.cve_id);
+			if (params?.image_id) searchParams.set('image_id', params.image_id.toString());
 
 			const query = searchParams.toString();
 			return fetchAPI<Vulnerability[]>(`/vulnerabilities${query ? `?${query}` : ''}`);
@@ -80,10 +98,19 @@ export const api = {
 
 	// Images
 	images: {
-		list: (params?: { limit?: number; offset?: number }) => {
+		list: (params?: {
+			limit?: number;
+			offset?: number;
+			registry?: string;
+			repository?: string;
+			tag?: string;
+		}) => {
 			const searchParams = new URLSearchParams();
 			if (params?.limit) searchParams.set('limit', params.limit.toString());
 			if (params?.offset) searchParams.set('offset', params.offset.toString());
+			if (params?.registry) searchParams.set('registry', params.registry);
+			if (params?.repository) searchParams.set('repository', params.repository);
+			if (params?.tag) searchParams.set('tag', params.tag);
 
 			const query = searchParams.toString();
 			return fetchAPI<ImageWithStats[]>(`/images${query ? `?${query}` : ''}`);

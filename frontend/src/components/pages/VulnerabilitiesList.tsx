@@ -1,0 +1,233 @@
+import { FC, useState, useEffect, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { api } from '../../lib/api/client';
+import type { Vulnerability } from '../../lib/api/types';
+import { SeverityBadge } from '../ui/SeverityBadge';
+import { StatusBadge } from '../ui/StatusBadge';
+import { formatDate } from '../../lib/utils/formatters';
+
+export const VulnerabilitiesList: FC = () => {
+	const [vulnerabilities, setVulnerabilities] = useState<Vulnerability[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+	const [searchParams, setSearchParams] = useSearchParams();
+
+	// Filters from URL
+	const severityFilter = searchParams.get('severity') || '';
+	const statusFilter = searchParams.get('status') || '';
+	const packageFilter = searchParams.get('package') || '';
+	const cveFilter = searchParams.get('cve') || '';
+
+	const loadVulnerabilities = useCallback(async () => {
+		setLoading(true);
+		setError(null);
+
+		try {
+			const params: { limit: number; severity?: string; status?: string; package_name?: string; cve_id?: string } = { limit: 200 };
+			if (severityFilter) params.severity = severityFilter;
+			if (statusFilter) params.status = statusFilter;
+			if (packageFilter) params.package_name = packageFilter;
+			if (cveFilter) params.cve_id = cveFilter;
+
+			const data = await api.vulnerabilities.list(params);
+			setVulnerabilities(data);
+		} catch (e) {
+			setError(e instanceof Error ? e.message : 'Failed to load vulnerabilities');
+		} finally {
+			setLoading(false);
+		}
+	}, [severityFilter, statusFilter, packageFilter, cveFilter]);
+
+	useEffect(() => {
+		document.title = 'Vulnerabilities - Invulnerable';
+	}, []);
+
+	useEffect(() => {
+		loadVulnerabilities();
+	}, [loadVulnerabilities]);
+
+	const updateFilter = useCallback((key: string, value: string) => {
+		setSearchParams(prev => {
+			const newParams = new URLSearchParams(prev);
+			if (value) {
+				newParams.set(key, value);
+			} else {
+				newParams.delete(key);
+			}
+			return newParams;
+		});
+	}, [setSearchParams]);
+
+	const handleClearFilters = useCallback(() => {
+		setSearchParams({});
+	}, [setSearchParams]);
+
+	if (loading) {
+		return (
+			<div className="text-center py-12">
+				<p className="text-gray-500">Loading vulnerabilities...</p>
+			</div>
+		);
+	}
+
+	return (
+		<div className="space-y-6">
+			<div className="flex justify-between items-center">
+				<h1 className="text-3xl font-bold text-gray-900">Vulnerabilities</h1>
+			</div>
+
+			{/* Filters */}
+			<div className="card">
+				<h3 className="text-sm font-semibold text-gray-700 mb-3">Filters</h3>
+				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+					<div>
+						<label htmlFor="severity" className="block text-sm font-medium text-gray-700">
+							Severity
+						</label>
+						<select
+							id="severity"
+							value={severityFilter}
+							onChange={(e) => updateFilter('severity', e.target.value)}
+							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+						>
+							<option value="">All</option>
+							<option value="Critical">Critical</option>
+							<option value="High">High</option>
+							<option value="Medium">Medium</option>
+							<option value="Low">Low</option>
+						</select>
+					</div>
+
+					<div>
+						<label htmlFor="status" className="block text-sm font-medium text-gray-700">
+							Status
+						</label>
+						<select
+							id="status"
+							value={statusFilter}
+							onChange={(e) => updateFilter('status', e.target.value)}
+							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+						>
+							<option value="">All</option>
+							<option value="active">Active</option>
+							<option value="fixed">Fixed</option>
+							<option value="ignored">Ignored</option>
+							<option value="accepted">Accepted</option>
+						</select>
+					</div>
+
+					<div>
+						<label htmlFor="packageFilter" className="block text-sm font-medium text-gray-700">
+							Package Name
+						</label>
+						<input
+							type="text"
+							id="packageFilter"
+							value={packageFilter}
+							onChange={(e) => updateFilter('package', e.target.value)}
+							placeholder="e.g., openssl"
+							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+						/>
+					</div>
+
+					<div>
+						<label htmlFor="cveFilter" className="block text-sm font-medium text-gray-700">
+							CVE ID
+						</label>
+						<input
+							type="text"
+							id="cveFilter"
+							value={cveFilter}
+							onChange={(e) => updateFilter('cve', e.target.value)}
+							placeholder="e.g., CVE-2023-1234"
+							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+						/>
+					</div>
+				</div>
+
+				<div className="mt-4 flex justify-between items-center">
+					<p className="text-sm text-gray-600">Showing {vulnerabilities.length} vulnerabilities</p>
+					<button onClick={handleClearFilters} className="btn btn-secondary text-sm">
+						Clear Filters
+					</button>
+				</div>
+			</div>
+
+			{error && (
+				<div className="card bg-red-50">
+					<p className="text-red-600">{error}</p>
+				</div>
+			)}
+
+			{vulnerabilities.length === 0 ? (
+				<div className="card text-center py-12">
+					<p className="text-gray-500">No vulnerabilities found</p>
+				</div>
+			) : (
+				<div className="card overflow-hidden">
+					<div className="overflow-x-auto">
+						<table className="min-w-full divide-y divide-gray-200">
+							<thead className="bg-gray-50">
+								<tr>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+										CVE ID
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+										Package
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+										Version
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+										Severity
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+										Status
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+										First Detected
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+										Fix Version
+									</th>
+								</tr>
+							</thead>
+							<tbody className="bg-white divide-y divide-gray-200">
+								{vulnerabilities.map((vuln) => (
+									<tr key={vuln.id} className="hover:bg-gray-50">
+										<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+											<Link
+												to={`/vulnerabilities/${vuln.cve_id}`}
+												className="hover:underline"
+											>
+												{vuln.cve_id}
+											</Link>
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+											{vuln.package_name}
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+											{vuln.package_version}
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap text-sm">
+											<SeverityBadge severity={vuln.severity} />
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap text-sm">
+											<StatusBadge status={vuln.status} />
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+											{formatDate(vuln.first_detected_at)}
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+											{vuln.fix_version || 'N/A'}
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			)}
+		</div>
+	);
+};
