@@ -1,0 +1,60 @@
+# Dex OIDC Provider for local development
+# This provides a test OIDC server with static users
+
+config:
+  issuer: http://dex.invulnerable.local/dex
+
+  storage:
+    type: memory
+
+  web:
+    http: 0.0.0.0:5556
+
+  # Static OAuth2 clients (oauth2-proxy)
+  staticClients:
+  - id: invulnerable-local
+    redirectURIs:
+    - 'http://invulnerable.local/oauth2/callback'
+    name: 'Invulnerable Local'
+    secret: dex-local-secret
+
+  # Enable password grant for testing
+  enablePasswordDB: true
+
+  # Static users for local testing
+  staticPasswords:
+  - email: "admin@invulnerable.local"
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W" # password: password
+    username: "admin"
+    userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+
+  - email: "user@invulnerable.local"
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W" # password: password
+    username: "user"
+    userID: "41331323-6f44-45e6-b3b9-2c4b60c02be5"
+
+  - email: "test@example.com"
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W" # password: password
+    username: "testuser"
+    userID: "f5d3c1a2-8b7e-4c9d-a3f1-2e6b8c9d0e1f"
+
+# Ingress for Dex
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+  hosts:
+  - host: dex.invulnerable.local
+    paths:
+    - path: /
+      pathType: Prefix
+
+# Resource limits for local dev
+resources:
+  requests:
+    memory: "32Mi"
+    cpu: "25m"
+  limits:
+    memory: "128Mi"
+    cpu: "100m"

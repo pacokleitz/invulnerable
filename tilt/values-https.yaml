@@ -1,0 +1,68 @@
+# Tilt local development values with HTTPS/TLS enabled
+# Use this when cert-manager is installed
+# Extends tilt-values.yaml with TLS configuration
+
+# OAuth2 Proxy - HTTPS configuration
+oauth2Proxy:
+  enabled: true
+  replicaCount: 1
+
+  # Local dev credentials (insecure - DO NOT use in production!)
+  clientID: "invulnerable-local-dev"
+  clientSecret: "local-dev-secret-do-not-use-in-production"
+  cookieSecret: "0123456789abcdef0123456789abcdef"  # 32 chars
+
+  config:
+    provider: "google"
+
+    # HTTPS redirect URL when using cert-manager
+    redirectUrl: "https://invulnerable.local/oauth2/callback"
+
+    emailDomains:
+      - "*"  # WARNING: Allows ANY email - for local dev only!
+
+    # Enable cookie security for HTTPS
+    cookieSecure: true
+    cookieName: "_oauth2_proxy_local"
+
+    skipProviderButton: true
+
+    extraArgs:
+      - "--skip-auth-preflight=true"
+      - "--reverse-proxy=true"
+
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "25m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+
+# Ingress configuration with TLS
+ingress:
+  enabled: true
+  className: "nginx"
+
+  annotations:
+    # Enable TLS redirect
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Use cert-manager to generate certificate
+    cert-manager.io/cluster-issuer: "selfsigned-issuer"
+
+  hosts:
+    - host: invulnerable.local
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend: backend
+        - path: /
+          pathType: Prefix
+          backend: frontend
+
+  # Enable TLS with cert-manager generated certificate
+  tls:
+    - secretName: invulnerable-tls
+      hosts:
+        - invulnerable.local

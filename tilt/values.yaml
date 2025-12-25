@@ -1,0 +1,155 @@
+# Tilt local development values
+# Overrides helm/invulnerable/values.yaml for local dev
+
+# Use local registry
+image:
+  registry: "localhost:5001"
+
+# Backend configuration
+backend:
+  replicaCount: 1
+
+  database:
+    host: "postgres-postgresql.invulnerable.svc.cluster.local"
+    port: 5432
+    user: "invulnerable"
+    password: "invulnerable"
+    name: "invulnerable"
+    sslmode: "disable"
+
+  autoscaling:
+    enabled: false
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# Frontend configuration
+frontend:
+  replicaCount: 1
+
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+# Controller configuration
+controller:
+  replicaCount: 1
+
+  rbac:
+    clusterWide: false
+
+  leaderElection:
+    enabled: false
+
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+# Scanner configuration
+scanner:
+  image:
+    repository: "invulnerable-scanner"
+    tag: "latest"
+
+# OAuth2 Proxy - Configured for local development
+# Using a simple setup that allows access from localhost
+oauth2Proxy:
+  enabled: true
+  replicaCount: 1
+
+  # Local dev credentials (insecure - DO NOT use in production!)
+  clientID: "invulnerable-local-dev"
+  clientSecret: "local-dev-secret-do-not-use-in-production"
+  cookieSecret: "0123456789abcdef0123456789abcdef"  # 32 chars
+
+  config:
+    # Use mock/email provider for local dev
+    # This allows any email to log in (insecure but convenient for local dev)
+    provider: "google"
+
+    # For local development, you can:
+    # 1. Use your own Google OAuth credentials (recommended)
+    # 2. Use GitHub OAuth for testing
+    # 3. Comment out email domains to allow all (very insecure!)
+
+    # If using Google OAuth (create at https://console.cloud.google.com):
+    # 1. Create OAuth 2.0 Client ID
+    # 2. Add http://invulnerable.local/oauth2/callback to redirect URIs
+    # 3. Replace clientID and clientSecret above with your values
+
+    redirectUrl: "http://invulnerable.local/oauth2/callback"
+
+    # Allow your email domain or specific emails
+    emailDomains:
+      - "*"  # WARNING: Allows ANY email - for local dev only!
+
+    # Disable cookie security for HTTP (local dev only)
+    cookieSecure: false
+    cookieName: "_oauth2_proxy_local"
+
+    # Skip provider button for faster login
+    skipProviderButton: true
+
+    # Extra args for local development
+    extraArgs:
+      - "--skip-auth-preflight=true"
+      - "--reverse-proxy=true"
+
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "25m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"  # Allow HTTP for local dev
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+
+  hosts:
+    - host: invulnerable.local
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend: backend
+        - path: /
+          pathType: Prefix
+          backend: frontend
+
+  # No TLS for local development
+  tls: []
+
+# Security contexts - relaxed for local dev
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000

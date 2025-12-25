@@ -1,0 +1,29 @@
+# PostgreSQL values for local development with Tilt
+# Uses Bitnami PostgreSQL chart
+
+auth:
+  username: "invulnerable"
+  password: "invulnerable"
+  database: "invulnerable"
+  enablePostgresUser: true
+  postgresPassword: "postgres"
+
+primary:
+  persistence:
+    enabled: false  # Disable persistence for faster dev cycles
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# Disable read replicas for local dev
+readReplicas:
+  replicaCount: 0
+
+# Metrics disabled for local dev
+metrics:
+  enabled: false

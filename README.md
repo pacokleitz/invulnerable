@@ -332,8 +332,9 @@ See [Helm Chart README](helm/invulnerable/README.md) for all configuration optio
 
 ## 📚 Documentation
 
-- **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment with Helm
-- **[Authentication Setup](docs/AUTHENTICATION.md)** - OAuth2 configuration for all providers
+- **[Tilt Development Guide](TILT.md)** - Local development with Tilt + kind
+- **[Deployment Guide](DEPLOYMENT.md)** - Production deployment with Helm
+- **[Authentication Setup](AUTHENTICATION.md)** - OAuth2 configuration for all providers
 - **[Helm Chart README](helm/invulnerable/README.md)** - Complete chart configuration reference
 - **[Controller Documentation](controller/README.md)** - ImageScan CRD usage and RBAC
 - **[Controller Security](controller/SECURITY.md)** - Security model and best practices
@@ -342,7 +343,41 @@ See [Helm Chart README](helm/invulnerable/README.md) for all configuration optio
 
 ## 🛠️ Development
 
-### Local Development Setup
+### Quick Start with Tilt (Recommended)
+
+The fastest way to get started with local development is using [Tilt](https://tilt.dev/), which provides:
+- One-command setup with Docker Desktop Kubernetes
+- Automatic deployment of nginx-ingress, cert-manager (optional), PostgreSQL
+- Live reload for Go and React code
+- Full deployment with ingress + oauth2-proxy
+- Visual dashboard for logs and resources
+
+```bash
+# One-time setup (enable Kubernetes in Docker Desktop, configure /etc/hosts)
+./scripts/setup-tilt.sh
+
+# Start development environment (HTTP mode)
+tilt up
+
+# OR start with HTTPS enabled
+tilt up -- --enable-https
+
+# Access:
+# - Tilt UI: http://localhost:10350
+# - Application: http://invulnerable.local (or https:// with --enable-https)
+# - Direct ports: localhost:3000 (frontend), localhost:8080 (backend)
+```
+
+**What Tilt deploys automatically:**
+- nginx Ingress Controller
+- cert-manager (with `--enable-https` flag)
+- PostgreSQL
+- Backend, Frontend, Controller, Scanner
+- OAuth2 Proxy
+
+See **[Tilt Development Guide](TILT.md)** for complete documentation.
+
+### Local Development Setup (Without Kubernetes)
 
 **Prerequisites:**
 - Go 1.21+

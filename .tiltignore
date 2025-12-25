@@ -1,0 +1,60 @@
+# Tiltignore - files to ignore for live updates
+# Similar to .dockerignore
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+**/node_modules/
+**/dist/
+**/build/
+**/.next/
+**/target/
+**/bin/
+**/obj/
+
+# Test files (don't trigger rebuilds)
+**/*_test.go
+**/test/
+**/__tests__/
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+
+# Documentation
+*.md
+docs/
+
+# Helm
+helm/invulnerable/charts/
+helm/invulnerable/*.tgz
+
+# Kubernetes
+k8s/
+
+# Local dev
+.env
+.env.local
+*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
