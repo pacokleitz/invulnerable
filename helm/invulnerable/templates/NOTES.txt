@@ -1,0 +1,46 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named {{ .Release.Name }}.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
+  $ helm get all {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+{{- if .Values.ingress.enabled }}
+
+Application URLs:
+{{- range .Values.ingress.hosts }}
+  {{- if .host }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+  {{- end }}
+{{- end }}
+{{- else }}
+
+Get the application URL by running these commands:
+
+  Frontend:
+  export POD_NAME=$(kubectl get pods -n {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "invulnerable.name" . }},app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=frontend" -o jsonpath="{.items[0].metadata.name}")
+  kubectl -n {{ .Release.Namespace }} port-forward $POD_NAME 8080:80
+  echo "Visit http://127.0.0.1:8080 to use your application"
+
+  Backend API:
+  export POD_NAME=$(kubectl get pods -n {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "invulnerable.name" . }},app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=backend" -o jsonpath="{.items[0].metadata.name}")
+  kubectl -n {{ .Release.Namespace }} port-forward $POD_NAME 8080:{{ .Values.backend.service.port }}
+  echo "Visit http://127.0.0.1:8080/health to check backend health"
+{{- end }}
+
+Database Configuration:
+  Host: {{ .Values.backend.database.host }}
+  Port: {{ .Values.backend.database.port }}
+  Database: {{ .Values.backend.database.name }}
+
+  Note: Make sure your PostgreSQL database is accessible and properly configured.
+
+Scanner Configuration:
+{{- if .Values.scanner.enabled }}
+  Scanner: Enabled (Schedule: {{ .Values.scanner.schedule }})
+  Scanning {{ len .Values.scanner.images }} image(s)
+{{- end }}
+
+For more information, visit the project documentation.

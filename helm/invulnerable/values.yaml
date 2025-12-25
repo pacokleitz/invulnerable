@@ -1,0 +1,191 @@
+# Default values for invulnerable
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Global settings
+nameOverride: ""
+fullnameOverride: ""
+
+# Global image registry
+# This registry will be used for all images unless overridden at component level
+# Examples:
+#   registry: ""                              # Use Docker Hub (default)
+#   registry: "docker.io"                     # Explicit Docker Hub
+#   registry: "ghcr.io"                       # GitHub Container Registry
+#   registry: "myregistry.azurecr.io"        # Azure Container Registry
+#   registry: "gcr.io/my-project"            # Google Container Registry
+#   registry: "123456789012.dkr.ecr.us-east-1.amazonaws.com"  # AWS ECR
+image:
+  registry: ""
+
+# Frontend configuration
+frontend:
+  enabled: true
+  replicaCount: 2
+  image:
+    registry: ""  # Override global registry if needed
+    repository: invulnerable-frontend
+    pullPolicy: IfNotPresent
+    tag: "latest"
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Backend configuration
+backend:
+  enabled: true
+  replicaCount: 2
+  image:
+    registry: ""  # Override global registry if needed
+    repository: invulnerable-backend
+    pullPolicy: IfNotPresent
+    tag: "latest"
+
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+
+  # Database configuration (external postgres)
+  database:
+    host: "postgres.default.svc.cluster.local"
+    port: 5432
+    user: "invulnerable"
+    password: "changeme"  # Use external secret in production
+    name: "invulnerable"
+    sslmode: "disable"
+    # Alternative: use existing secret
+    existingSecret: ""
+    passwordKey: "password"
+
+  # Health checks
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 30
+    periodSeconds: 10
+
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 5
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  # Horizontal Pod Autoscaler
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Scanner configuration
+scanner:
+  enabled: true
+  image:
+    registry: ""  # Override global registry if needed
+    repository: invulnerable-scanner
+    pullPolicy: IfNotPresent
+    tag: "latest"
+
+  # Scanner for images (supports single or multiple images)
+  schedule: "0 2 * * *"  # Run daily at 2 AM
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  # List of images to scan (can be one or many)
+  images:
+    - nginx:latest
+    - alpine:latest
+    - ubuntu:22.04
+
+  # Scanner configuration
+  apiEndpoint: ""  # Auto-configured from backend service
+  sbomFormat: "cyclonedx"
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # Add cert-manager annotation if using TLS
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+
+  hosts:
+    - host: invulnerable.local
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend: backend
+        - path: /
+          pathType: Prefix
+          backend: frontend
+
+  tls: []
+  # - secretName: invulnerable-tls
+  #   hosts:
+  #     - invulnerable.local
+
+# Service Account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Image pull secrets
+imagePullSecrets: []
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+# Security context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000

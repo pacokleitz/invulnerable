@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: postgres-init
-  namespace: invulnerable
-data:
-  init.sql: |
-    -- Database is already created via POSTGRES_DB env var
-    -- This script can be used for additional initialization if needed

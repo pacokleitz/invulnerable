@@ -1,0 +1,15 @@
+apiVersion: v2
+name: invulnerable
+description: A Helm chart for Invulnerable - Container vulnerability scanner and management
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - security
+  - vulnerability
+  - scanner
+  - grype
+home: https://github.com/pacokleitz/invulnerable
+maintainers:
+  - name: Paco KLEITZ
+    email: kpaco@proton.me

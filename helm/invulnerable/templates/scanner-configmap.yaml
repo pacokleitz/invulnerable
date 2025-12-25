@@ -1,0 +1,13 @@
+{{- if .Values.scanner.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "invulnerable.fullname" . }}-scanner-config
+  labels:
+    {{- include "invulnerable.scanner.labels" . | nindent 4 }}
+data:
+  images.txt: |
+    {{- range .Values.scanner.images }}
+    {{ . }}
+    {{- end }}
+{{- end }}

@@ -10,7 +10,13 @@
       "Bash(ls:*)",
       "Bash(npm install)",
       "Bash(npm run build:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(tree:*)",
+      "Bash(helm lint:*)",
+      "Bash(helm template:*)",
+      "Bash(docker build:*)",
+      "Bash(docker inspect:*)",
+      "Bash(docker run:*)"
     ],
     "deny": [],
     "ask": []
