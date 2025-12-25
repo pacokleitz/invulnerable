@@ -1,0 +1,12 @@
+{{- if and .Values.oauth2Proxy.enabled .Values.oauth2Proxy.config.configFile }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "invulnerable.fullname" . }}-oauth2-proxy-config
+  labels:
+    {{- include "invulnerable.labels" . | nindent 4 }}
+    app.kubernetes.io/component: oauth2-proxy
+data:
+  oauth2-proxy.cfg: |
+    {{- .Values.oauth2Proxy.config.configFile | nindent 4 }}
+{{- end }}

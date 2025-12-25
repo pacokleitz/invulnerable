@@ -1,0 +1,54 @@
+# Example: Enable OAuth2 authentication with GitHub
+#
+# Prerequisites:
+# 1. Create OAuth App at https://github.com/settings/developers
+# 2. Set Authorization callback URL to: https://your-domain.com/oauth2/callback
+# 3. Generate cookie secret: openssl rand -base64 32 | head -c 32
+
+oauth2Proxy:
+  enabled: true
+
+  # OAuth credentials from GitHub OAuth App
+  clientID: "your-github-client-id"
+  clientSecret: "your-github-client-secret"
+  cookieSecret: "your-32-char-cookie-secret"
+
+  config:
+    provider: "github"
+    redirectUrl: "https://invulnerable.example.com/oauth2/callback"
+
+    cookieSecure: true
+
+    # Restrict to specific GitHub organization
+    extraArgs:
+      - "--github-org=your-organization"
+      # Or restrict to specific team within organization
+      # - "--github-team=your-organization/team-name"
+
+# For GitHub Enterprise
+# oauth2Proxy:
+#   config:
+#     provider: "github"
+#     loginUrl: "https://github.company.com/login/oauth/authorize"
+#     redeemUrl: "https://github.company.com/login/oauth/access_token"
+#     validateUrl: "https://github.company.com/api/v3/user"
+#     redirectUrl: "https://invulnerable.example.com/oauth2/callback"
+#     extraArgs:
+#       - "--github-endpoint=https://github.company.com/api/v3"
+
+ingress:
+  enabled: true
+  hosts:
+    - host: invulnerable.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend: backend
+        - path: /
+          pathType: Prefix
+          backend: frontend
+
+  tls:
+    - secretName: invulnerable-tls
+      hosts:
+        - invulnerable.example.com

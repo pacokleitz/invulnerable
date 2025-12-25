@@ -85,6 +85,20 @@ The following table lists the configurable parameters and their default values.
 | `scanner.image.repository` | Scanner image repository (used by ImageScan CRDs) | `invulnerable-scanner` |
 | `scanner.image.tag` | Scanner image tag | `latest` |
 
+#### OAuth2 Proxy (Authentication)
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `oauth2Proxy.enabled` | Enable OAuth2 authentication | `false` |
+| `oauth2Proxy.clientID` | OAuth client ID | `""` |
+| `oauth2Proxy.clientSecret` | OAuth client secret | `""` |
+| `oauth2Proxy.cookieSecret` | Cookie encryption secret (32 chars) | `""` |
+| `oauth2Proxy.existingSecret` | Use existing secret for credentials | `""` |
+| `oauth2Proxy.config.provider` | OAuth provider (google, github, oidc, etc.) | `"oidc"` |
+| `oauth2Proxy.config.oidcIssuerUrl` | OIDC issuer URL | `""` |
+| `oauth2Proxy.config.redirectUrl` | OAuth redirect URL | `"https://invulnerable.local/oauth2/callback"` |
+| `oauth2Proxy.config.emailDomains` | Restrict to email domains | `[]` |
+
 #### Ingress
 
 | Parameter | Description | Default |
@@ -178,6 +192,46 @@ Install with custom values:
 ```bash
 helm install invulnerable ./helm/invulnerable -f custom-values.yaml
 ```
+
+### Authentication with OAuth2
+
+Invulnerable supports OAuth2 authentication for protecting access to the application. See [examples/](examples/) for provider-specific configurations.
+
+**Enable with Google:**
+
+```bash
+# Generate cookie secret
+COOKIE_SECRET=$(openssl rand -base64 32 | head -c 32)
+
+# Install with Google OAuth
+helm install invulnerable ./helm/invulnerable \
+  --set oauth2Proxy.enabled=true \
+  --set oauth2Proxy.clientID="your-id.apps.googleusercontent.com" \
+  --set oauth2Proxy.clientSecret="your-secret" \
+  --set oauth2Proxy.cookieSecret="$COOKIE_SECRET" \
+  --set oauth2Proxy.config.provider="google" \
+  --set oauth2Proxy.config.redirectUrl="https://invulnerable.example.com/oauth2/callback" \
+  --set oauth2Proxy.config.emailDomains[0]="example.com"
+```
+
+**Or use a values file:**
+
+```yaml
+# values-with-auth.yaml
+oauth2Proxy:
+  enabled: true
+  clientID: "your-client-id"
+  clientSecret: "your-client-secret"
+  cookieSecret: "your-32-char-secret"
+  config:
+    provider: "oidc"
+    oidcIssuerUrl: "https://your-provider.com"
+    redirectUrl: "https://invulnerable.example.com/oauth2/callback"
+    emailDomains:
+      - "example.com"
+```
+
+See [../../AUTHENTICATION.md](../../AUTHENTICATION.md) for detailed setup instructions and all supported providers.
 
 ### Registry Configuration Examples
 

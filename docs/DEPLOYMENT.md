@@ -463,8 +463,79 @@ kubectl run pg-restore --image=postgres:15 -i --rm --restart=Never -- \
   psql -h <db-host> -U invulnerable -d invulnerable < backup.sql
 ```
 
+## Authentication
+
+Invulnerable supports OAuth2 authentication using oauth2-proxy. This allows you to protect access to the application using various OAuth providers (Google, GitHub, Azure AD, Keycloak, etc.).
+
+### Enable Authentication
+
+```yaml
+# production-values.yaml
+oauth2Proxy:
+  enabled: true
+
+  # OAuth credentials
+  clientID: "your-client-id"
+  clientSecret: "your-client-secret"
+  cookieSecret: "generate-with-openssl-rand"
+
+  config:
+    provider: "oidc"
+    oidcIssuerUrl: "https://your-provider.com"
+    redirectUrl: "https://invulnerable.example.com/oauth2/callback"
+
+    # Restrict to your organization
+    emailDomains:
+      - "example.com"
+```
+
+### Quick Setup Examples
+
+**Google OAuth:**
+```yaml
+oauth2Proxy:
+  enabled: true
+  clientID: "xxxx.apps.googleusercontent.com"
+  clientSecret: "your-secret"
+  cookieSecret: "your-cookie-secret"
+  config:
+    provider: "google"
+    redirectUrl: "https://invulnerable.example.com/oauth2/callback"
+    emailDomains:
+      - "yourcompany.com"
+```
+
+**GitHub OAuth:**
+```yaml
+oauth2Proxy:
+  enabled: true
+  clientID: "your-github-client-id"
+  clientSecret: "your-github-client-secret"
+  cookieSecret: "your-cookie-secret"
+  config:
+    provider: "github"
+    redirectUrl: "https://invulnerable.example.com/oauth2/callback"
+    extraArgs:
+      - "--github-org=your-organization"
+```
+
+**Keycloak (OIDC):**
+```yaml
+oauth2Proxy:
+  enabled: true
+  clientID: "invulnerable"
+  clientSecret: "your-keycloak-secret"
+  cookieSecret: "your-cookie-secret"
+  config:
+    provider: "oidc"
+    oidcIssuerUrl: "https://keycloak.example.com/realms/your-realm"
+    redirectUrl: "https://invulnerable.example.com/oauth2/callback"
+```
+
+For detailed configuration and more providers, see [AUTHENTICATION.md](AUTHENTICATION.md).
+
 ## Support
 
 For issues and questions:
 - GitHub Issues: https://github.com/pacokleitz/invulnerable/issues
-- Documentation: See README.md and helm/invulnerable/README.md
+- Documentation: See README.md, helm/invulnerable/README.md, and AUTHENTICATION.md

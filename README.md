@@ -1,346 +1,500 @@
-# Invulnerable - Cloud-Native Vulnerability Management Platform
+# Invulnerable
 
-A cloud-native vulnerability management platform that integrates with Anchore tools (Syft + Grype) for container image scanning and vulnerability detection.
+> Cloud-native container vulnerability management platform powered by Anchore
 
-## Architecture
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-1.19%2B-blue)](https://kubernetes.io/)
+[![Go Version](https://img.shields.io/badge/Go-1.21%2B-00ADD8?logo=go)](https://go.dev/)
+[![Helm](https://img.shields.io/badge/Helm-3.0%2B-0F1689?logo=helm)](https://helm.sh/)
 
-- **Backend**: Go 1.21+ with Echo framework, sqlx, and PostgreSQL
-- **Frontend**: SvelteKit with TypeScript and TailwindCSS
-- **Database**: PostgreSQL with JSONB support for SBOM storage
-- **Scanning**: Anchore Syft (SBOM generation) + Grype (vulnerability scanning)
-- **Deployment**: Kubernetes
+Invulnerable is a Kubernetes-native vulnerability management platform that provides automated container image scanning, SBOM generation, and vulnerability lifecycle tracking. Built on top of Anchore's industry-standard tools (Syft and Grype), it offers a modern web interface and comprehensive API for managing security at scale.
 
-## Features
+![Invulnerable Dashboard](docs/images/dashboard-screenshot.png)
 
-- ✅ SBOM generation and storage (CycloneDX/SPDX)
-- ✅ Vulnerability lifecycle tracking
-- ✅ Scan comparison and diff analysis
-- ✅ Multi-severity vulnerability management
-- ✅ Dashboard with metrics and trends
-- ✅ RESTful API
-- ✅ Container image inventory
-- ✅ Automated scanning via Kubernetes CronJobs
+## ✨ Key Features
 
-## Project Structure
+- 🔍 **Automated SBOM Generation** - Uses Syft to create detailed Software Bill of Materials in CycloneDX/SPDX formats
+- 🛡️ **Vulnerability Scanning** - Powered by Grype for comprehensive CVE detection across multiple ecosystems
+- 📊 **Vulnerability Lifecycle Tracking** - Monitor vulnerabilities from discovery to resolution
+- 🔄 **Scan Comparison & Diff** - Track changes between scans to identify new and fixed vulnerabilities
+- 📈 **Metrics & Dashboards** - Real-time insights into your security posture
+- 🎯 **Kubernetes-Native** - CRD-based controller for declarative image scanning
+- 🔐 **OAuth2 Authentication** - Support for Google, GitHub, Keycloak, Azure AD, and more
+- 🚀 **Production-Ready** - Helm charts, HPA, and non-root containers
+
+## 📑 Table of Contents
+
+- [Architecture](#architecture)
+- [Quick Start](#quick-start)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Documentation](#documentation)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
+
+## 🏗️ Architecture
 
 ```
-invulnerable/
-├── backend/              # Go backend application
-│   ├── cmd/server/      # Main application entry point
-│   ├── internal/
-│   │   ├── api/         # HTTP handlers
-│   │   ├── db/          # Database layer (sqlx)
-│   │   ├── models/      # Data models
-│   │   ├── analyzer/    # Scan diff logic
-│   │   └── metrics/     # Metrics service
-│   ├── migrations/      # SQL migrations
-│   └── Dockerfile
-├── frontend/            # SvelteKit frontend
-│   ├── src/
-│   │   ├── routes/     # SvelteKit pages
-│   │   └── lib/        # Components, API client, stores
-│   └── Dockerfile
-└── k8s/                # Kubernetes manifests
-    ├── backend/
-    ├── frontend/
-    ├── postgres/
-    └── cronjob/        # Syft+Grype scanner
+┌─────────────────────────────────────────────────────────┐
+│                    Invulnerable Platform                 │
+├──────────────┬──────────────────┬───────────────────────┤
+│   Frontend   │     Backend      │      Controller       │
+│  (React +    │   (Go + Echo)    │  (Kubernetes CRD)     │
+│  Vite)       │                  │                       │
+└──────┬───────┴────────┬─────────┴──────────┬────────────┘
+       │                │                    │
+       │                ├────────────────────┤
+       │                │   PostgreSQL       │
+       │                │   (SBOM + Data)    │
+       │                └────────────────────┘
+       │                          │
+       └──────────────────────────┼───────────────────┐
+                                  │                   │
+                          ┌───────▼────────┐  ┌───────▼────────┐
+                          │  ImageScan CRD │  │  ImageScan CRD │
+                          │  (nginx:latest)│  │  (app:v1.0.0)  │
+                          └───────┬────────┘  └───────┬────────┘
+                                  │                   │
+                          ┌───────▼────────┐  ┌───────▼────────┐
+                          │  Scanner Job   │  │  Scanner Job   │
+                          │  (Syft+Grype)  │  │  (Syft+Grype)  │
+                          └────────────────┘  └────────────────┘
 ```
 
-## Quick Start
+**Tech Stack:**
+- **Backend**: Go 1.21+ with Echo framework, sqlx, PostgreSQL
+- **Frontend**: React 18 with Vite, TypeScript, TailwindCSS
+- **Controller**: Kubernetes controller-runtime, kubebuilder patterns
+- **Scanning**: Anchore Syft (SBOM) + Grype (vulnerabilities)
+- **Auth**: OAuth2-Proxy with multi-provider support
+- **Database**: PostgreSQL 15+ with JSONB for SBOM storage
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Kubernetes cluster
+- Kubernetes 1.19+ cluster
+- Helm 3.0+
 - kubectl configured
-- Docker
-- [Task](https://taskfile.dev) - Install with: `brew install go-task/tap/go-task` (macOS) or see [installation guide](https://taskfile.dev/installation/)
 
-### 1. Build Images
+### Installation with Helm
 
 ```bash
-# Build all images at once
-task build:all
+# Add Helm repository (if published)
+# helm repo add invulnerable https://pacokleitz.github.io/invulnerable
 
-# Or build individually
-task build:backend
-task build:frontend
-task build:scanner
+# Install with default values
+helm install invulnerable ./helm/invulnerable \
+  --namespace invulnerable \
+  --create-namespace
+
+# Access the application
+kubectl port-forward -n invulnerable svc/invulnerable-frontend 8080:80
+
+# Visit http://localhost:8080
 ```
 
-### 2. Deploy to Kubernetes
+### Create Your First Image Scan
 
-**Quick Deploy (Automated - Recommended)**
 ```bash
-# Deploy everything including automated migrations
+# Define images to scan using Kubernetes CRDs
+kubectl apply -f - <<EOF
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: nginx-scan
+  namespace: invulnerable
+spec:
+  image: "nginx:latest"
+  schedule: "0 */6 * * *"  # Every 6 hours
+EOF
+
+# Check scan status
+kubectl get imagescans -n invulnerable
+kubectl describe imagescan nginx-scan -n invulnerable
+```
+
+## 📦 Installation
+
+### Using Helm (Recommended)
+
+See the complete [Deployment Guide](docs/DEPLOYMENT.md) for production installations.
+
+**Quick production setup:**
+
+```bash
+# 1. Create values file
+cat > production-values.yaml <<EOF
+image:
+  registry: "ghcr.io/yourusername"
+
+backend:
+  database:
+    host: "postgres.production.svc.cluster.local"
+    existingSecret: "postgres-credentials"
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+    - host: invulnerable.example.com
+      paths:
+        - path: /api
+          backend: backend
+        - path: /
+          backend: frontend
+  tls:
+    - secretName: invulnerable-tls
+      hosts:
+        - invulnerable.example.com
+EOF
+
+# 2. Install
+helm install invulnerable ./helm/invulnerable \
+  -f production-values.yaml \
+  --namespace invulnerable \
+  --create-namespace
+```
+
+### Using Taskfile (Development)
+
+```bash
+# Install Task: https://taskfile.dev
+brew install go-task/tap/go-task  # macOS
+
+# One-command deploy
+task quickstart
+
+# Or step by step
+task build:all
 task deploy
 ```
 
-**Or use the quickstart (build + deploy in one command)**
+## 🎯 Usage
+
+### Web Interface
+
+Access the dashboard at your ingress hostname or via port-forward:
+
+- **Dashboard**: View metrics, trends, and recent activity
+- **Images**: Browse scanned container images
+- **Scans**: View scan history and results
+- **Vulnerabilities**: Search and filter CVEs, update status
+- **Scan Diff**: Compare scans to see what changed
+
+### API Endpoints
+
+**Scans**
 ```bash
-task quickstart
+# Submit scan results
+curl -X POST http://api/v1/scans -d @scan-results.json
+
+# List scans
+curl http://api/v1/scans?limit=20&offset=0
+
+# Get scan details
+curl http://api/v1/scans/{id}
+
+# Compare with previous scan
+curl http://api/v1/scans/{id}/diff
 ```
 
-**Manual Deploy**
+**Vulnerabilities**
 ```bash
-# Deploy individual components
-task deploy:namespace
-task deploy:postgres
-task deploy:migrations
-task deploy:backend
-task deploy:frontend
-task deploy:ingress
-task deploy:cronjob
+# List vulnerabilities with filters
+curl "http://api/v1/vulnerabilities?severity=critical&status=active"
 
-# Check deployment status
-task status
+# Get CVE details
+curl http://api/v1/vulnerabilities/{cve}
+
+# Update vulnerability status
+curl -X PATCH http://api/v1/vulnerabilities/{id} \
+  -d '{"status":"accepted","notes":"Risk accepted for legacy system"}'
 ```
 
-### 3. Run Database Migrations
-
-You have three options for running migrations:
-
-#### **Option A: Kubernetes Job (Recommended for Production)**
-
-This runs migrations as a one-time Kubernetes Job before deploying the app:
-
+**Metrics**
 ```bash
-# Deploy migrations as a Job
-task deploy:migrations
-
-# Check migration logs
-task logs:migration
+# Get dashboard metrics
+curl http://api/v1/metrics
 ```
 
-#### **Option B: Init Container (Fully Automated)**
+See [API Documentation](docs/api.md) for complete reference.
 
-Migrations run automatically as an init container before each pod starts:
+### Kubernetes CRDs
 
-```bash
-# Use deployment with init container instead of regular deployment
-task deploy:backend-with-migrations
+Define images to scan declaratively:
+
+```yaml
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: production-api
+  namespace: invulnerable
+spec:
+  # Image to scan
+  image: "myregistry.io/api:v2.1.0"
+
+  # Scan schedule (cron format)
+  schedule: "0 */6 * * *"  # Every 6 hours
+
+  # SBOM format (cyclonedx or spdx)
+  sbomFormat: "cyclonedx"
+
+  # Resource limits for scanner jobs
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+
+  # Suspend scanning (useful for maintenance)
+  suspend: false
 ```
 
-This approach automatically runs migrations every time the backend deploys, ensuring the database is always up to date.
+## ⚙️ Configuration
 
-#### **Option C: Manual Migration (Development Only)**
+### Authentication
 
-For local development, you can run migrations manually:
+Enable OAuth2 authentication for protecting access:
 
-```bash
-# Install golang-migrate
-brew install golang-migrate  # macOS
-# OR
-curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz
-sudo mv migrate /usr/local/bin/  # Linux
+```yaml
+# values.yaml
+oauth2Proxy:
+  enabled: true
+  clientID: "your-client-id"
+  clientSecret: "your-client-secret"
+  cookieSecret: "generate-with-openssl"
 
-# Port-forward to PostgreSQL (in one terminal)
-task db:port-forward
-
-# Run migrations (in another terminal)
-task db:migrate-up
+  config:
+    provider: "google"  # or github, azure, oidc, etc.
+    redirectUrl: "https://invulnerable.example.com/oauth2/callback"
+    emailDomains:
+      - "yourcompany.com"
 ```
 
-### 4. Access the Application
+See [Authentication Guide](docs/AUTHENTICATION.md) for provider-specific setup (Google, GitHub, Keycloak, Azure AD, etc.).
 
-```bash
-# Add to /etc/hosts
-echo "127.0.0.1 invulnerable.local" | sudo tee -a /etc/hosts
+### Registry Configuration
 
-# Port-forward ingress (if using nginx-ingress)
-kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8080:80
+Use private container registries:
 
-# Access at http://invulnerable.local:8080
+```yaml
+# Global registry for all components
+image:
+  registry: "ghcr.io/myorg"
+
+# Or override per component
+scanner:
+  image:
+    registry: "myregistry.azurecr.io"
+    repository: "invulnerable-scanner"
 ```
 
-## API Endpoints
+### Database
 
-### Scans
-- `POST /api/v1/scans` - Receive scan results from CronJob
-- `GET /api/v1/scans` - List scans with pagination
-- `GET /api/v1/scans/:id` - Get scan details
-- `GET /api/v1/scans/:id/sbom` - Retrieve SBOM
-- `GET /api/v1/scans/:id/diff` - Compare with previous scan
+External PostgreSQL is required:
 
-### Vulnerabilities
-- `GET /api/v1/vulnerabilities` - List vulnerabilities
-- `GET /api/v1/vulnerabilities/:cve` - Get CVE details
-- `PATCH /api/v1/vulnerabilities/:id` - Update status/notes
-
-### Images
-- `GET /api/v1/images` - List tracked images
-- `GET /api/v1/images/:id/history` - Scan history
-
-### Metrics
-- `GET /api/v1/metrics` - Dashboard metrics
-
-## Migration Strategies Comparison
-
-| Approach | Pros | Cons | Best For |
-|----------|------|------|----------|
-| **Kubernetes Job** | • Runs once before deployment<br>• Easy to track with logs<br>• Can use Helm hooks | • Requires manual trigger (unless using Helm hooks) | Production with CI/CD pipelines |
-| **Init Container** | • Fully automated<br>• Runs on every deploy<br>• No manual steps | • Runs on every pod restart<br>• Slightly slower pod startup | Production with frequent deployments |
-| **Manual** | • Full control<br>• Good for testing | • Manual process<br>• Error-prone | Local development only |
-
-**Recommendation:** Use **Kubernetes Job** in CI/CD pipelines or **Init Container** for fully automated deployments.
-
-## Configuration
-
-### Backend Environment Variables
-
-```bash
-PORT=8080
-DB_HOST=postgres
-DB_PORT=5432
-DB_USER=invulnerable
-DB_PASSWORD=changeme
-DB_NAME=invulnerable
-DB_SSLMODE=disable
+```yaml
+backend:
+  database:
+    host: "postgres.example.com"
+    port: 5432
+    user: "invulnerable"
+    name: "invulnerable"
+    sslmode: "require"
+    existingSecret: "db-credentials"
+    passwordKey: "password"
 ```
 
-### Scanner Configuration
+See [Helm Chart README](helm/invulnerable/README.md) for all configuration options.
 
-Edit `k8s/cronjob/cronjob.yaml` to:
-- Change scan schedule (default: daily at 2 AM)
-- Update image list in ConfigMap
-- Modify resource limits
+## 📚 Documentation
 
-## Development
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment with Helm
+- **[Authentication Setup](docs/AUTHENTICATION.md)** - OAuth2 configuration for all providers
+- **[Helm Chart README](helm/invulnerable/README.md)** - Complete chart configuration reference
+- **[Controller Documentation](controller/README.md)** - ImageScan CRD usage and RBAC
+- **[Controller Security](controller/SECURITY.md)** - Security model and best practices
+- **[API Reference](docs/api.md)** - REST API documentation
+- **[Taskfile Reference](.taskfile.md)** - Development commands and workflows
 
-### Run Locally
+## 🛠️ Development
+
+### Local Development Setup
+
+**Prerequisites:**
+- Go 1.21+
+- Node.js 18+
+- PostgreSQL 15+
+- Docker
+- Task (optional but recommended)
+
+**Run locally:**
 
 ```bash
-# Run backend (requires PostgreSQL running locally)
+# Start PostgreSQL (or use existing)
+docker run -d \
+  -e POSTGRES_USER=invulnerable \
+  -e POSTGRES_PASSWORD=changeme \
+  -e POSTGRES_DB=invulnerable \
+  -p 5432:5432 \
+  postgres:15
+
+# Run migrations
+cd backend
+make migrate-up
+
+# Start backend
 task dev:backend
+# Or: cd backend && go run cmd/server/main.go
 
-# Run frontend (in another terminal)
+# Start frontend (in another terminal)
 task dev:frontend
-
-# Port-forward to Kubernetes PostgreSQL for local development
-task db:port-forward
+# Or: cd frontend && npm run dev
 ```
 
 ### Testing
-
-The project includes comprehensive tests using [testify](https://github.com/stretchr/testify):
 
 ```bash
 # Run all tests
 task test
 
-# Run tests with coverage report
+# Run with coverage
 task test:coverage
-
-# Run only unit tests
-task test:unit
-
-# Run tests in watch mode (auto-rerun on file changes)
-task test:watch
 
 # Run linter
 task lint
 
-# Or use make (in backend directory)
-cd backend
-make test
-make test-coverage
-make lint
+# Watch mode
+task test:watch
 ```
 
 **Test Coverage:**
-- ✅ Model tests (image, grype parsing)
-- ✅ Database repository tests (with sqlmock)
-- ✅ API handler tests
-- ✅ Analyzer/diff logic tests
-- ✅ Mocked database interactions
+- ✅ Unit tests for models, DB layer, API handlers
+- ✅ Integration tests with database mocking
+- ✅ Scan diff/analyzer logic tests
+- ✅ Test files in `*_test.go`
 
-**Test Files:**
-- `backend/internal/models/*_test.go` - Model unit tests
-- `backend/internal/db/*_test.go` - Database layer tests
-- `backend/internal/api/*_test.go` - API handler tests
-- `backend/internal/analyzer/*_test.go` - Scan comparison tests
+### Building
 
-### Available Task Commands
-
-View all available commands:
 ```bash
-task --list
+# Build all images
+task build:all
+
+# Build specific component
+task build:backend
+task build:frontend
+task build:scanner
+task build:controller
+
+# Tag and push to registry
+docker tag invulnerable-backend:latest ghcr.io/yourusername/invulnerable-backend:v1.0.0
+docker push ghcr.io/yourusername/invulnerable-backend:v1.0.0
 ```
 
-**Common Commands:**
-- `task quickstart` - Build and deploy everything (one command)
-- `task build:all` - Build all Docker images
-- `task deploy` - Deploy all components to Kubernetes
-- `task test` - Run all tests with race detection
-- `task test:coverage` - Run tests with coverage report
-- `task lint` - Run linter (golangci-lint)
-- `task status` - Show deployment status
-- `task logs:backend` - Stream backend logs
-- `task db:migrate-up` - Run migrations manually
-- `task clean` - Delete all resources
+### Project Structure
 
-**📖 For a complete list of commands and workflows, see [.taskfile.md](./.taskfile.md)**
+```
+invulnerable/
+├── backend/                 # Go backend application
+│   ├── cmd/server/         # Main entry point
+│   ├── internal/
+│   │   ├── api/           # HTTP handlers
+│   │   ├── db/            # Database layer (sqlx)
+│   │   ├── models/        # Data models
+│   │   ├── analyzer/      # Scan diff logic
+│   │   └── metrics/       # Metrics service
+│   ├── migrations/        # SQL migrations
+│   └── Dockerfile
+├── frontend/              # React frontend
+│   ├── src/
+│   │   ├── components/   # React components
+│   │   ├── hooks/        # Custom React hooks
+│   │   ├── store/        # State management
+│   │   └── lib/          # API client, utilities
+│   └── Dockerfile
+├── controller/            # Kubernetes controller
+│   ├── api/v1alpha1/     # CRD definitions
+│   ├── internal/         # Controller logic
+│   └── config/           # RBAC, CRD manifests
+├── scanner/              # Syft + Grype scanner
+│   ├── scan.sh          # Scanning script
+│   └── Dockerfile
+├── helm/invulnerable/    # Helm chart
+│   ├── templates/       # Kubernetes manifests
+│   ├── values.yaml      # Default configuration
+│   └── examples/        # Example configurations
+└── docs/                # Additional documentation
+```
 
-## Database Schema
+## 🤝 Contributing
 
-- **images**: Container image inventory
-- **scans**: Scan metadata and results
-- **sboms**: SBOM documents (JSONB)
-- **vulnerabilities**: CVE tracking with lifecycle
-- **scan_vulnerabilities**: Junction table
+Contributions are welcome! Here's how you can help:
 
-## Scanner Workflow
+1. **Fork the repository**
+2. **Create a feature branch** (`git checkout -b feature/amazing-feature`)
+3. **Make your changes**
+4. **Run tests** (`task test`)
+5. **Run linter** (`task lint`)
+6. **Commit your changes** (`git commit -m 'Add amazing feature'`)
+7. **Push to the branch** (`git push origin feature/amazing-feature`)
+8. **Open a Pull Request**
 
-1. CronJob runs on schedule
-2. Syft generates SBOM for target image
-3. Grype scans SBOM for vulnerabilities
-4. Results are POSTed to `/api/v1/scans`
-5. Backend processes and stores:
-   - SBOM document
-   - Vulnerability records
-   - Scan metadata
-6. Analyzer compares with previous scan
-7. Lifecycle tracking updates (new/fixed/persistent)
+### Development Guidelines
 
-## Vulnerability Lifecycle
+- Write tests for new features
+- Follow Go and React best practices
+- Update documentation for user-facing changes
+- Keep commits atomic and well-described
+- Ensure all tests pass before submitting PR
 
-- **active**: Currently present in latest scan
-- **fixed**: No longer present in latest scan
-- **ignored**: Manually marked as ignored
-- **accepted**: Risk accepted
+### Reporting Issues
 
-## Metrics
+Found a bug or have a feature request? Please open an issue on GitHub with:
+- Clear description of the problem or feature
+- Steps to reproduce (for bugs)
+- Expected vs actual behavior
+- Environment details (K8s version, Helm version, etc.)
 
-- Total images, scans, vulnerabilities
-- Active vulnerabilities by severity
-- Vulnerability trends (30 days)
-- Recent scan activity
+## 🗺️ Roadmap
 
-## Production Considerations
+- [ ] Prometheus metrics exporter
+- [ ] Webhook notifications (Slack, Teams, Discord)
+- [ ] Policy engine for vulnerability acceptance
+- [ ] Multi-cluster support
+- [ ] Historical trend analysis
+- [ ] SBOM export and sharing
+- [ ] Integration with CI/CD pipelines
+- [ ] Custom vulnerability data sources
 
-1. **Security**:
-   - Change default PostgreSQL password
-   - Enable TLS/SSL for database
-   - Use proper secrets management
-   - Implement authentication for API
+## 📄 License
 
-2. **Scaling**:
-   - HPA configured for backend
-   - Adjust resource limits based on workload
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-3. **Monitoring**:
-   - Add Prometheus metrics
-   - Configure alerting
-   - Log aggregation
+## 🙏 Acknowledgments
 
-4. **Backup**:
-   - PostgreSQL backups
-   - SBOM retention policy
+- **[Anchore](https://anchore.com/)** - For the excellent Syft and Grype tools
+- **[Syft](https://github.com/anchore/syft)** - SBOM generation
+- **[Grype](https://github.com/anchore/grype)** - Vulnerability scanning
+- **[controller-runtime](https://github.com/kubernetes-sigs/controller-runtime)** - Kubernetes controller framework
+- **[OAuth2 Proxy](https://oauth2-proxy.github.io/oauth2-proxy/)** - Authentication layer
 
-## License
+## 💬 Community & Support
 
-MIT
+- **Issues**: [GitHub Issues](https://github.com/pacokleitz/invulnerable/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/pacokleitz/invulnerable/discussions)
+- **Email**: kpaco@proton.me
 
-## Contributing
+---
 
-Pull requests welcome!
+Built with ❤️ for the cloud-native security community

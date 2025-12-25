@@ -1,0 +1,42 @@
+# Example: Enable OAuth2 authentication with Google
+#
+# Prerequisites:
+# 1. Create OAuth 2.0 credentials at https://console.cloud.google.com/apis/credentials
+# 2. Set Authorized redirect URI to: https://your-domain.com/oauth2/callback
+# 3. Generate cookie secret: openssl rand -base64 32 | head -c 32
+
+oauth2Proxy:
+  enabled: true
+
+  # OAuth credentials from Google Cloud Console
+  clientID: "your-client-id.apps.googleusercontent.com"
+  clientSecret: "your-client-secret"
+  cookieSecret: "your-32-char-cookie-secret"  # Generate with openssl
+
+  config:
+    provider: "google"
+    redirectUrl: "https://invulnerable.example.com/oauth2/callback"
+
+    # Restrict to your organization's email domain
+    emailDomains:
+      - "example.com"
+
+    cookieSecure: true  # Requires HTTPS
+
+# Make sure TLS is configured for HTTPS
+ingress:
+  enabled: true
+  hosts:
+    - host: invulnerable.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend: backend
+        - path: /
+          pathType: Prefix
+          backend: frontend
+
+  tls:
+    - secretName: invulnerable-tls
+      hosts:
+        - invulnerable.example.com

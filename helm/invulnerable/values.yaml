@@ -148,6 +148,95 @@ scanner:
     pullPolicy: IfNotPresent
     tag: "latest"
 
+# OAuth2 Proxy configuration for authentication
+oauth2Proxy:
+  enabled: false
+  replicaCount: 2
+
+  image:
+    tag: "v7.13.0"
+    pullPolicy: IfNotPresent
+
+  # OAuth credentials (REQUIRED if enabled)
+  # You can provide these values directly or use existingSecret
+  clientID: ""
+  clientSecret: ""
+  cookieSecret: ""  # Generate with: openssl rand -base64 32 | head -c 32
+
+  # Use existing secret instead of creating one
+  # Secret must contain keys: client-id, client-secret, cookie-secret
+  existingSecret: ""
+
+  config:
+    # OAuth provider (google, github, azure, oidc, gitlab, etc.)
+    provider: "oidc"
+
+    # OIDC configuration (for generic OIDC providers like Keycloak, Auth0, etc.)
+    oidcIssuerUrl: ""  # e.g., "https://keycloak.example.com/realms/myrealm"
+
+    # For non-OIDC providers, set these manually
+    loginUrl: ""
+    redeemUrl: ""
+    validateUrl: ""
+
+    # Redirect URL (must match OAuth app configuration)
+    # Format: https://your-domain.com/oauth2/callback
+    redirectUrl: "https://invulnerable.local/oauth2/callback"
+
+    # Email domain restrictions (empty = allow all)
+    emailDomains: []
+    # emailDomains:
+    #   - "example.com"
+    #   - "company.com"
+
+    # Cookie settings
+    cookieName: "_oauth2_proxy"
+    cookieSecure: true  # Set to false for HTTP (dev only)
+    cookieDomains: []
+    # cookieDomains:
+    #   - ".example.com"
+
+    # UI settings
+    skipProviderButton: false  # Skip provider selection page
+
+    # Whitelist domains (for redirects)
+    whitelist: []
+
+    # Custom inline config (advanced usage)
+    # Provide oauth2-proxy configuration as inline TOML/INI content
+    # When set, this overrides all other config options and creates a ConfigMap
+    # Example:
+    #   configFile: |
+    #     provider = "oidc"
+    #     oidc_issuer_url = "https://keycloak.example.com/realms/myrealm"
+    #     redirect_url = "https://invulnerable.example.com/oauth2/callback"
+    #     email_domains = ["example.com"]
+    configFile: ""
+
+    # Extra environment variables
+    extraEnv: []
+    # extraEnv:
+    #   - name: OAUTH2_PROXY_SKIP_AUTH_REGEX
+    #     value: "^/api/health"
+
+    # Extra command line arguments
+    extraArgs: []
+    # extraArgs:
+    #   - "--scope=openid profile email"
+    #   - "--skip-auth-regex=^/health"
+
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
 # Ingress configuration
 ingress:
   enabled: true

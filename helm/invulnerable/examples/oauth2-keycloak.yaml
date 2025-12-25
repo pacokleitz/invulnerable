@@ -1,0 +1,69 @@
+# Example: Enable OAuth2 authentication with Keycloak
+#
+# Prerequisites:
+# 1. Create Client in Keycloak (Client Protocol: openid-connect, Access Type: confidential)
+# 2. Set Valid Redirect URI to: https://your-domain.com/oauth2/callback
+# 3. Copy Client Secret from Credentials tab
+# 4. Generate cookie secret: openssl rand -base64 32 | head -c 32
+
+oauth2Proxy:
+  enabled: true
+
+  # OAuth credentials from Keycloak client
+  clientID: "invulnerable"
+  clientSecret: "your-keycloak-client-secret"
+  cookieSecret: "your-32-char-cookie-secret"
+
+  config:
+    provider: "oidc"
+
+    # Keycloak OIDC issuer URL
+    # Format: https://<keycloak-host>/realms/<realm-name>
+    oidcIssuerUrl: "https://keycloak.example.com/realms/master"
+
+    redirectUrl: "https://invulnerable.example.com/oauth2/callback"
+
+    cookieSecure: true
+
+    # Optional: Restrict to specific email domains
+    # emailDomains:
+    #   - "example.com"
+
+    extraArgs:
+      - "--scope=openid email profile"
+      # Optional: Use groups from Keycloak for authorization
+      # - "--oidc-groups-claim=groups"
+      # - "--allowed-group=/admin"
+
+# Alternative: Use existing Kubernetes secret for credentials
+# Create secret first:
+# kubectl create secret generic oauth2-proxy-creds \
+#   --from-literal=client-id='invulnerable' \
+#   --from-literal=client-secret='your-secret' \
+#   --from-literal=cookie-secret='your-cookie' \
+#   -n invulnerable
+#
+# oauth2Proxy:
+#   enabled: true
+#   existingSecret: "oauth2-proxy-creds"
+#   config:
+#     provider: "oidc"
+#     oidcIssuerUrl: "https://keycloak.example.com/realms/master"
+#     redirectUrl: "https://invulnerable.example.com/oauth2/callback"
+
+ingress:
+  enabled: true
+  hosts:
+    - host: invulnerable.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend: backend
+        - path: /
+          pathType: Prefix
+          backend: frontend
+
+  tls:
+    - secretName: invulnerable-tls
+      hosts:
+        - invulnerable.example.com

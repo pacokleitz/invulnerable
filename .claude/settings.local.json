@@ -16,7 +16,8 @@
       "Bash(helm template:*)",
       "Bash(docker build:*)",
       "Bash(docker inspect:*)",
-      "Bash(docker run:*)"
+      "Bash(docker run:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []
