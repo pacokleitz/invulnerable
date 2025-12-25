@@ -66,17 +66,24 @@ The following table lists the configurable parameters and their default values.
 | `backend.autoscaling.minReplicas` | Minimum replicas | `2` |
 | `backend.autoscaling.maxReplicas` | Maximum replicas | `10` |
 
+#### Controller
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `controller.enabled` | Enable the ImageScan controller | `true` |
+| `controller.replicaCount` | Number of controller replicas | `1` |
+| `controller.image.registry` | Controller image registry (overrides global) | `""` |
+| `controller.image.repository` | Controller image repository | `invulnerable-controller` |
+| `controller.image.tag` | Controller image tag | `latest` |
+| `controller.leaderElection.enabled` | Enable leader election for HA | `true` |
+
 #### Scanner
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `scanner.enabled` | Enable scanner cronjob | `true` |
 | `scanner.image.registry` | Scanner image registry (overrides global) | `""` |
-| `scanner.image.repository` | Scanner image repository | `invulnerable-scanner` |
-| `scanner.schedule` | Cron schedule for scanning | `"0 2 * * *"` |
-| `scanner.images` | List of images to scan (supports single or multiple) | `["nginx:latest", "alpine:latest", "ubuntu:22.04"]` |
-| `scanner.successfulJobsHistoryLimit` | Number of successful jobs to keep | `3` |
-| `scanner.failedJobsHistoryLimit` | Number of failed jobs to keep | `3` |
+| `scanner.image.repository` | Scanner image repository (used by ImageScan CRDs) | `invulnerable-scanner` |
+| `scanner.image.tag` | Scanner image tag | `latest` |
 
 #### Ingress
 
@@ -122,13 +129,48 @@ ingress:
       hosts:
         - invulnerable.example.com
 
-# Configure scanner to scan your images
-scanner:
+# Controller is enabled by default
+# After installation, create ImageScan CRDs to define images to scan
+```
+
+**After installing**, create ImageScan resources to scan your images:
+
+```bash
+kubectl apply -f - <<EOF
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: app-scan
+  namespace: invulnerable
+spec:
+  image: "myregistry.io/app:latest"
   schedule: "0 2 * * *"  # Daily at 2 AM
-  images:
-    - myregistry.io/app:latest
-    - myregistry.io/api:latest
-    - myregistry.io/worker:latest
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+---
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: api-scan
+  namespace: invulnerable
+spec:
+  image: "myregistry.io/api:latest"
+  schedule: "0 */6 * * *"  # Every 6 hours
+---
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: worker-scan
+  namespace: invulnerable
+spec:
+  image: "myregistry.io/worker:latest"
+  schedule: "0 3 * * *"  # Daily at 3 AM
+EOF
 ```
 
 Install with custom values:

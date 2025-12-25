@@ -1,0 +1,218 @@
+{{- if .Values.controller.enabled }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "invulnerable.fullname" . }}-controller
+  labels:
+    {{- include "invulnerable.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+
+{{- if .Values.controller.rbac.clusterWide }}
+---
+# ClusterRole for cluster-wide controller (watches all namespaces)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "invulnerable.fullname" . }}-controller-role
+  labels:
+    {{- include "invulnerable.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+rules:
+# ImageScan CRD permissions (read-only except status and finalizers)
+- apiGroups:
+  - invulnerable.io
+  resources:
+  - imagescans
+  verbs:
+  - get
+  - list
+  - watch
+  # Note: No create/delete - users manage ImageScans, controller only reconciles
+- apiGroups:
+  - invulnerable.io
+  resources:
+  - imagescans/status
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - invulnerable.io
+  resources:
+  - imagescans/finalizers
+  verbs:
+  - update
+# CronJob permissions (full control for managed CronJobs)
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+# Events for status reporting
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "invulnerable.fullname" . }}-controller-rolebinding
+  labels:
+    {{- include "invulnerable.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "invulnerable.fullname" . }}-controller-role
+subjects:
+- kind: ServiceAccount
+  name: {{ include "invulnerable.fullname" . }}-controller
+  namespace: {{ .Release.Namespace }}
+{{- else }}
+---
+# Role for namespace-scoped controller (watches only deployment namespace)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "invulnerable.fullname" . }}-controller-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "invulnerable.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+rules:
+# ImageScan CRD permissions (read-only except status and finalizers)
+- apiGroups:
+  - invulnerable.io
+  resources:
+  - imagescans
+  verbs:
+  - get
+  - list
+  - watch
+  # Note: No create/delete - users manage ImageScans, controller only reconciles
+- apiGroups:
+  - invulnerable.io
+  resources:
+  - imagescans/status
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - invulnerable.io
+  resources:
+  - imagescans/finalizers
+  verbs:
+  - update
+# CronJob permissions (full control for managed CronJobs)
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+# Events for status reporting
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "invulnerable.fullname" . }}-controller-rolebinding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "invulnerable.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "invulnerable.fullname" . }}-controller-role
+subjects:
+- kind: ServiceAccount
+  name: {{ include "invulnerable.fullname" . }}-controller
+  namespace: {{ .Release.Namespace }}
+{{- end }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "invulnerable.fullname" . }}-leader-election-role
+  labels:
+    {{- include "invulnerable.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "invulnerable.fullname" . }}-leader-election-rolebinding
+  labels:
+    {{- include "invulnerable.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "invulnerable.fullname" . }}-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: {{ include "invulnerable.fullname" . }}-controller
+  namespace: {{ .Release.Namespace }}
+{{- end }}

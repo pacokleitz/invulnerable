@@ -150,20 +150,29 @@ backend:
       memory: "1Gi"
       cpu: "1000m"
 
+controller:
+  image:
+    repository: invulnerable-controller
+    tag: "1.0.0"
+    pullPolicy: Always
+
+  leaderElection:
+    enabled: true
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# Scanner image (used by ImageScan CRDs)
 scanner:
   image:
     repository: invulnerable-scanner
     tag: "1.0.0"
     pullPolicy: Always
-
-  # Configure scanner for your images
-  schedule: "0 2 * * *"  # 2 AM daily
-  images:
-    - myregistry.io/app:latest
-    - myregistry.io/api:latest
-    - myregistry.io/worker:latest
-    - nginx:latest
-    - postgres:15
 
 # Production ingress with TLS
 ingress:
@@ -221,6 +230,57 @@ helm install invulnerable ./helm/invulnerable \
   --values production-values.yaml
 ```
 
+### 4. Create ImageScan Resources
+
+After installing the Helm chart, create ImageScan CRDs to define which images to scan:
+
+```bash
+# Scan your production images
+kubectl apply -f - <<EOF
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: api-scan
+  namespace: invulnerable
+spec:
+  image: "myregistry.io/api:latest"
+  schedule: "0 */6 * * *"  # Every 6 hours
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+---
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: frontend-scan
+  namespace: invulnerable
+spec:
+  image: "myregistry.io/frontend:latest"
+  schedule: "0 2 * * *"  # Daily at 2 AM
+---
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: postgres-scan
+  namespace: invulnerable
+spec:
+  image: "postgres:15"
+  schedule: "0 4 * * 0"  # Weekly on Sunday
+EOF
+
+# List all ImageScans
+kubectl get imagescans -n invulnerable
+
+# View details
+kubectl describe imagescan api-scan -n invulnerable
+```
+
+See [controller/README.md](controller/README.md) for more information on ImageScan CRDs.
+
 ## Upgrading
 
 ```bash
@@ -251,8 +311,8 @@ See [helm/invulnerable/README.md](helm/invulnerable/README.md) for all configura
 **Disable components:**
 
 ```yaml
-# Disable scanner cronjobs
-scanner:
+# Disable controller (no image scanning)
+controller:
   enabled: false
 
 # Disable frontend (API only)
@@ -260,14 +320,40 @@ frontend:
   enabled: false
 ```
 
-**Custom scanner schedule:**
+**Manage image scanning:**
 
-```yaml
-scanner:
-  schedule: "0 */6 * * *"   # Every 6 hours
-  images:
-    - nginx:latest
-    - postgres:15
+Image scanning is now managed through ImageScan CRDs. Each image has its own resource with its own schedule:
+
+```bash
+# Create ImageScan for an image
+kubectl apply -f - <<EOF
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: nginx-scan
+  namespace: invulnerable
+spec:
+  image: "nginx:latest"
+  schedule: "0 */6 * * *"  # Every 6 hours
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+EOF
+
+# Update schedule
+kubectl patch imagescan nginx-scan -n invulnerable \
+  --type merge -p '{"spec":{"schedule":"0 4 * * *"}}'
+
+# Suspend scanning
+kubectl patch imagescan nginx-scan -n invulnerable \
+  --type merge -p '{"spec":{"suspend":true}}'
+
+# Delete scanner
+kubectl delete imagescan nginx-scan -n invulnerable
 ```
 
 **Resource limits:**
@@ -307,11 +393,20 @@ kubectl logs -f -l app.kubernetes.io/component=backend -n invulnerable
 # Frontend logs
 kubectl logs -f -l app.kubernetes.io/component=frontend -n invulnerable
 
-# Scanner logs
+# Controller logs
+kubectl logs -f -l app.kubernetes.io/component=controller -n invulnerable
+
+# Scanner job logs (from ImageScan CronJobs)
 kubectl logs -l app.kubernetes.io/component=scanner -n invulnerable
 
-# Get logs from specific job
-kubectl logs job/invulnerable-scanner-<job-id> -n invulnerable
+# Get logs from specific scanner job
+kubectl logs job/<imagescan-name>-scanner-<job-id> -n invulnerable
+
+# List all ImageScans
+kubectl get imagescans -n invulnerable
+
+# Describe ImageScan to see status
+kubectl describe imagescan <name> -n invulnerable
 ```
 
 ### Check connectivity
@@ -342,6 +437,13 @@ kubectl exec -it deployment/invulnerable-backend -n invulnerable -- \
 - Check scanner logs for errors
 - Verify API endpoint is accessible
 - Check resource limits (scanning needs memory/CPU)
+- Verify ImageScan resource is not suspended
+
+**ImageScan not creating CronJob:**
+- Check controller logs: `kubectl logs -f -l app.kubernetes.io/component=controller -n invulnerable`
+- Describe the ImageScan: `kubectl describe imagescan <name> -n invulnerable`
+- Check CRD is installed: `kubectl get crd imagescans.invulnerable.io`
+- Verify controller is running: `kubectl get pods -l app.kubernetes.io/component=controller -n invulnerable`
 
 ## Backup and Recovery
 

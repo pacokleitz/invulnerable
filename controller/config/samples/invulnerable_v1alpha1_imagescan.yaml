@@ -1,0 +1,39 @@
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: nginx-scan
+  namespace: invulnerable
+spec:
+  # Container image to scan
+  image: "nginx:latest"
+
+  # Scan schedule in cron format (daily at 2 AM)
+  schedule: "0 2 * * *"
+
+  # SBOM format (cyclonedx or spdx)
+  sbomFormat: "cyclonedx"
+
+  # Suspend scanning (set to true to pause)
+  suspend: false
+
+  # Job history limits
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  # Resource requests and limits
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+
+  # API endpoint (optional, auto-detected if not specified)
+  # apiEndpoint: "http://invulnerable-backend.invulnerable.svc.cluster.local:8080"
+
+  # Scanner image configuration (optional)
+  scannerImage:
+    repository: "invulnerable-scanner"
+    tag: "latest"
+    pullPolicy: "IfNotPresent"

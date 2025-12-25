@@ -107,37 +107,46 @@ backend:
   tolerations: []
   affinity: {}
 
-# Scanner configuration
-scanner:
+# Controller configuration
+# The controller manages ImageScan CRDs and creates CronJobs for each image
+controller:
   enabled: true
+  replicaCount: 1
+  image:
+    registry: ""  # Override global registry if needed
+    repository: invulnerable-controller
+    pullPolicy: IfNotPresent
+    tag: "latest"
+
+  # Leader election (enable for high availability)
+  leaderElection:
+    enabled: true
+
+  # RBAC configuration
+  rbac:
+    # clusterWide: false = Controller only watches its own namespace (RECOMMENDED for least privilege)
+    # clusterWide: true = Controller watches all namespaces (use for multi-tenant setups)
+    clusterWide: false
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Scanner image configuration (used by ImageScan CRDs)
+scanner:
   image:
     registry: ""  # Override global registry if needed
     repository: invulnerable-scanner
     pullPolicy: IfNotPresent
     tag: "latest"
-
-  # Scanner for images (supports single or multiple images)
-  schedule: "0 2 * * *"  # Run daily at 2 AM
-  successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 3
-
-  # List of images to scan (can be one or many)
-  images:
-    - nginx:latest
-    - alpine:latest
-    - ubuntu:22.04
-
-  # Scanner configuration
-  apiEndpoint: ""  # Auto-configured from backend service
-  sbomFormat: "cyclonedx"
-
-  resources:
-    requests:
-      memory: "512Mi"
-      cpu: "500m"
-    limits:
-      memory: "2Gi"
-      cpu: "2000m"
 
 # Ingress configuration
 ingress:

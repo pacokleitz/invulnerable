@@ -37,10 +37,26 @@ Database Configuration:
 
   Note: Make sure your PostgreSQL database is accessible and properly configured.
 
-Scanner Configuration:
-{{- if .Values.scanner.enabled }}
-  Scanner: Enabled (Schedule: {{ .Values.scanner.schedule }})
-  Scanning {{ len .Values.scanner.images }} image(s)
+Scanner Controller:
+{{- if .Values.controller.enabled }}
+  Controller: Enabled
+  The controller is running and watching for ImageScan CRDs.
+
+  To create an ImageScan resource:
+    kubectl apply -f - <<EOF
+    apiVersion: invulnerable.io/v1alpha1
+    kind: ImageScan
+    metadata:
+      name: nginx-scan
+      namespace: {{ .Release.Namespace }}
+    spec:
+      image: "nginx:latest"
+      schedule: "0 2 * * *"
+      sbomFormat: "cyclonedx"
+    EOF
+
+  List all ImageScans:
+    kubectl get imagescans -n {{ .Release.Namespace }}
 {{- end }}
 
 For more information, visit the project documentation.

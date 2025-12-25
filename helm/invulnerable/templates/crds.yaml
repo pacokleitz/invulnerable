@@ -1,0 +1,237 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: imagescans.invulnerable.io
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+spec:
+  group: invulnerable.io
+  names:
+    kind: ImageScan
+    listKind: ImageScanList
+    plural: imagescans
+    shortNames:
+    - imgscan
+    - imgscans
+    singular: imagescan
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ImageScan is the Schema for the imagescans API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values.'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase.'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ImageScanSpec defines the desired state of ImageScan
+            properties:
+              apiEndpoint:
+                description: APIEndpoint is the Invulnerable backend API endpoint
+                  If not specified, it will be auto-detected from the service
+                type: string
+              failedJobsHistoryLimit:
+                default: 3
+                description: FailedJobsHistoryLimit is the number of failed jobs to
+                  retain
+                format: int32
+                minimum: 0
+                type: integer
+              image:
+                description: Image is the container image to scan (e.g., "nginx:latest",
+                  "myregistry.io/app:1.0.0")
+                minLength: 1
+                type: string
+              resources:
+                description: Resources defines the resource requirements for the scanner
+                  job
+                properties:
+                  claims:
+                    description: Claims lists the names of resources, defined in spec.resourceClaims
+                    items:
+                      description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                      properties:
+                        name:
+                          description: Name must match the name of one entry in pod.spec.resourceClaims
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
+                  limits:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: 'Limits describes the maximum amount of compute resources
+                      allowed.'
+                    type: object
+                  requests:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: 'Requests describes the minimum amount of compute
+                      resources required.'
+                    type: object
+                type: object
+              sbomFormat:
+                default: cyclonedx
+                description: SBOMFormat specifies the SBOM format to use (cyclonedx,
+                  spdx, etc.)
+                enum:
+                - cyclonedx
+                - spdx
+                type: string
+              scannerImage:
+                description: Scanner image configuration
+                properties:
+                  pullPolicy:
+                    default: IfNotPresent
+                    description: PullPolicy is the image pull policy
+                    enum:
+                    - Always
+                    - Never
+                    - IfNotPresent
+                    type: string
+                  repository:
+                    default: invulnerable-scanner
+                    description: Repository is the image repository
+                    type: string
+                  tag:
+                    default: latest
+                    description: Tag is the image tag
+                    type: string
+                type: object
+              schedule:
+                description: Schedule in Cron format for when to run the scan
+                minLength: 1
+                type: string
+              successfulJobsHistoryLimit:
+                default: 3
+                description: SuccessfulJobsHistoryLimit is the number of successful
+                  jobs to retain
+                format: int32
+                minimum: 0
+                type: integer
+              suspend:
+                default: false
+                description: Suspend tells the controller to suspend subsequent scans
+                type: boolean
+            required:
+            - image
+            - schedule
+            type: object
+          status:
+            description: ImageScanStatus defines the observed state of ImageScan
+            properties:
+              conditions:
+                description: Conditions represent the latest available observations
+                  of the ImageScan's state
+                items:
+                  description: "Condition contains details for one aspect of the current
+                    state of this API Resource."
+                  properties:
+                    lastTransitionTime:
+                      description: lastTransitionTime is the last time the condition
+                        transitioned from one status to another.
+                      format: date-time
+                      type: string
+                    message:
+                      description: message is a human readable message indicating
+                        details about the transition.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: observedGeneration represents the .metadata.generation
+                        that the condition was set based upon.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: reason contains a programmatic identifier indicating
+                        the reason for the condition's last transition.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              cronJobName:
+                description: CronJobName is the name of the managed CronJob
+                type: string
+              lastScheduledTime:
+                description: LastScheduledTime is the last time a job was scheduled
+                format: date-time
+                type: string
+              lastSuccessfulTime:
+                description: LastSuccessfulTime is the last time a scan completed
+                  successfully
+                format: date-time
+                type: string
+              observedGeneration:
+                description: ObservedGeneration reflects the generation most recently
+                  observed by the controller
+                format: int64
+                type: integer
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Image
+      type: string
+      jsonPath: .spec.image
+    - name: Schedule
+      type: string
+      jsonPath: .spec.schedule
+    - name: Suspend
+      type: boolean
+      jsonPath: .spec.suspend
+    - name: CronJob
+      type: string
+      jsonPath: .status.cronJobName
+    - name: Last Scheduled
+      type: date
+      jsonPath: .status.lastScheduledTime
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp

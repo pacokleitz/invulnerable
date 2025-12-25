@@ -1,0 +1,77 @@
+---
+# Example: Scan multiple images with different schedules
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: nginx-scan
+  namespace: invulnerable
+spec:
+  image: "nginx:latest"
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  sbomFormat: "cyclonedx"
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+
+---
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: alpine-scan
+  namespace: invulnerable
+spec:
+  image: "alpine:latest"
+  schedule: "0 3 * * *"  # Daily at 3 AM
+  sbomFormat: "cyclonedx"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+---
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: postgres-scan
+  namespace: invulnerable
+spec:
+  image: "postgres:15"
+  schedule: "0 4 * * 0"  # Weekly on Sunday at 4 AM
+  sbomFormat: "cyclonedx"
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+
+---
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: custom-app-scan
+  namespace: invulnerable
+spec:
+  image: "ghcr.io/myorg/myapp:v1.0.0"
+  schedule: "*/30 * * * *"  # Every 30 minutes (for critical apps)
+  sbomFormat: "cyclonedx"
+  suspend: false
+  scannerImage:
+    repository: "ghcr.io/myorg/invulnerable-scanner"
+    tag: "v1.0.0"
+    pullPolicy: "Always"
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
