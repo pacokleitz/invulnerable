@@ -149,6 +149,8 @@ scanner:
     tag: "latest"
 
 # OAuth2 Proxy configuration for authentication
+# SECURITY: When enabling ingress for public access, you MUST also enable oauth2Proxy
+# to protect the application with authentication. Never expose ingress without auth!
 oauth2Proxy:
   enabled: false
   replicaCount: 2
@@ -238,8 +240,11 @@ oauth2Proxy:
   affinity: {}
 
 # Ingress configuration
+# SECURITY: Ingress is disabled by default to prevent unauthorized public access
+# For production: Enable BOTH ingress AND oauth2Proxy for secure public access
+# For development: Use kubectl port-forward instead, or enable ingress on local cluster
 ingress:
-  enabled: true
+  enabled: false
   className: "nginx"
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /

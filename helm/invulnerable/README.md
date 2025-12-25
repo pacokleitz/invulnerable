@@ -13,15 +13,49 @@ This Helm chart deploys the Invulnerable container vulnerability scanner and man
 ### Quick Start
 
 ```bash
-# Install with default values
-helm install invulnerable ./helm/invulnerable
-
-# Install in a specific namespace
+# Install with default values (no public access, use port-forward)
 helm install invulnerable ./helm/invulnerable -n invulnerable --create-namespace
 
-# Install with custom values
-helm install invulnerable ./helm/invulnerable -f custom-values.yaml
+# Access via port-forward (safe for development)
+kubectl port-forward -n invulnerable svc/invulnerable-frontend 8080:80
+
+# For production with public access, see "Production Installation" below
 ```
+
+## Security Considerations
+
+**⚠️ IMPORTANT: Default Configuration is Secure by Design**
+
+By default, this chart:
+- ✅ **Ingress is DISABLED** - Application is not publicly accessible
+- ✅ **OAuth2 Proxy is DISABLED** - No authentication layer configured
+- ✅ **Access via port-forward only** - Safe for development and testing
+
+**For Production with Public Access:**
+
+You **MUST** enable BOTH ingress AND oauth2Proxy together:
+
+```yaml
+# ✅ SECURE: Both ingress and authentication enabled
+oauth2Proxy:
+  enabled: true
+  # ... configure OAuth provider
+
+ingress:
+  enabled: true
+  # ... configure domain and TLS
+```
+
+**❌ NEVER do this in production:**
+```yaml
+# ❌ INSECURE: Public access without authentication
+ingress:
+  enabled: true
+oauth2Proxy:
+  enabled: false  # DON'T DO THIS!
+```
+
+See [Authentication Guide](../../AUTHENTICATION.md) for detailed OAuth2 setup.
 
 ### Configuration
 
@@ -103,7 +137,7 @@ The following table lists the configurable parameters and their default values.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `ingress.enabled` | Enable ingress | `true` |
+| `ingress.enabled` | Enable ingress (⚠️ Enable oauth2Proxy when using ingress!) | `false` |
 | `ingress.className` | Ingress class name | `nginx` |
 | `ingress.hosts[0].host` | Hostname | `invulnerable.local` |
 

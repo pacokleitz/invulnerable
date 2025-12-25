@@ -123,7 +123,7 @@ kubectl describe imagescan nginx-scan -n invulnerable
 
 See the complete [Deployment Guide](docs/DEPLOYMENT.md) for production installations.
 
-**Quick production setup:**
+**Quick production setup with authentication:**
 
 ```bash
 # 1. Create values file
@@ -140,6 +140,18 @@ backend:
     enabled: true
     minReplicas: 2
     maxReplicas: 10
+
+# IMPORTANT: Enable BOTH ingress and oauth2Proxy for secure public access
+oauth2Proxy:
+  enabled: true
+  clientID: "your-oauth-client-id"
+  clientSecret: "your-oauth-client-secret"
+  cookieSecret: "generate-with-openssl-rand"
+  config:
+    provider: "google"  # or github, azure, oidc, etc.
+    redirectUrl: "https://invulnerable.example.com/oauth2/callback"
+    emailDomains:
+      - "yourcompany.com"
 
 ingress:
   enabled: true
