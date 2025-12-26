@@ -2,7 +2,8 @@
 # This provides a test OIDC server with static users
 
 config:
-  issuer: http://dex.invulnerable.local/dex
+  # Use internal Kubernetes DNS for issuer (pods need to access this)
+  issuer: http://dex.dex.svc.cluster.local:5556/dex
 
   storage:
     type: memory

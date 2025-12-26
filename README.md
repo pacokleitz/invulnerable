@@ -360,7 +360,10 @@ The fastest way to get started with local development is using [Tilt](https://ti
 tilt up
 
 # OR start with HTTPS enabled
-tilt up -- --enable-https
+tilt up -- --enable-https=true
+
+# OR start with OIDC (local testing)
+tilt up -- --enable-oidc=true
 
 # Access:
 # - Tilt UI: http://localhost:10350

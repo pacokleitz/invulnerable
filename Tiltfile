@@ -4,28 +4,28 @@
 # Allow k8s contexts for Docker Desktop
 allow_k8s_contexts('docker-desktop')
 
+# Suppress warning for scanner image (used by dynamically created Jobs)
+update_settings(suppress_unused_image_warnings=['localhost:5001/invulnerable-scanner'])
+
 # Load Tilt extensions
 load('ext://helm_resource', 'helm_resource', 'helm_repo')
 load('ext://namespace', 'namespace_create')
 
 # Configuration
 config.define_string('registry', args=False, usage='Docker registry for images')
-config.define_bool('enable-https', args=True, usage='Enable HTTPS with cert-manager')
-config.define_bool('enable-oidc', args=True, usage='Enable OIDC with Dex provider')
+config.define_bool('enable-https', args=False, usage='Enable HTTPS with cert-manager')
+config.define_bool('enable-oidc', args=False, usage='Enable OIDC with Dex provider')
 cfg = config.parse()
 registry = cfg.get('registry', 'localhost:5001')
 enable_https = cfg.get('enable-https', False)
 enable_oidc = cfg.get('enable-oidc', False)
 
-# Add Helm repositories
-helm_repo('ingress-nginx', 'https://kubernetes.github.io/ingress-nginx', labels=['infrastructure'])
-helm_repo('jetstack', 'https://charts.jetstack.io', labels=['infrastructure'])
-helm_repo('bitnami', 'https://charts.bitnami.com/bitnami', labels=['infrastructure'])
-helm_repo('dex', 'https://charts.dexidp.io', labels=['infrastructure'])
+# Helm repositories should be added via setup-tilt.sh
+# If you haven't run setup yet, run: ./scripts/setup-tilt.sh
 
 # Deploy nginx Ingress Controller
-# For Docker Desktop: Uses hostPort to bind directly to ports 80/443
-# Traffic flow: localhost:80 -> ingress pod:80 -> services
+# For Docker Desktop: Uses LoadBalancer + port-forward to expose to localhost
+# Traffic flow: localhost:80 -> port-forward -> LoadBalancer -> ingress pod:80 -> services
 print('📦 Deploying nginx Ingress Controller...')
 helm_resource(
     name='ingress-nginx',
@@ -33,12 +33,19 @@ helm_resource(
     namespace='ingress-nginx',
     flags=[
         '--create-namespace',
-        '--set=controller.hostPort.enabled=true',  # Binds to localhost ports 80/443
-        '--set=controller.service.type=NodePort',
+        '--set=controller.service.type=LoadBalancer',
         '--set=controller.watchIngressWithoutClass=true',
     ],
     labels=['infrastructure'],
     resource_deps=[],
+)
+
+# Port forward ingress to localhost (required for Docker Desktop on macOS)
+local_resource(
+    'ingress-localhost',
+    serve_cmd='kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 80:80 443:443',
+    resource_deps=['ingress-nginx'],
+    labels=['infrastructure'],
 )
 
 # Optionally deploy cert-manager for HTTPS
@@ -115,7 +122,7 @@ else:
 
 # Build Docker images with live updates
 docker_build(
-    ref=f'{registry}/invulnerable-backend',
+    ref=registry + '/invulnerable-backend',
     context='./backend',
     dockerfile='./backend/Dockerfile',
     live_update=[
@@ -124,17 +131,17 @@ docker_build(
         # Rebuild on Go file changes
         run('cd /app && go build -o /app/server ./cmd/server', trigger=['./backend/**/*.go']),
     ],
-    # Only rebuild on these file changes
+    # Only rebuild when these files change (relative to context)
     only=[
-        './backend/cmd/',
-        './backend/internal/',
-        './backend/go.mod',
-        './backend/go.sum',
+        'cmd/',
+        'internal/',
+        'go.mod',
+        'go.sum',
     ],
 )
 
 docker_build(
-    ref=f'{registry}/invulnerable-frontend',
+    ref=registry + '/invulnerable-frontend',
     context='./frontend',
     dockerfile='./frontend/Dockerfile',
     live_update=[
@@ -143,40 +150,47 @@ docker_build(
         sync('./frontend/index.html', '/app/index.html'),
         sync('./frontend/package.json', '/app/package.json'),
     ],
+    # Only rebuild when these files change (relative to context)
     only=[
-        './frontend/src/',
-        './frontend/index.html',
-        './frontend/package.json',
-        './frontend/tsconfig.json',
-        './frontend/vite.config.ts',
-        './frontend/tailwind.config.js',
+        'src/',
+        'index.html',
+        'package.json',
+        'package-lock.json',
+        'tsconfig.json',
+        'tsconfig.node.json',
+        'vite.config.ts',
+        'tailwind.config.js',
+        'nginx.conf',
     ],
 )
 
 docker_build(
-    ref=f'{registry}/invulnerable-controller',
+    ref=registry + '/invulnerable-controller',
     context='./controller',
     dockerfile='./controller/Dockerfile',
     live_update=[
         sync('./controller', '/workspace'),
         run('cd /workspace && make build', trigger=['./controller/**/*.go']),
     ],
+    # Only rebuild when these files change (relative to context)
     only=[
-        './controller/api/',
-        './controller/internal/',
-        './controller/cmd/',
-        './controller/go.mod',
-        './controller/go.sum',
+        'api/',
+        'internal/',
+        'cmd/',
+        'go.mod',
+        'go.sum',
+        'Makefile',
     ],
 )
 
 docker_build(
-    ref=f'{registry}/invulnerable-scanner',
+    ref=registry + '/invulnerable-scanner',
     context='./scanner',
     dockerfile='./scanner/Dockerfile',
+    # Only rebuild when these files change (relative to context)
     only=[
-        './scanner/scan.sh',
-        './scanner/Dockerfile',
+        'scan.sh',
+        'Dockerfile',
     ],
 )
 
@@ -212,48 +226,89 @@ if enable_https:
 if enable_oidc:
     helm_deps.append('dex')
 
-helm_resource(
-    name='invulnerable',
-    chart='./helm/invulnerable',
-    namespace='invulnerable',
-    flags=[
-        f'--values={values_file}',
-        f'--set=image.registry={registry}',
-        '--set=backend.image.tag=latest',
-        '--set=frontend.image.tag=latest',
-        '--set=controller.image.tag=latest',
-        '--set=scanner.image.tag=latest',
-    ],
-    resource_deps=helm_deps,
-    labels=['app'],
+# Render Helm chart and apply as k8s_yaml
+# This allows Tilt to scan for image references
+yaml = local(
+    'helm template invulnerable ./helm/invulnerable ' +
+    '--namespace invulnerable ' +
+    '--values=' + values_file + ' ' +
+    '--set=image.registry=' + registry + ' ' +
+    '--set=backend.image.repository=invulnerable-backend ' +
+    '--set=backend.image.tag=latest ' +
+    '--set=backend.image.pullPolicy=IfNotPresent ' +
+    '--set=frontend.image.repository=invulnerable-frontend ' +
+    '--set=frontend.image.tag=latest ' +
+    '--set=frontend.image.pullPolicy=IfNotPresent ' +
+    '--set=controller.image.repository=invulnerable-controller ' +
+    '--set=controller.image.tag=latest ' +
+    '--set=controller.image.pullPolicy=IfNotPresent ' +
+    '--set=scanner.image.repository=invulnerable-scanner ' +
+    '--set=scanner.image.tag=latest ' +
+    '--set=scanner.image.pullPolicy=IfNotPresent',
+    quiet=True  # Suppress verbose output during tilt down
 )
 
-# Port forwards for easy access
+k8s_yaml(yaml)
+
+# Group resources under 'invulnerable' label
+k8s_resource(
+    objects=[
+        'invulnerable:namespace',
+        'invulnerable:serviceaccount',
+    ],
+    new_name='invulnerable-setup',
+    labels=['app'],
+    resource_deps=helm_deps,
+)
+
 k8s_resource(
     workload='invulnerable-backend',
-    port_forwards=['8080:8080'],
     labels=['app'],
-    resource_deps=['invulnerable'],
+    resource_deps=helm_deps,
 )
 
 k8s_resource(
     workload='invulnerable-frontend',
-    port_forwards=['3000:8080'],
     labels=['app'],
-    resource_deps=['invulnerable'],
+    resource_deps=helm_deps,
 )
 
 k8s_resource(
     workload='invulnerable-controller',
     labels=['app'],
-    resource_deps=['invulnerable'],
+    resource_deps=helm_deps,
 )
 
 k8s_resource(
     workload='invulnerable-oauth2-proxy',
-    port_forwards=['4180:4180'],
     labels=['auth'],
-    resource_deps=['invulnerable'],
+    resource_deps=helm_deps,
+)
+
+# Port forwards for direct access (bypassing ingress)
+local_resource(
+    'port-forward-backend',
+    serve_cmd='kubectl port-forward -n invulnerable svc/invulnerable-backend 8080:8080',
+    resource_deps=['invulnerable-backend'],
+    labels=['port-forwards'],
+    readiness_probe=probe(
+        period_secs=10,
+        exec=exec_action(['curl', '-f', 'http://localhost:8080/health']),
+    ),
+)
+
+local_resource(
+    'port-forward-frontend',
+    serve_cmd='kubectl port-forward -n invulnerable svc/invulnerable-frontend 3000:80',
+    resource_deps=['invulnerable-frontend'],
+    labels=['port-forwards'],
+)
+
+local_resource(
+    'port-forward-oauth2-proxy',
+    serve_cmd='kubectl port-forward -n invulnerable svc/invulnerable-oauth2-proxy 4180:4180',
+    resource_deps=['invulnerable-oauth2-proxy'],
+    labels=['port-forwards'],
 )
 
 # Setup instructions

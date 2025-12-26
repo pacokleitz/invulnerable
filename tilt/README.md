@@ -12,10 +12,10 @@
 tilt up
 
 # HTTPS mode (with cert-manager)
-tilt up -- --enable-https
+tilt up -- --enable-https=true
 
 # OIDC mode (with local Dex provider - best for testing!)
-tilt up -- --enable-oidc
+tilt up -- --enable-oidc=true
 
 # 3. Access at http://localhost:10350 (Tilt UI)
 #    and http://invulnerable.local (application)
@@ -50,7 +50,7 @@ tilt up
 
 ### HTTPS Mode
 ```bash
-tilt up -- --enable-https
+tilt up -- --enable-https=true
 ```
 - Access: `https://invulnerable.local`
 - Auth: Google OAuth with TLS
@@ -58,7 +58,7 @@ tilt up -- --enable-https
 
 ### OIDC Mode (Recommended for Testing)
 ```bash
-tilt up -- --enable-oidc
+tilt up -- --enable-oidc=true
 ```
 - Access: `http://invulnerable.local`
 - Auth: Local Dex OIDC provider

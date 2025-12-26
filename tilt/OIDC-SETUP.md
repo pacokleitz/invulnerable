@@ -23,7 +23,7 @@ echo "127.0.0.1 dex.invulnerable.local" | sudo tee -a /etc/hosts
 
 ```bash
 # Start with OIDC mode
-tilt up -- --enable-oidc
+tilt up -- --enable-oidc=true
 
 # Wait for all resources to be ready
 # Open Tilt UI: http://localhost:10350
@@ -87,7 +87,7 @@ staticPasswords:
 Then restart Tilt:
 ```bash
 tilt down
-tilt up -- --enable-oidc
+tilt up -- --enable-oidc=true
 ```
 
 ## OAuth2 Proxy Configuration
@@ -231,7 +231,7 @@ tilt up
 ### HTTPS Mode
 
 ```bash
-tilt up -- --enable-https
+tilt up -- --enable-https=true
 # Uses: tilt/values-https.yaml
 # Auth: Google OAuth with TLS
 ```
@@ -239,7 +239,7 @@ tilt up -- --enable-https
 ### OIDC Mode (Dex)
 
 ```bash
-tilt up -- --enable-oidc
+tilt up -- --enable-oidc=true
 # Uses: tilt/values-oidc.yaml
 # Auth: Local Dex OIDC provider
 ```
@@ -321,7 +321,7 @@ This Dex setup is **for local development only**. For production:
 
 2. **Enable HTTPS**:
    ```bash
-   tilt up -- --enable-oidc --enable-https
+   tilt up -- --enable-oidc=true --enable-https=true
    ```
 
 3. **Use strong secrets**:

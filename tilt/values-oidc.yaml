@@ -74,8 +74,8 @@ oauth2Proxy:
     # Use OIDC provider
     provider: "oidc"
 
-    # Dex OIDC endpoints
-    oidcIssuerUrl: "http://dex.invulnerable.local/dex"
+    # Dex OIDC endpoints (use internal Kubernetes service DNS)
+    oidcIssuerUrl: "http://dex.dex.svc.cluster.local:5556/dex"
 
     # Redirect after OAuth login
     redirectUrl: "http://invulnerable.local/oauth2/callback"

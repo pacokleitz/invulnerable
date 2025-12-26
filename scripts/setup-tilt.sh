@@ -68,6 +68,17 @@ echo
 kubectl cluster-info
 echo
 
+# Add Helm repositories for Tilt
+echo "Adding Helm repositories..."
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx 2>/dev/null || echo -e "${GREEN}✓ ingress-nginx repo already added${NC}"
+helm repo add jetstack https://charts.jetstack.io 2>/dev/null || echo -e "${GREEN}✓ jetstack repo already added${NC}"
+helm repo add bitnami https://charts.bitnami.com/bitnami 2>/dev/null || echo -e "${GREEN}✓ bitnami repo already added${NC}"
+helm repo add dex https://charts.dexidp.io 2>/dev/null || echo -e "${GREEN}✓ dex repo already added${NC}"
+echo "Updating Helm repositories..."
+helm repo update >/dev/null 2>&1
+echo -e "${GREEN}✓ Helm repositories configured${NC}"
+echo
+
 # Configure /etc/hosts
 if ! grep -q "invulnerable.local" /etc/hosts; then
     echo -e "${YELLOW}⚠ Adding invulnerable.local to /etc/hosts (requires sudo)${NC}"
@@ -93,6 +104,7 @@ echo -e "${GREEN}========================================${NC}"
 echo
 echo "What was configured:"
 echo "  ✓ kubectl context: docker-desktop"
+echo "  ✓ Helm repositories: ingress-nginx, jetstack, bitnami, dex"
 echo "  ✓ /etc/hosts configured (invulnerable.local, dex.invulnerable.local)"
 echo
 echo "Next steps:"
@@ -103,10 +115,10 @@ echo "   HTTP mode (default):"
 echo -e "   ${YELLOW}tilt up${NC}"
 echo
 echo "   HTTPS mode (with cert-manager):"
-echo -e "   ${YELLOW}tilt up -- --enable-https${NC}"
+echo -e "   ${YELLOW}tilt up -- --enable-https=true${NC}"
 echo
 echo "   OIDC mode (with local Dex provider):"
-echo -e "   ${YELLOW}tilt up -- --enable-oidc${NC}"
+echo -e "   ${YELLOW}tilt up -- --enable-oidc=true${NC}"
 echo
 echo "2. Access the Tilt UI:"
 echo -e "   ${YELLOW}http://localhost:10350${NC}"
