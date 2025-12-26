@@ -41,9 +41,10 @@ helm_resource(
 )
 
 # Port forward ingress to localhost (required for Docker Desktop on macOS)
+# Using unprivileged ports 8080:80 and 8443:443 to avoid permission issues
 local_resource(
     'ingress-localhost',
-    serve_cmd='kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 80:80 443:443',
+    serve_cmd='kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8080:80 8443:443',
     resource_deps=['ingress-nginx'],
     labels=['infrastructure'],
 )
@@ -135,8 +136,10 @@ docker_build(
     only=[
         'cmd/',
         'internal/',
+        'migrations/',
         'go.mod',
         'go.sum',
+        'Dockerfile',
     ],
 )
 
@@ -160,7 +163,9 @@ docker_build(
         'tsconfig.node.json',
         'vite.config.ts',
         'tailwind.config.js',
+        'postcss.config.js',
         'nginx.conf',
+        'Dockerfile',
     ],
 )
 
@@ -288,12 +293,12 @@ k8s_resource(
 # Port forwards for direct access (bypassing ingress)
 local_resource(
     'port-forward-backend',
-    serve_cmd='kubectl port-forward -n invulnerable svc/invulnerable-backend 8080:8080',
+    serve_cmd='kubectl port-forward -n invulnerable svc/invulnerable-backend 8081:8080',
     resource_deps=['invulnerable-backend'],
     labels=['port-forwards'],
     readiness_probe=probe(
         period_secs=10,
-        exec=exec_action(['curl', '-f', 'http://localhost:8080/health']),
+        exec=exec_action(['curl', '-f', 'http://localhost:8081/health']),
     ),
 )
 
@@ -312,10 +317,11 @@ local_resource(
 )
 
 # Setup instructions
-access_url = 'https://invulnerable.local' if enable_https else 'http://invulnerable.local'
+access_url = 'https://invulnerable.local:8443' if enable_https else 'http://invulnerable.local:8080'
 https_note = '\\n⚠️  Using self-signed certificate - browser will show warning (expected)' if enable_https else ''
 cert_manager_status = '  ✓ cert-manager (HTTPS enabled)' if enable_https else '  - cert-manager (HTTP mode)'
-dex_status = '  ✓ Dex OIDC provider (http://dex.invulnerable.local)' if enable_oidc else '  - Dex OIDC provider (disabled)'
+dex_url = 'https://dex.invulnerable.local:8443' if enable_https else 'http://dex.invulnerable.local:8080'
+dex_status = '  ✓ Dex OIDC provider ({})'.format(dex_url) if enable_oidc else '  - Dex OIDC provider (disabled)'
 auth_note = ''
 
 if enable_oidc:
@@ -326,7 +332,7 @@ OIDC Authentication (Dex):
     * admin@invulnerable.local / password
     * user@invulnerable.local / password
     * test@example.com / password
-  - Dex UI: http://dex.invulnerable.local/dex'''.format(url=access_url)
+  - Dex UI: {dex_url}/dex'''.format(url=access_url, dex_url=dex_url)
 else:
     auth_note = '''
 OAuth2 Proxy configured for local development.'''
@@ -343,7 +349,7 @@ Access the application:
   - Main: {url}{note}
   - Backend API: {url}/api
   - Direct Frontend: http://localhost:3000
-  - Direct Backend: http://localhost:8080
+  - Direct Backend: http://localhost:8081
   - PostgreSQL: localhost:5432
 
 Make sure to add to /etc/hosts:
@@ -373,3 +379,5 @@ watch_file('./helm/invulnerable/values.yaml')
 watch_file('./helm/invulnerable/templates/')
 watch_file('./tilt/values.yaml')
 watch_file('./tilt/values-https.yaml')
+watch_file('./tilt/values-oidc.yaml')
+watch_file('./tilt/dex-values.yaml')

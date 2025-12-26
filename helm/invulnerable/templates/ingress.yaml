@@ -6,13 +6,14 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "invulnerable.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "invulnerable.labels" . | nindent 4 }}
   annotations:
     {{- if .Values.oauth2Proxy.enabled }}
     # OAuth2 Proxy authentication
     nginx.ingress.kubernetes.io/auth-url: "http://{{ include "invulnerable.fullname" . }}-oauth2-proxy.{{ .Release.Namespace }}.svc.cluster.local:4180/oauth2/auth"
-    nginx.ingress.kubernetes.io/auth-signin: "https://$host/oauth2/start?rd=$escaped_request_uri"
+    nginx.ingress.kubernetes.io/auth-signin: "{{ if .Values.ingress.tls }}https{{ else }}http{{ end }}://$host/oauth2/start?rd=$escaped_request_uri"
     nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User, X-Auth-Request-Email, X-Auth-Request-Access-Token, Authorization"
     {{- end }}
     {{- with .Values.ingress.annotations }}
@@ -56,13 +57,14 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "invulnerable.fullname" . }}-oauth2-proxy
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "invulnerable.labels" . | nindent 4 }}
     app.kubernetes.io/component: oauth2-proxy
   annotations:
-    {{- with .Values.ingress.annotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
+    # Copy only ssl-redirect annotations, NOT rewrite-target
+    nginx.ingress.kubernetes.io/ssl-redirect: {{ index .Values.ingress.annotations "nginx.ingress.kubernetes.io/ssl-redirect" | default "false" | quote }}
+    nginx.ingress.kubernetes.io/force-ssl-redirect: {{ index .Values.ingress.annotations "nginx.ingress.kubernetes.io/force-ssl-redirect" | default "false" | quote }}
 spec:
   {{- if .Values.ingress.className }}
   ingressClassName: {{ .Values.ingress.className }}
@@ -89,6 +91,54 @@ spec:
               name: {{ include "invulnerable.fullname" $ }}-oauth2-proxy
               port:
                 number: 4180
+    {{- end }}
+---
+# Static Assets Ingress (bypass OAuth for CSS/JS/images)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "invulnerable.fullname" . }}-assets
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "invulnerable.labels" . | nindent 4 }}
+    app.kubernetes.io/component: assets
+  annotations:
+    # No OAuth annotations - allow public access to static assets
+    nginx.ingress.kubernetes.io/ssl-redirect: {{ index .Values.ingress.annotations "nginx.ingress.kubernetes.io/ssl-redirect" | default "false" | quote }}
+    nginx.ingress.kubernetes.io/force-ssl-redirect: {{ index .Values.ingress.annotations "nginx.ingress.kubernetes.io/force-ssl-redirect" | default "false" | quote }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- range .Values.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+        - path: /assets
+          pathType: Prefix
+          backend:
+            service:
+              name: {{ include "invulnerable.fullname" $ }}-frontend
+              port:
+                number: {{ $.Values.frontend.service.port }}
+        - path: /favicon.ico
+          pathType: Exact
+          backend:
+            service:
+              name: {{ include "invulnerable.fullname" $ }}-frontend
+              port:
+                number: {{ $.Values.frontend.service.port }}
     {{- end }}
 {{- end }}
 

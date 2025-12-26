@@ -3,6 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "invulnerable.fullname" . }}-controller
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "invulnerable.labels" . | nindent 4 }}
     app.kubernetes.io/component: controller
@@ -37,6 +38,16 @@ spec:
         - --leader-elect={{- .Values.controller.leaderElection.enabled }}
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8080
+        {{- if not .Values.controller.rbac.clusterWide }}
+        - --namespace=$(POD_NAMESPACE)
+        {{- end }}
+        env:
+        {{- if not .Values.controller.rbac.clusterWide }}
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        {{- end }}
         ports:
         - name: metrics
           containerPort: 8080

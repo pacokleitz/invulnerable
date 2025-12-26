@@ -14,7 +14,7 @@ endif
 CONTROLLER_GEN ?= $(GOBIN)/controller-gen
 
 ## Tool Versions
-CONTROLLER_TOOLS_VERSION ?= v0.14.0
+CONTROLLER_TOOLS_VERSION ?= v0.20.0
 
 .PHONY: controller-gen
 controller-gen: ## Download controller-gen locally if necessary.

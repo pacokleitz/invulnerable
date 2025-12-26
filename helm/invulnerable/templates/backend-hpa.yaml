@@ -3,6 +3,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: {{ include "invulnerable.fullname" . }}-backend
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "invulnerable.backend.labels" . | nindent 4 }}
 spec:

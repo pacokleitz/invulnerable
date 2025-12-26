@@ -3,8 +3,10 @@ FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apk add --no-cache git
+# Install build dependencies and golang-migrate
+RUN apk add --no-cache git curl && \
+    curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz && \
+    mv migrate /usr/local/bin/migrate
 
 # Copy go mod files
 COPY go.mod go.sum ./
@@ -27,8 +29,10 @@ RUN addgroup -g 1000 appuser && \
 
 WORKDIR /home/appuser
 
-# Copy the binary from builder
+# Copy the binary and migrate tool from builder
 COPY --from=builder /app/server .
+COPY --from=builder /usr/local/bin/migrate /usr/local/bin/migrate
+COPY --from=builder /app/migrations ./migrations
 
 # Change ownership to non-root user
 RUN chown -R appuser:appuser /home/appuser

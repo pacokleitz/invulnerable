@@ -2,6 +2,11 @@
 # Use this when cert-manager is installed
 # Extends tilt-values.yaml with TLS configuration
 
+# Controller configuration
+controller:
+  rbac:
+    clusterWide: false
+
 # OAuth2 Proxy - HTTPS configuration
 oauth2Proxy:
   enabled: true

@@ -3,6 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "invulnerable.fullname" . }}-backend
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "invulnerable.backend.labels" . | nindent 4 }}
 spec:
@@ -24,6 +25,38 @@ spec:
       serviceAccountName: {{ include "invulnerable.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+      - name: migrate
+        image: {{ include "invulnerable.backend.image" . | quote }}
+        imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+        command:
+        - /usr/local/bin/migrate
+        args:
+        - -path
+        - /home/appuser/migrations
+        - -database
+        - postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
+        - up
+        env:
+        - name: DB_HOST
+          value: {{ .Values.backend.database.host | quote }}
+        - name: DB_PORT
+          value: {{ .Values.backend.database.port | quote }}
+        - name: DB_USER
+          value: {{ .Values.backend.database.user | quote }}
+        - name: DB_PASSWORD
+          {{- if .Values.backend.database.existingSecret }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backend.database.existingSecret }}
+              key: {{ .Values.backend.database.passwordKey }}
+          {{- else }}
+          value: {{ .Values.backend.database.password | quote }}
+          {{- end }}
+        - name: DB_NAME
+          value: {{ .Values.backend.database.name | quote }}
+        - name: DB_SSLMODE
+          value: {{ .Values.backend.database.sslmode | quote }}
       containers:
       - name: backend
         securityContext:

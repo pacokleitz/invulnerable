@@ -247,8 +247,8 @@ ingress:
   enabled: false
   className: "nginx"
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # NOTE: Do NOT use rewrite-target: / as it breaks /api and /oauth2 path routing
     # Add cert-manager annotation if using TLS
     # cert-manager.io/cluster-issuer: letsencrypt-prod
 

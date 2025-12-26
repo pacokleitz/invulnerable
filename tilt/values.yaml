@@ -124,6 +124,7 @@ ingress:
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"  # Allow HTTP for local dev
     nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    # Do NOT use rewrite-target - it breaks /api and /oauth2 paths
 
   hosts:
     - host: invulnerable.local

@@ -4,6 +4,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ include "invulnerable.fullname" . }}-controller
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "invulnerable.labels" . | nindent 4 }}
     app.kubernetes.io/component: controller

@@ -3,6 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "invulnerable.fullname" . }}-oauth2-proxy
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "invulnerable.labels" . | nindent 4 }}
     app.kubernetes.io/component: oauth2-proxy
@@ -53,6 +54,9 @@ spec:
         {{- end }}
         {{- if .Values.oauth2Proxy.config.validateUrl }}
         - --validate-url={{ .Values.oauth2Proxy.config.validateUrl }}
+        {{- end }}
+        {{- if .Values.oauth2Proxy.config.jwksUrl }}
+        - --oidc-jwks-url={{ .Values.oauth2Proxy.config.jwksUrl }}
         {{- end }}
 
         # Upstream and redirect configuration
