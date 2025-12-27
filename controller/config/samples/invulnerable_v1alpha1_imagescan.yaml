@@ -8,7 +8,7 @@ spec:
   image: "nginx:latest"
 
   # Scan schedule in cron format (daily at 2 AM)
-  schedule: "0 2 * * *"
+  schedule: "*/5 * * * *"
 
   # TimeZone for the schedule (optional, e.g., "America/New_York", "Europe/Paris")
   # If not specified, uses the system timezone
@@ -58,4 +58,4 @@ spec:
   scannerImage:
     repository: "invulnerable-scanner"
     tag: "latest"
-    pullPolicy: "IfNotPresent"
+    pullPolicy: "Always"  # Always pull to get latest local build

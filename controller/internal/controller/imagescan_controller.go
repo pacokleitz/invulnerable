@@ -204,6 +204,14 @@ func (r *ImageScanReconciler) reconcileCronJob(ctx context.Context, imageScan *i
 											Name:  "SBOM_FORMAT",
 											Value: sbomFormat,
 										},
+										{
+											Name:  "SYFT_CACHE_DIR",
+											Value: "/tmp/syft/cache",
+										},
+										{
+											Name:  "GRYPE_DB_CACHE_DIR",
+											Value: "/tmp/syft/grype-db",
+										},
 									},
 									SecurityContext: &corev1.SecurityContext{
 										AllowPrivilegeEscalation: ptr(false),

@@ -57,32 +57,31 @@ echo "Grype scan completed successfully"
 # Step 3: Prepare payload
 echo "Step 3: Preparing payload for API..."
 
-# Read SBOM and Grype results
-SBOM_CONTENT=$(cat "$SBOM_FILE")
-GRYPE_CONTENT=$(cat "$GRYPE_FILE")
-
 # Extract SBOM version if available
-SBOM_VERSION=$(echo "$SBOM_CONTENT" | jq -r '.bomFormat + " " + .specVersion' 2>/dev/null || echo "unknown")
+SBOM_VERSION=$(jq -r '.bomFormat + " " + .specVersion' "$SBOM_FILE" 2>/dev/null || echo "unknown")
 
 # Extract image digest from Grype source target
-IMAGE_DIGEST=$(echo "$GRYPE_CONTENT" | jq -r '.source.target.imageID // .source.target.repoDigests[0] // empty' 2>/dev/null || echo "")
+IMAGE_DIGEST=$(jq -r '.source.target.imageID // .source.target.repoDigests[0] // empty' "$GRYPE_FILE" 2>/dev/null || echo "")
 
-# Create JSON payload
-PAYLOAD=$(jq -n \
+# Create JSON payload by building it in pieces to avoid ARG_MAX issues
+PAYLOAD_FILE="$TEMP_DIR/payload.json"
+META_FILE="$TEMP_DIR/meta.json"
+
+# Create metadata JSON
+jq -n \
     --arg image "$IMAGE" \
     --arg sbom_format "$SBOM_FORMAT" \
     --arg sbom_version "$SBOM_VERSION" \
     --arg image_digest "$IMAGE_DIGEST" \
-    --argjson sbom "$SBOM_CONTENT" \
-    --argjson grype "$GRYPE_CONTENT" \
     '{
         image: $image,
         sbom_format: $sbom_format,
         sbom_version: $sbom_version,
-        image_digest: (if $image_digest != "" then $image_digest else null end),
-        sbom: $sbom,
-        grype_result: $grype
-    }')
+        image_digest: (if $image_digest != "" then $image_digest else null end)
+    }' > "$META_FILE"
+
+# Merge metadata with SBOM and Grype results
+jq -s '.[0] + {sbom: .[1], grype_result: .[2]}' "$META_FILE" "$SBOM_FILE" "$GRYPE_FILE" > "$PAYLOAD_FILE"
 
 # Step 4: Send to API
 echo "Step 4: Sending results to API at $API_ENDPOINT/api/v1/scans"
@@ -90,7 +89,7 @@ echo "Step 4: Sending results to API at $API_ENDPOINT/api/v1/scans"
 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
     -X POST \
     -H "Content-Type: application/json" \
-    -d "$PAYLOAD" \
+    -d @"$PAYLOAD_FILE" \
     "$API_ENDPOINT/api/v1/scans")
 
 if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then

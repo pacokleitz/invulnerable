@@ -1,6 +1,6 @@
 # Invulnerable
 
-> Cloud-native container vulnerability management platform powered by Anchore
+> Cloud-native container vulnerability management platform
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.19%2B-blue)](https://kubernetes.io/)

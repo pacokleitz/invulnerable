@@ -191,7 +191,7 @@ docker_build(
     dockerfile='./scanner/Dockerfile',
     # Only rebuild when these files change (relative to context)
     only=[
-        'scan.sh',
+        'scanner.sh',
         'Dockerfile',
     ],
 )
