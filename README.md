@@ -39,29 +39,30 @@ Invulnerable is a Kubernetes-native vulnerability management platform that provi
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Invulnerable Platform                 │
+│                    Invulnerable Platform                │
 ├──────────────┬──────────────────┬───────────────────────┤
 │   Frontend   │     Backend      │      Controller       │
 │  (React +    │   (Go + Echo)    │  (Kubernetes CRD)     │
 │  Vite)       │                  │                       │
-└──────┬───────┴────────┬─────────┴──────────┬────────────┘
-       │                │                    │
-       │                ├────────────────────┤
-       │                │   PostgreSQL       │
-       │                │   (SBOM + Data)    │
-       │                └────────────────────┘
-       │                          │
-       └──────────────────────────┼───────────────────┐
-                                  │                   │
-                          ┌───────▼────────┐  ┌───────▼────────┐
-                          │  ImageScan CRD │  │  ImageScan CRD │
-                          │  (nginx:latest)│  │  (app:v1.0.0)  │
-                          └───────┬────────┘  └───────┬────────┘
-                                  │                   │
-                          ┌───────▼────────┐  ┌───────▼────────┐
-                          │  Scanner Job   │  │  Scanner Job   │
-                          │  (Syft+Grype)  │  │  (Syft+Grype)  │
-                          └────────────────┘  └────────────────┘
+└──────────────┴────────┬─────────┴──────────┬────────────┘
+                        │                    │
+                        │                    │ Watches CRDs
+                        ▼                    ▼
+                 ┌──────────────┐   ┌───────────────────┐
+                 │  PostgreSQL  │   │  ImageScan CRDs   │
+                 │ (SBOM + Data)│   │  (nginx:latest,   │
+                 └──────┬───────┘   │   app:v1.0.0)     │
+                        ▲           └─────────┬─────────┘
+                        │                     │
+                        │                     │ Creates CronJobs
+                        │                     ▼
+                        │            ┌──────────────────┐
+                        │            │  Scanner Jobs    │
+                        │            │  (Syft + Grype)  │
+                        │            └────────┬─────────┘
+                        │                     │
+                        └─────────────────────┘
+                    Submits results via Backend API
 ```
 
 **Tech Stack:**
