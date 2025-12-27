@@ -86,3 +86,18 @@ spec:
     repository: "invulnerable-scanner"
     tag: "latest"
     pullPolicy: "Always"  # Always pull to get latest local build
+
+  # Private Registry Authentication (optional)
+  #
+  # To scan images from private Docker registries, create a docker-registry secret:
+  #
+  #   kubectl create secret docker-registry my-registry-secret \
+  #     --docker-server=myregistry.example.com \
+  #     --docker-username=myuser \
+  #     --docker-password=mypassword \
+  #     --docker-email=myemail@example.com \
+  #     -n invulnerable
+  #
+  # Then reference the secret(s) here:
+  # imagePullSecrets:
+  #   - name: my-registry-secret

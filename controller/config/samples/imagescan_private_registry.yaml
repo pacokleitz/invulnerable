@@ -1,0 +1,75 @@
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: private-registry-scan
+  namespace: invulnerable
+spec:
+  # Private registry image
+  image: "myregistry.example.com/myapp:v1.0.0"
+
+  schedule: "0 2 * * *"
+  sbomFormat: "cyclonedx"
+
+  # Reference to docker-registry secret for authentication
+  imagePullSecrets:
+    - name: my-registry-secret
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+
+---
+# Example: Multiple registries
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: gcr-image-scan
+  namespace: invulnerable
+spec:
+  image: "gcr.io/my-project/my-app:latest"
+  schedule: "0 3 * * *"
+
+  # Multiple secrets for different registries
+  imagePullSecrets:
+    - name: gcr-secret
+    - name: dockerhub-secret
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+
+---
+# Secret creation examples (reference)
+#
+# Docker Hub:
+#   kubectl create secret docker-registry dockerhub-secret \
+#     --docker-server=docker.io \
+#     --docker-username=myusername \
+#     --docker-password=mypassword \
+#     -n invulnerable
+#
+# Google Container Registry (GCR):
+#   kubectl create secret docker-registry gcr-secret \
+#     --docker-server=gcr.io \
+#     --docker-username=_json_key \
+#     --docker-password="$(cat service-account-key.json)" \
+#     -n invulnerable
+#
+# AWS ECR:
+#   kubectl create secret docker-registry ecr-secret \
+#     --docker-server=123456789.dkr.ecr.us-east-1.amazonaws.com \
+#     --docker-username=AWS \
+#     --docker-password=$(aws ecr get-login-password --region us-east-1) \
+#     -n invulnerable
+#
+# GitHub Container Registry (GHCR):
+#   kubectl create secret docker-registry ghcr-secret \
+#     --docker-server=ghcr.io \
+#     --docker-username=myusername \
+#     --docker-password=ghp_myPersonalAccessToken \
+#     -n invulnerable

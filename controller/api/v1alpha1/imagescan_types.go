@@ -70,6 +70,13 @@ type ImageScanSpec struct {
 	// Webhook configuration for notifications
 	// +kubebuilder:validation:Optional
 	Webhook *WebhookConfig `json:"webhook,omitempty"`
+
+	// ImagePullSecrets is an optional list of references to secrets in the same namespace
+	// to use for pulling the container image from private registries.
+	// These secrets should be of type kubernetes.io/dockerconfigjson.
+	// See https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod
+	// +kubebuilder:validation:Optional
+	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 }
 
 // WebhookConfig defines webhook notification settings

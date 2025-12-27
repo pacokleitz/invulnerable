@@ -37,6 +37,7 @@ type ImageScanReconciler struct {
 // +kubebuilder:rbac:groups=invulnerable.io,resources=imagescans/finalizers,verbs=update
 // +kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 
 // Note: Controller does NOT have create/delete permissions for ImageScans.
 // Users create ImageScans, controller reconciles them.
@@ -231,6 +232,45 @@ func (r *ImageScanReconciler) reconcileCronJob(ctx context.Context, imageScan *i
 		desiredCronJob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Resources = *imageScan.Spec.Resources
 	}
 
+	// Set ImagePullSecrets if specified (allows pulling private scanner image)
+	if len(imageScan.Spec.ImagePullSecrets) > 0 {
+		desiredCronJob.Spec.JobTemplate.Spec.Template.Spec.ImagePullSecrets = imageScan.Spec.ImagePullSecrets
+
+		// Mount docker config secrets as volumes for Syft to use
+		for i, secretRef := range imageScan.Spec.ImagePullSecrets {
+			volumeName := fmt.Sprintf("docker-config-%d", i)
+
+			// Add volume
+			desiredCronJob.Spec.JobTemplate.Spec.Template.Spec.Volumes = append(
+				desiredCronJob.Spec.JobTemplate.Spec.Template.Spec.Volumes,
+				corev1.Volume{
+					Name: volumeName,
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
+							SecretName: secretRef.Name,
+							Items: []corev1.KeyToPath{
+								{
+									Key:  ".dockerconfigjson",
+									Path: "config.json",
+								},
+							},
+						},
+					},
+				},
+			)
+
+			// Add volume mount
+			desiredCronJob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].VolumeMounts = append(
+				desiredCronJob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].VolumeMounts,
+				corev1.VolumeMount{
+					Name:      volumeName,
+					MountPath: fmt.Sprintf("/docker-config/%d", i),
+					ReadOnly:  true,
+				},
+			)
+		}
+	}
+
 	// Set owner reference
 	if err := controllerutil.SetControllerReference(imageScan, desiredCronJob, r.Scheme); err != nil {
 		return nil, err
@@ -322,6 +362,14 @@ func buildEnvVars(imageScan *invulnerablev1alpha1.ImageScan, apiEndpoint, sbomFo
 			Name:  "GRYPE_DB_CACHE_DIR",
 			Value: "/tmp/syft/grype-db",
 		},
+	}
+
+	// Set DOCKER_CONFIG for Syft to find registry credentials
+	if len(imageScan.Spec.ImagePullSecrets) > 0 {
+		env = append(env, corev1.EnvVar{
+			Name:  "DOCKER_CONFIG",
+			Value: "/docker-config/0",
+		})
 	}
 
 	// Add webhook configuration if present and enabled
