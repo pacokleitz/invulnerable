@@ -1,7 +1,13 @@
-import { FC } from 'react';
+import { FC, useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { useStore } from '../../store';
 
 export const MainLayout: FC = () => {
+	const { user, loadUser } = useStore();
+
+	useEffect(() => {
+		loadUser();
+	}, [loadUser]);
 	const linkClass = ({ isActive }: { isActive: boolean }) =>
 		`inline-flex items-center px-1 pt-1 text-sm font-medium ${
 			isActive ? 'text-blue-600' : 'text-gray-500 hover:text-blue-600'
@@ -32,6 +38,19 @@ export const MainLayout: FC = () => {
 									Images
 								</NavLink>
 							</div>
+						</div>
+						<div className="flex items-center space-x-4">
+							{user && (
+								<>
+									<span className="text-sm text-gray-700">{user.email}</span>
+									<a
+										href="/oauth2/sign_out"
+										className="text-sm text-gray-500 hover:text-gray-700"
+									>
+										Logout
+									</a>
+								</>
+							)}
 						</div>
 					</div>
 				</div>

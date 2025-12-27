@@ -1,6 +1,7 @@
 import type {
 	DashboardMetrics,
 	ScanWithDetails,
+	User,
 	Vulnerability,
 	ImageWithStats
 } from '../lib/api/types';
@@ -45,4 +46,11 @@ export interface ImagesState {
 	clearImageHistory: () => void;
 }
 
-export interface AppStore extends MetricsState, ScansState, VulnerabilitiesState, ImagesState {}
+export interface UserState {
+	user: User | null;
+	loading: boolean;
+	error: string | null;
+	loadUser: () => Promise<void>;
+}
+
+export interface AppStore extends MetricsState, ScansState, VulnerabilitiesState, ImagesState, UserState {}

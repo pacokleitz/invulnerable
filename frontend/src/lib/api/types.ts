@@ -88,3 +88,8 @@ export interface VulnerabilityUpdate {
 	status?: string;
 	notes?: string;
 }
+
+export interface User {
+	email: string;
+	username?: string;
+}

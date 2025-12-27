@@ -56,6 +56,7 @@ func main() {
 	vulnHandler := api.NewVulnerabilityHandler(logger, vulnRepo)
 	imageHandler := api.NewImageHandler(logger, imageRepo)
 	metricsHandler := api.NewMetricsHandler(logger, metricsSvc)
+	userHandler := api.NewUserHandler(logger)
 
 	// Initialize Echo
 	e := echo.New()
@@ -111,6 +112,9 @@ func main() {
 
 	// Metrics
 	api.GET("/metrics", metricsHandler.GetMetrics)
+
+	// User
+	api.GET("/user/me", userHandler.GetCurrentUser)
 
 	// Start server
 	go func() {

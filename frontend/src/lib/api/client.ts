@@ -3,6 +3,7 @@ import type {
 	ImageWithStats,
 	ScanDiff,
 	ScanWithDetails,
+	User,
 	Vulnerability,
 	VulnerabilityUpdate
 } from './types';
@@ -129,6 +130,29 @@ export const api = {
 	metrics: {
 		getDashboard: () => {
 			return fetchAPI<DashboardMetrics>('/metrics');
+		}
+	},
+
+	// User
+	user: {
+		getMe: async (): Promise<User | null> => {
+			const response = await fetch(`${API_BASE}/user/me`, {
+				headers: {
+					'Content-Type': 'application/json'
+				}
+			});
+
+			// 204 No Content means OAuth2 Proxy is not deployed
+			if (response.status === 204) {
+				return null;
+			}
+
+			if (!response.ok) {
+				const error = await response.text();
+				throw new Error(`API Error: ${response.status} - ${error}`);
+			}
+
+			return response.json();
 		}
 	}
 };
