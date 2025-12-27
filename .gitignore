@@ -11,6 +11,10 @@ vendor/
 coverage.out
 coverage.html
 
+# Controller
+controller/main
+controller/manager
+
 # Frontend
 frontend/node_modules/
 frontend/.svelte-kit/
