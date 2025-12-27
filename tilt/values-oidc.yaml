@@ -11,6 +11,10 @@ image:
 # Backend configuration
 backend:
   replicaCount: 1
+
+  # Frontend URL for webhook notifications (OIDC mode)
+  frontendURL: "http://invulnerable.local:8080"
+
   database:
     host: "postgres-postgresql.invulnerable.svc.cluster.local"
     port: 5432

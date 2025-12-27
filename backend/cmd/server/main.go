@@ -15,6 +15,7 @@ import (
 	"github.com/invulnerable/backend/internal/api"
 	"github.com/invulnerable/backend/internal/db"
 	"github.com/invulnerable/backend/internal/metrics"
+	"github.com/invulnerable/backend/internal/notifier"
 	"go.uber.org/zap"
 )
 
@@ -47,10 +48,11 @@ func main() {
 	// Initialize services
 	analyzerSvc := analyzer.New(scanRepo, vulnRepo)
 	metricsSvc := metrics.New(database)
+	notifierSvc := notifier.New(logger, cfg.FrontendURL)
 
 	// Initialize handlers
 	healthHandler := api.NewHealthHandler(database)
-	scanHandler := api.NewScanHandler(logger, imageRepo, scanRepo, vulnRepo, sbomRepo, analyzerSvc)
+	scanHandler := api.NewScanHandler(logger, imageRepo, scanRepo, vulnRepo, sbomRepo, analyzerSvc, notifierSvc)
 	vulnHandler := api.NewVulnerabilityHandler(logger, vulnRepo)
 	imageHandler := api.NewImageHandler(logger, imageRepo)
 	metricsHandler := api.NewMetricsHandler(logger, metricsSvc)
@@ -136,13 +138,15 @@ func main() {
 }
 
 type Config struct {
-	Port string
-	DB   db.Config
+	Port        string
+	FrontendURL string
+	DB          db.Config
 }
 
 func loadConfig() Config {
 	return Config{
-		Port: getEnv("PORT", "8080"),
+		Port:        getEnv("PORT", "8080"),
+		FrontendURL: getEnv("FRONTEND_URL", ""),
 		DB: db.Config{
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnvInt("DB_PORT", 5432),

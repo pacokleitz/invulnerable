@@ -2,6 +2,11 @@
 # Use this when cert-manager is installed
 # Extends tilt-values.yaml with TLS configuration
 
+# Backend configuration
+backend:
+  # Frontend URL for webhook notifications (HTTPS mode)
+  frontendURL: "https://invulnerable.local:8443"
+
 # Controller configuration
 controller:
   rbac:

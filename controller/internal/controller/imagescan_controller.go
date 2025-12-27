@@ -191,28 +191,7 @@ func (r *ImageScanReconciler) reconcileCronJob(ctx context.Context, imageScan *i
 									Name:            "scanner",
 									Image:           scannerImage,
 									ImagePullPolicy: pullPolicy,
-									Env: []corev1.EnvVar{
-										{
-											Name:  "SCAN_IMAGE",
-											Value: imageScan.Spec.Image,
-										},
-										{
-											Name:  "API_ENDPOINT",
-											Value: apiEndpoint,
-										},
-										{
-											Name:  "SBOM_FORMAT",
-											Value: sbomFormat,
-										},
-										{
-											Name:  "SYFT_CACHE_DIR",
-											Value: "/tmp/syft/cache",
-										},
-										{
-											Name:  "GRYPE_DB_CACHE_DIR",
-											Value: "/tmp/syft/grype-db",
-										},
-									},
+									Env:             buildEnvVars(imageScan, apiEndpoint, sbomFormat),
 									SecurityContext: &corev1.SecurityContext{
 										AllowPrivilegeEscalation: ptr(false),
 										Capabilities: &corev1.Capabilities{
@@ -318,6 +297,52 @@ func (r *ImageScanReconciler) setCondition(imageScan *invulnerablev1alpha1.Image
 	}
 
 	meta.SetStatusCondition(&imageScan.Status.Conditions, condition)
+}
+
+// buildEnvVars builds the environment variables for the scanner container
+func buildEnvVars(imageScan *invulnerablev1alpha1.ImageScan, apiEndpoint, sbomFormat string) []corev1.EnvVar {
+	env := []corev1.EnvVar{
+		{
+			Name:  "SCAN_IMAGE",
+			Value: imageScan.Spec.Image,
+		},
+		{
+			Name:  "API_ENDPOINT",
+			Value: apiEndpoint,
+		},
+		{
+			Name:  "SBOM_FORMAT",
+			Value: sbomFormat,
+		},
+		{
+			Name:  "SYFT_CACHE_DIR",
+			Value: "/tmp/syft/cache",
+		},
+		{
+			Name:  "GRYPE_DB_CACHE_DIR",
+			Value: "/tmp/syft/grype-db",
+		},
+	}
+
+	// Add webhook configuration if present and enabled
+	if imageScan.Spec.Webhook != nil && imageScan.Spec.Webhook.Enabled {
+		env = append(env,
+			corev1.EnvVar{
+				Name:  "WEBHOOK_URL",
+				Value: imageScan.Spec.Webhook.URL,
+			},
+			corev1.EnvVar{
+				Name:  "WEBHOOK_FORMAT",
+				Value: imageScan.Spec.Webhook.Format,
+			},
+			corev1.EnvVar{
+				Name:  "WEBHOOK_MIN_SEVERITY",
+				Value: imageScan.Spec.Webhook.MinSeverity,
+			},
+		)
+	}
+
+	return env
 }
 
 // SetupWithManager sets up the controller with the Manager

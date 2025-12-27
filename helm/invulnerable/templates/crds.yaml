@@ -181,6 +181,40 @@ spec:
                   TimeZone for the CronJob schedule (e.g., "America/New_York", "UTC")
                   If not specified, defaults to the system timezone
                 type: string
+              webhook:
+                description: Webhook configuration for notifications
+                properties:
+                  enabled:
+                    default: true
+                    description: Enabled allows temporarily disabling webhook notifications
+                    type: boolean
+                  format:
+                    default: slack
+                    description: Format specifies the webhook payload format (slack,
+                      teams)
+                    enum:
+                    - slack
+                    - teams
+                    type: string
+                  minSeverity:
+                    default: High
+                    description: MinSeverity is the minimum severity level to trigger
+                      notifications
+                    enum:
+                    - Critical
+                    - High
+                    - Medium
+                    - Low
+                    - Negligible
+                    type: string
+                  url:
+                    description: URL is the webhook endpoint URL
+                    minLength: 1
+                    pattern: ^https?://.*$
+                    type: string
+                required:
+                - url
+                type: object
               workspaceSize:
                 default: 10Gi
                 description: |-

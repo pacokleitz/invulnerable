@@ -66,6 +66,36 @@ type ImageScanSpec struct {
 	// Scanner image configuration
 	// +kubebuilder:validation:Optional
 	ScannerImage *ScannerImageSpec `json:"scannerImage,omitempty"`
+
+	// Webhook configuration for notifications
+	// +kubebuilder:validation:Optional
+	Webhook *WebhookConfig `json:"webhook,omitempty"`
+}
+
+// WebhookConfig defines webhook notification settings
+type WebhookConfig struct {
+	// URL is the webhook endpoint URL
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:Pattern=`^https?://.*$`
+	URL string `json:"url"`
+
+	// Format specifies the webhook payload format (slack, teams)
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=slack;teams
+	// +kubebuilder:default="slack"
+	Format string `json:"format,omitempty"`
+
+	// MinSeverity is the minimum severity level to trigger notifications
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=Critical;High;Medium;Low;Negligible
+	// +kubebuilder:default="High"
+	MinSeverity string `json:"minSeverity,omitempty"`
+
+	// Enabled allows temporarily disabling webhook notifications
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=true
+	Enabled bool `json:"enabled,omitempty"`
 }
 
 // ScannerImageSpec defines the scanner container image configuration

@@ -72,6 +72,11 @@ backend:
     existingSecret: ""
     passwordKey: "password"
 
+  # Frontend URL for webhook notifications
+  # Used to generate links to scan results in webhook messages
+  # Example: "https://invulnerable.example.com" or "http://localhost:3000"
+  frontendURL: ""
+
   # Health checks
   livenessProbe:
     httpGet:

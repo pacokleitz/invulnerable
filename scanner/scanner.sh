@@ -73,11 +73,21 @@ jq -n \
     --arg sbom_format "$SBOM_FORMAT" \
     --arg sbom_version "$SBOM_VERSION" \
     --arg image_digest "$IMAGE_DIGEST" \
+    --arg webhook_url "${WEBHOOK_URL:-}" \
+    --arg webhook_format "${WEBHOOK_FORMAT:-}" \
+    --arg webhook_min_severity "${WEBHOOK_MIN_SEVERITY:-}" \
     '{
         image: $image,
         sbom_format: $sbom_format,
         sbom_version: $sbom_version,
-        image_digest: (if $image_digest != "" then $image_digest else null end)
+        image_digest: (if $image_digest != "" then $image_digest else null end),
+        webhook_config: (
+            if $webhook_url != "" then {
+                url: $webhook_url,
+                format: $webhook_format,
+                min_severity: $webhook_min_severity
+            } else null end
+        )
     }' > "$META_FILE"
 
 # Merge metadata with SBOM and Grype results

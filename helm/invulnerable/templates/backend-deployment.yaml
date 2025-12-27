@@ -89,6 +89,8 @@ spec:
           value: {{ .Values.backend.database.name | quote }}
         - name: DB_SSLMODE
           value: {{ .Values.backend.database.sslmode | quote }}
+        - name: FRONTEND_URL
+          value: {{ .Values.backend.frontendURL | quote }}
         livenessProbe:
           {{- toYaml .Values.backend.livenessProbe | nindent 12 }}
         readinessProbe:

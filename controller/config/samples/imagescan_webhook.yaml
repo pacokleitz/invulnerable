@@ -1,0 +1,43 @@
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: nginx-scan-with-slack-webhook
+  namespace: default
+spec:
+  image: nginx:latest
+  schedule: "0 2 * * *"
+  sbomFormat: cyclonedx
+  webhook:
+    url: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+    format: slack
+    minSeverity: High
+    enabled: true
+---
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: alpine-scan-with-teams-webhook
+  namespace: default
+spec:
+  image: alpine:latest
+  schedule: "0 3 * * *"
+  sbomFormat: cyclonedx
+  webhook:
+    url: https://outlook.office.com/webhook/YOUR/WEBHOOK/URL
+    format: teams
+    minSeverity: Critical
+    enabled: true
+---
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: redis-scan-medium-severity
+  namespace: default
+spec:
+  image: redis:7
+  schedule: "0 4 * * *"
+  webhook:
+    url: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+    format: slack
+    minSeverity: Medium
+    enabled: true

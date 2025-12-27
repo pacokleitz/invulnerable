@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"github.com/invulnerable/backend/internal/analyzer"
 	"github.com/invulnerable/backend/internal/db"
 	"github.com/invulnerable/backend/internal/models"
+	"github.com/invulnerable/backend/internal/notifier"
 	"go.uber.org/zap"
 )
 
@@ -21,6 +23,7 @@ type ScanHandler struct {
 	vulnRepo     *db.VulnerabilityRepository
 	sbomRepo     *db.SBOMRepository
 	analyzer     *analyzer.Analyzer
+	notifier     *notifier.Notifier
 }
 
 func NewScanHandler(
@@ -30,6 +33,7 @@ func NewScanHandler(
 	vulnRepo *db.VulnerabilityRepository,
 	sbomRepo *db.SBOMRepository,
 	analyzer *analyzer.Analyzer,
+	notifier *notifier.Notifier,
 ) *ScanHandler {
 	return &ScanHandler{
 		logger:    logger,
@@ -38,16 +42,24 @@ func NewScanHandler(
 		vulnRepo:  vulnRepo,
 		sbomRepo:  sbomRepo,
 		analyzer:  analyzer,
+		notifier:  notifier,
 	}
 }
 
 type ScanRequest struct {
-	Image        string             `json:"image"`
-	ImageDigest  *string            `json:"image_digest,omitempty"`
-	GrypeResult  models.GrypeResult `json:"grype_result"`
-	SBOM         json.RawMessage    `json:"sbom"`
-	SBOMFormat   string             `json:"sbom_format"`
-	SBOMVersion  *string            `json:"sbom_version,omitempty"`
+	Image         string             `json:"image"`
+	ImageDigest   *string            `json:"image_digest,omitempty"`
+	GrypeResult   models.GrypeResult `json:"grype_result"`
+	SBOM          json.RawMessage    `json:"sbom"`
+	SBOMFormat    string             `json:"sbom_format"`
+	SBOMVersion   *string            `json:"sbom_version,omitempty"`
+	WebhookConfig *WebhookConfig     `json:"webhook_config,omitempty"`
+}
+
+type WebhookConfig struct {
+	URL         string `json:"url"`
+	Format      string `json:"format"`
+	MinSeverity string `json:"min_severity"`
 }
 
 // CreateScan handles POST /api/v1/scans - receives scan results from CronJob
@@ -155,6 +167,49 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 		if err := h.vulnRepo.LinkToScan(ctx, scan.ID, vuln.ID); err != nil {
 			h.logger.Error("failed to link vulnerability to scan", zap.Error(err))
 		}
+	}
+
+	// Calculate severity counts for notification
+	severityCounts := notifier.SeverityCounts{}
+	for _, match := range req.GrypeResult.Matches {
+		switch match.Vulnerability.Severity {
+		case "Critical":
+			severityCounts.Critical++
+		case "High":
+			severityCounts.High++
+		case "Medium":
+			severityCounts.Medium++
+		case "Low":
+			severityCounts.Low++
+		default:
+			severityCounts.Negligible++
+		}
+	}
+
+	// Send webhook notification if configured
+	if req.WebhookConfig != nil && req.WebhookConfig.URL != "" {
+		go func() {
+			webhookConfig := notifier.WebhookConfig{
+				URL:         req.WebhookConfig.URL,
+				Format:      req.WebhookConfig.Format,
+				MinSeverity: req.WebhookConfig.MinSeverity,
+			}
+
+			notificationPayload := notifier.NotificationPayload{
+				Image:          req.Image,
+				ImageDigest:    req.ImageDigest,
+				ScanID:         scan.ID,
+				TotalVulns:     len(req.GrypeResult.Matches),
+				SeverityCounts: severityCounts,
+			}
+
+			if err := h.notifier.SendNotification(context.Background(), webhookConfig, notificationPayload); err != nil {
+				h.logger.Error("failed to send webhook notification",
+					zap.Error(err),
+					zap.String("webhook_url", req.WebhookConfig.URL),
+					zap.Int("scan_id", scan.ID))
+			}
+		}()
 	}
 
 	h.logger.Info("scan created successfully",

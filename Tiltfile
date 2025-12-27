@@ -5,7 +5,7 @@
 allow_k8s_contexts('docker-desktop')
 
 # Suppress warning for scanner image (used by dynamically created Jobs)
-update_settings(suppress_unused_image_warnings=['localhost:5001/invulnerable-scanner'])
+update_settings(suppress_unused_image_warnings=['invulnerable-scanner'])
 
 # Load Tilt extensions
 load('ext://helm_resource', 'helm_resource', 'helm_repo')
@@ -186,7 +186,7 @@ docker_build(
 )
 
 docker_build(
-    ref=registry + '/invulnerable-scanner',
+    ref='invulnerable-scanner',
     context='./scanner',
     dockerfile='./scanner/Dockerfile',
     # Only rebuild when these files change (relative to context)

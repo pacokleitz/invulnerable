@@ -16,7 +16,6 @@
       "Bash(helm template:*)",
       "Bash(docker build:*)",
       "Bash(docker inspect:*)",
-      "Bash(docker run:*)",
       "WebFetch(domain:github.com)",
       "Bash(kubectl get:*)"
     ],
