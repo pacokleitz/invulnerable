@@ -42,13 +42,49 @@ export const ScanSBOM: FC = () => {
 	}, [sbomJson, scanId]);
 
 	const copySBOM = useCallback(() => {
-		navigator.clipboard.writeText(sbomJson).then(() => {
+		// Try modern clipboard API first
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			navigator.clipboard
+				.writeText(sbomJson)
+				.then(() => {
+					setCopied(true);
+					setTimeout(() => {
+						setCopied(false);
+					}, 2000);
+				})
+				.catch(() => {
+					// Fallback to legacy method
+					fallbackCopyToClipboard(sbomJson);
+				});
+		} else {
+			// Fallback for browsers without clipboard API
+			fallbackCopyToClipboard(sbomJson);
+		}
+	}, [sbomJson]);
+
+	const fallbackCopyToClipboard = (text: string) => {
+		const textArea = document.createElement('textarea');
+		textArea.value = text;
+		textArea.style.position = 'fixed';
+		textArea.style.left = '-999999px';
+		textArea.style.top = '-999999px';
+		document.body.appendChild(textArea);
+		textArea.focus();
+		textArea.select();
+
+		try {
+			document.execCommand('copy');
 			setCopied(true);
 			setTimeout(() => {
 				setCopied(false);
 			}, 2000);
-		});
-	}, [sbomJson]);
+		} catch (err) {
+			console.error('Failed to copy:', err);
+			alert('Failed to copy to clipboard. Please copy manually.');
+		} finally {
+			document.body.removeChild(textArea);
+		}
+	};
 
 	if (loading) {
 		return (
