@@ -18,6 +18,7 @@ Invulnerable is a Kubernetes-native vulnerability management platform that provi
 - 📊 **Vulnerability Lifecycle Tracking** - Monitor vulnerabilities from discovery to resolution
 - 🔄 **Scan Comparison & Diff** - Track changes between scans to identify new and fixed vulnerabilities
 - 📈 **Metrics & Dashboards** - Real-time insights into your security posture
+- 🔔 **Webhook Notifications** - Configurable alerts to Slack/Teams with severity-based filtering and scan result links
 - 🎯 **Kubernetes-Native** - CRD-based controller for declarative image scanning
 - 🔐 **OAuth2 Authentication** - Support for Google, GitHub, Keycloak, Azure AD, and more
 - 🚀 **Production-Ready** - Helm charts, HPA, and non-root containers
@@ -261,6 +262,13 @@ spec:
   # SBOM format (cyclonedx or spdx)
   sbomFormat: "cyclonedx"
 
+  # Webhook notifications (optional)
+  webhook:
+    url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+    format: "slack"  # or "teams"
+    minSeverity: "High"  # Critical, High, Medium, Low, or Negligible
+    enabled: true
+
   # Resource limits for scanner jobs
   resources:
     requests:
@@ -327,6 +335,50 @@ backend:
     sslmode: "require"
     existingSecret: "db-credentials"
     passwordKey: "password"
+```
+
+### Webhook Notifications
+
+Configure webhook notifications to receive scan alerts in Slack or Microsoft Teams:
+
+```yaml
+# Per-ImageScan configuration
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+spec:
+  webhook:
+    # Webhook URL (get from Slack/Teams settings)
+    url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+
+    # Format: "slack" or "teams"
+    format: "slack"
+
+    # Minimum severity to trigger notification
+    # Options: Critical, High, Medium, Low, Negligible
+    minSeverity: "High"
+
+    # Enable/disable notifications
+    enabled: true
+```
+
+**Setting up webhooks:**
+
+- **Slack**: Create an incoming webhook at https://api.slack.com/messaging/webhooks
+- **Microsoft Teams**: Add an incoming webhook connector to your Teams channel
+- **Testing**: Use https://webhook.site to test webhook payloads
+
+**Notification includes:**
+- Vulnerability counts by severity (Critical, High, Medium, Low)
+- Color-coded message based on highest severity found
+- Clickable link to view full scan results in the web interface
+- Image name and digest
+
+**Configure frontend URL** (required for scan result links):
+
+```yaml
+# values.yaml
+backend:
+  frontendURL: "https://invulnerable.example.com"
 ```
 
 See [Helm Chart README](helm/invulnerable/README.md) for all configuration options.
@@ -520,12 +572,8 @@ Found a bug or have a feature request? Please open an issue on GitHub with:
 ## 🗺️ Roadmap
 
 - [ ] Prometheus metrics exporter
-- [ ] Webhook notifications (Slack, Teams, Discord)
 - [ ] Policy engine for vulnerability acceptance
-- [ ] Multi-cluster support
 - [ ] Historical trend analysis
-- [ ] SBOM export and sharing
-- [ ] Integration with CI/CD pipelines
 - [ ] Custom vulnerability data sources
 
 ## 📄 License
