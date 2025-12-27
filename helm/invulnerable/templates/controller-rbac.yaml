@@ -20,7 +20,7 @@ metadata:
     {{- include "invulnerable.labels" . | nindent 4 }}
     app.kubernetes.io/component: controller
 rules:
-# ImageScan CRD permissions (read-only except status and finalizers)
+# ImageScan CRD permissions (update needed for finalizers)
 - apiGroups:
   - invulnerable.io
   resources:
@@ -29,6 +29,8 @@ rules:
   - get
   - list
   - watch
+  - update
+  - patch
   # Note: No create/delete - users manage ImageScans, controller only reconciles
 - apiGroups:
   - invulnerable.io
@@ -94,7 +96,7 @@ metadata:
     {{- include "invulnerable.labels" . | nindent 4 }}
     app.kubernetes.io/component: controller
 rules:
-# ImageScan CRD permissions (read-only except status and finalizers)
+# ImageScan CRD permissions (update needed for finalizers)
 - apiGroups:
   - invulnerable.io
   resources:
@@ -103,6 +105,8 @@ rules:
   - get
   - list
   - watch
+  - update
+  - patch
   # Note: No create/delete - users manage ImageScans, controller only reconciles
 - apiGroups:
   - invulnerable.io

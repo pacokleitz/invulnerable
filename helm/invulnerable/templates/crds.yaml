@@ -2,9 +2,9 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: imagescans.invulnerable.io
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.20.0
+  name: imagescans.invulnerable.io
 spec:
   group: invulnerable.io
   names:
@@ -17,20 +17,44 @@ spec:
     singular: imagescan
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.image
+      name: Image
+      type: string
+    - jsonPath: .spec.schedule
+      name: Schedule
+      type: string
+    - jsonPath: .spec.suspend
+      name: Suspend
+      type: boolean
+    - jsonPath: .status.cronJobName
+      name: CronJob
+      type: string
+    - jsonPath: .status.lastScheduledTime
+      name: Last Scheduled
+      type: date
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: ImageScan is the Schema for the imagescans API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values.'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase.'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -38,7 +62,8 @@ spec:
             description: ImageScanSpec defines the desired state of ImageScan
             properties:
               apiEndpoint:
-                description: APIEndpoint is the Invulnerable backend API endpoint
+                description: |-
+                  APIEndpoint is the Invulnerable backend API endpoint
                   If not specified, it will be auto-detected from the service
                 type: string
               failedJobsHistoryLimit:
@@ -58,12 +83,22 @@ spec:
                   job
                 properties:
                   claims:
-                    description: Claims lists the names of resources, defined in spec.resourceClaims
+                    description: |-
+                      Claims lists the names of resources, defined in spec.resourceClaims,
+                      that are used by this container.
+
+                      This is an alpha field and requires enabling the
+                      DynamicResourceAllocation feature gate.
+
+                      This field is immutable. It can only be set for containers.
                     items:
                       description: ResourceClaim references one entry in PodSpec.ResourceClaims.
                       properties:
                         name:
-                          description: Name must match the name of one entry in pod.spec.resourceClaims
+                          description: |-
+                            Name must match the name of one entry in pod.spec.resourceClaims of
+                            the Pod where this field is used. It makes that resource available
+                            inside a container.
                           type: string
                       required:
                       - name
@@ -79,8 +114,9 @@ spec:
                       - type: string
                       pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                       x-kubernetes-int-or-string: true
-                    description: 'Limits describes the maximum amount of compute resources
-                      allowed.'
+                    description: |-
+                      Limits describes the maximum amount of compute resources allowed.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
                     type: object
                   requests:
                     additionalProperties:
@@ -89,8 +125,11 @@ spec:
                       - type: string
                       pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                       x-kubernetes-int-or-string: true
-                    description: 'Requests describes the minimum amount of compute
-                      resources required.'
+                    description: |-
+                      Requests describes the minimum amount of compute resources required.
+                      If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                      otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
                     type: object
                 type: object
               sbomFormat:
@@ -123,6 +162,7 @@ spec:
                 type: object
               schedule:
                 description: Schedule in Cron format for when to run the scan
+                example: 0 2 * * *
                 minLength: 1
                 type: string
               successfulJobsHistoryLimit:
@@ -136,6 +176,19 @@ spec:
                 default: false
                 description: Suspend tells the controller to suspend subsequent scans
                 type: boolean
+              timeZone:
+                description: |-
+                  TimeZone for the CronJob schedule (e.g., "America/New_York", "UTC")
+                  If not specified, defaults to the system timezone
+                type: string
+              workspaceSize:
+                default: 10Gi
+                description: |-
+                  WorkspaceSize defines the size of the temporary workspace for image extraction
+                  This should be larger than the largest image you plan to scan
+                  Default: 10Gi (suitable for most images, increase for larger images)
+                  WARNING: Multiple ImageScans can run concurrently and consume node disk space
+                type: string
             required:
             - image
             - schedule
@@ -147,28 +200,36 @@ spec:
                 description: Conditions represent the latest available observations
                   of the ImageScan's state
                 items:
-                  description: "Condition contains details for one aspect of the current
-                    state of this API Resource."
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
                   properties:
                     lastTransitionTime:
-                      description: lastTransitionTime is the last time the condition
-                        transitioned from one status to another.
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
                       format: date-time
                       type: string
                     message:
-                      description: message is a human readable message indicating
-                        details about the transition.
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
                       maxLength: 32768
                       type: string
                     observedGeneration:
-                      description: observedGeneration represents the .metadata.generation
-                        that the condition was set based upon.
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
                       format: int64
                       minimum: 0
                       type: integer
                     reason:
-                      description: reason contains a programmatic identifier indicating
-                        the reason for the condition's last transition.
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
                       maxLength: 1024
                       minLength: 1
                       pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
@@ -216,22 +277,3 @@ spec:
     storage: true
     subresources:
       status: {}
-    additionalPrinterColumns:
-    - name: Image
-      type: string
-      jsonPath: .spec.image
-    - name: Schedule
-      type: string
-      jsonPath: .spec.schedule
-    - name: Suspend
-      type: boolean
-      jsonPath: .spec.suspend
-    - name: CronJob
-      type: string
-      jsonPath: .status.cronJobName
-    - name: Last Scheduled
-      type: date
-      jsonPath: .status.lastScheduledTime
-    - name: Age
-      type: date
-      jsonPath: .metadata.creationTimestamp

@@ -4,6 +4,10 @@ set -e
 # Scanner script for Syft + Grype
 # This script runs as a Kubernetes CronJob to scan container images
 
+# Use mounted workspace for temporary files
+export TMPDIR=/tmp/syft
+mkdir -p "$TMPDIR"
+
 # Configuration from environment variables
 IMAGE="${SCAN_IMAGE}"
 API_ENDPOINT="${API_ENDPOINT:-http://backend.invulnerable.svc.cluster.local:8080}"

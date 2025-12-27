@@ -10,6 +10,10 @@ spec:
   # Scan schedule in cron format (daily at 2 AM)
   schedule: "0 2 * * *"
 
+  # TimeZone for the schedule (optional, e.g., "America/New_York", "Europe/Paris")
+  # If not specified, uses the system timezone
+  timeZone: "Europe/Paris"
+
   # SBOM format (cyclonedx or spdx)
   sbomFormat: "cyclonedx"
 
@@ -23,11 +27,29 @@ spec:
   # Resource requests and limits
   resources:
     requests:
-      memory: "512Mi"
-      cpu: "500m"
+      memory: "256Mi"
+      cpu: "200m"
     limits:
-      memory: "2Gi"
-      cpu: "2000m"
+      memory: "1Gi"
+      cpu: "1000m"
+
+  # Workspace size for image extraction (uses node disk space via emptyDir)
+  # Recommended sizes:
+  #   - Small images (<2GB): 5Gi
+  #   - Medium images (2-8GB): 10Gi (default)
+  #   - Large images (8-20GB): 20Gi
+  #   - Very large images (20GB+): 30Gi+
+  #
+  # ⚠️  WARNING: Node disk space consideration
+  # Multiple ImageScans run concurrently and share node disk:
+  #   Example: 5 ImageScans × 20Gi = 100Gi total node disk usage
+  #
+  # To prevent exhausting node disk:
+  #   1. Monitor node disk capacity
+  #   2. Use ResourceQuotas to limit total emptyDir usage
+  #   3. Use nodeSelector to schedule scans on nodes with large disks
+  #   4. Keep workspaceSize reasonable for your use case
+  workspaceSize: "10Gi"
 
   # API endpoint (optional, auto-detected if not specified)
   # apiEndpoint: "http://invulnerable-backend.invulnerable.svc.cluster.local:8080"

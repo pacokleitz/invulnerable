@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -143,6 +144,11 @@ func (r *ImageScanReconciler) reconcileCronJob(ctx context.Context, imageScan *i
 		apiEndpoint = fmt.Sprintf("http://invulnerable-backend.%s.svc.cluster.local:8080", imageScan.Namespace)
 	}
 
+	workspaceSize := imageScan.Spec.WorkspaceSize
+	if workspaceSize == "" {
+		workspaceSize = "10Gi"
+	}
+
 	// Define the desired CronJob
 	desiredCronJob := &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
@@ -156,8 +162,9 @@ func (r *ImageScanReconciler) reconcileCronJob(ctx context.Context, imageScan *i
 			},
 		},
 		Spec: batchv1.CronJobSpec{
-			Schedule: imageScan.Spec.Schedule,
-			Suspend:  &imageScan.Spec.Suspend,
+			Schedule:                   imageScan.Spec.Schedule,
+			TimeZone:                   imageScan.Spec.TimeZone,
+			Suspend:                    &imageScan.Spec.Suspend,
 			SuccessfulJobsHistoryLimit: &successfulJobsHistoryLimit,
 			FailedJobsHistoryLimit:     &failedJobsHistoryLimit,
 			ConcurrencyPolicy:          batchv1.ForbidConcurrent,
@@ -206,6 +213,22 @@ func (r *ImageScanReconciler) reconcileCronJob(ctx context.Context, imageScan *i
 										ReadOnlyRootFilesystem: ptr(false),
 										RunAsNonRoot:           ptr(true),
 										RunAsUser:              ptr(int64(1000)),
+									},
+									VolumeMounts: []corev1.VolumeMount{
+										{
+											Name:      "scan-workspace",
+											MountPath: "/tmp/syft",
+										},
+									},
+								},
+							},
+							Volumes: []corev1.Volume{
+								{
+									Name: "scan-workspace",
+									VolumeSource: corev1.VolumeSource{
+										EmptyDir: &corev1.EmptyDirVolumeSource{
+											SizeLimit: resourceQuantityPtr(workspaceSize),
+										},
 									},
 								},
 							},
@@ -300,4 +323,10 @@ func (r *ImageScanReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // ptr returns a pointer to the provided value
 func ptr[T any](v T) *T {
 	return &v
+}
+
+// resourceQuantityPtr parses a resource quantity string and returns a pointer to it
+func resourceQuantityPtr(s string) *resource.Quantity {
+	q := resource.MustParse(s)
+	return &q
 }

@@ -18,6 +18,11 @@ type ImageScanSpec struct {
 	// +kubebuilder:example="0 2 * * *"
 	Schedule string `json:"schedule"`
 
+	// TimeZone for the CronJob schedule (e.g., "America/New_York", "UTC")
+	// If not specified, defaults to the system timezone
+	// +kubebuilder:validation:Optional
+	TimeZone *string `json:"timeZone,omitempty"`
+
 	// SBOMFormat specifies the SBOM format to use (cyclonedx, spdx, etc.)
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default="cyclonedx"
@@ -44,6 +49,14 @@ type ImageScanSpec struct {
 	// Resources defines the resource requirements for the scanner job
 	// +kubebuilder:validation:Optional
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
+
+	// WorkspaceSize defines the size of the temporary workspace for image extraction
+	// This should be larger than the largest image you plan to scan
+	// Default: 10Gi (suitable for most images, increase for larger images)
+	// WARNING: Multiple ImageScans can run concurrently and consume node disk space
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default="10Gi"
+	WorkspaceSize string `json:"workspaceSize,omitempty"`
 
 	// APIEndpoint is the Invulnerable backend API endpoint
 	// If not specified, it will be auto-detected from the service
