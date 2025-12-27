@@ -173,10 +173,7 @@ docker_build(
     ref=registry + '/invulnerable-controller',
     context='./controller',
     dockerfile='./controller/Dockerfile',
-    live_update=[
-        sync('./controller', '/workspace'),
-        run('cd /workspace && make build', trigger=['./controller/**/*.go']),
-    ],
+    # Live update disabled - distroless image lacks tar/make
     # Only rebuild when these files change (relative to context)
     only=[
         'api/',
