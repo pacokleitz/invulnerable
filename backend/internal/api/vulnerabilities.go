@@ -63,8 +63,14 @@ func (h *VulnerabilityHandler) ListVulnerabilities(c echo.Context) error {
 		imageID = &id
 	}
 
+	// Parse image_name parameter for filtering by image name
+	var imageName *string
+	if imageNameStr := c.QueryParam("image_name"); imageNameStr != "" {
+		imageName = &imageNameStr
+	}
+
 	// Use ListWithImageInfo to get vulnerability+image combinations for compliance
-	vulns, err := h.vulnRepo.ListWithImageInfo(c.Request().Context(), limit, offset, severity, status, hasFix, imageID)
+	vulns, err := h.vulnRepo.ListWithImageInfo(c.Request().Context(), limit, offset, severity, status, hasFix, imageID, imageName)
 	if err != nil {
 		h.logger.Error("failed to list vulnerabilities", zap.Error(err))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list vulnerabilities")

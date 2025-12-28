@@ -4,6 +4,7 @@ import { api } from '../../lib/api/client';
 import type { ScanDiff as ScanDiffType } from '../../lib/api/types';
 import { SeverityBadge } from '../ui/SeverityBadge';
 import { StatusBadge } from '../ui/StatusBadge';
+import { PackageCategoryBadge } from '../ui/PackageCategoryBadge';
 import { formatDate, daysSince } from '../../lib/utils/formatters';
 
 export const ScanDiff: FC = () => {
@@ -131,6 +132,9 @@ export const ScanDiff: FC = () => {
 										Version
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+										Type
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
 										Severity
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -154,6 +158,9 @@ export const ScanDiff: FC = () => {
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
 											{vuln.package_version}
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap text-sm">
+											<PackageCategoryBadge packageType={vuln.package_type} />
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm">
 											<SeverityBadge severity={vuln.severity} />
@@ -197,6 +204,9 @@ export const ScanDiff: FC = () => {
 										Version
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+										Type
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
 										Severity
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -215,6 +225,9 @@ export const ScanDiff: FC = () => {
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
 											{vuln.package_version}
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap text-sm">
+											<PackageCategoryBadge packageType={vuln.package_type} />
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm">
 											<SeverityBadge severity={vuln.severity} />
@@ -255,6 +268,9 @@ export const ScanDiff: FC = () => {
 										Version
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+										Type
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
 										Severity
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -278,6 +294,9 @@ export const ScanDiff: FC = () => {
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
 											{vuln.package_version}
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap text-sm">
+											<PackageCategoryBadge packageType={vuln.package_type} />
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm">
 											<SeverityBadge severity={vuln.severity} />

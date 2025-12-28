@@ -73,7 +73,7 @@ export const api = {
 			offset?: number;
 			severity?: string;
 			status?: string;
-			package_name?: string;
+			image_name?: string;
 			cve_id?: string;
 			image_id?: number;
 			has_fix?: boolean;
@@ -83,7 +83,7 @@ export const api = {
 			if (params?.offset) searchParams.set('offset', params.offset.toString());
 			if (params?.severity) searchParams.set('severity', params.severity);
 			if (params?.status) searchParams.set('status', params.status);
-			if (params?.package_name) searchParams.set('package_name', params.package_name);
+			if (params?.image_name) searchParams.set('image_name', params.image_name);
 			if (params?.cve_id) searchParams.set('cve_id', params.cve_id);
 			if (params?.image_id) searchParams.set('image_id', params.image_id.toString());
 			if (params?.has_fix !== undefined) searchParams.set('has_fix', params.has_fix.toString());

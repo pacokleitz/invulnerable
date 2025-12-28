@@ -4,7 +4,9 @@ import { api } from '../../lib/api/client';
 import type { Vulnerability } from '../../lib/api/types';
 import { SeverityBadge } from '../ui/SeverityBadge';
 import { StatusBadge } from '../ui/StatusBadge';
+import { PackageCategoryBadge } from '../ui/PackageCategoryBadge';
 import { formatDate, daysSince, calculateSLAStatus } from '../../lib/utils/formatters';
+import { categorizePackageType } from '../../lib/utils/packageTypes';
 
 export const VulnerabilitiesList: FC = () => {
 	const [vulnerabilities, setVulnerabilities] = useState<Vulnerability[]>([]);
@@ -15,8 +17,9 @@ export const VulnerabilitiesList: FC = () => {
 	// Filters from URL
 	const severityFilter = searchParams.get('severity') || '';
 	const statusFilter = searchParams.get('status') || '';
-	const packageFilter = searchParams.get('package') || '';
+	const imageFilter = searchParams.get('image') || '';
 	const cveFilter = searchParams.get('cve') || '';
+	const packageCategoryFilter = searchParams.get('package_category') || '';
 	const showUnfixed = searchParams.get('show_unfixed') === 'true'; // Default to false
 
 	const loadVulnerabilities = useCallback(async () => {
@@ -24,22 +27,31 @@ export const VulnerabilitiesList: FC = () => {
 		setError(null);
 
 		try {
-			const params: { limit: number; severity?: string; status?: string; package_name?: string; cve_id?: string; has_fix?: boolean } = { limit: 200 };
+			const params: { limit: number; severity?: string; status?: string; image_name?: string; cve_id?: string; has_fix?: boolean } = { limit: 200 };
 			if (severityFilter) params.severity = severityFilter;
 			if (statusFilter) params.status = statusFilter;
-			if (packageFilter) params.package_name = packageFilter;
+			if (imageFilter) params.image_name = imageFilter;
 			if (cveFilter) params.cve_id = cveFilter;
 			// When showUnfixed is false, only show CVEs with fixes (has_fix = true)
 			if (!showUnfixed) params.has_fix = true;
 
-			const data = await api.vulnerabilities.list(params);
+			let data = await api.vulnerabilities.list(params);
+
+			// Apply client-side package category filter
+			if (packageCategoryFilter) {
+				data = data.filter(vuln => {
+					const category = categorizePackageType(vuln.package_type).category;
+					return category === packageCategoryFilter;
+				});
+			}
+
 			setVulnerabilities(data);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : 'Failed to load vulnerabilities');
 		} finally {
 			setLoading(false);
 		}
-	}, [severityFilter, statusFilter, packageFilter, cveFilter, showUnfixed]);
+	}, [severityFilter, statusFilter, imageFilter, cveFilter, packageCategoryFilter, showUnfixed]);
 
 	useEffect(() => {
 		document.title = 'Vulnerabilities - Invulnerable';
@@ -82,7 +94,7 @@ export const VulnerabilitiesList: FC = () => {
 			{/* Filters */}
 			<div className="card">
 				<h3 className="text-sm font-semibold text-gray-700 mb-3">Filters</h3>
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
 					<div>
 						<label htmlFor="severity" className="block text-sm font-medium text-gray-700">
 							Severity
@@ -120,15 +132,32 @@ export const VulnerabilitiesList: FC = () => {
 					</div>
 
 					<div>
-						<label htmlFor="packageFilter" className="block text-sm font-medium text-gray-700">
-							Package Name
+						<label htmlFor="packageCategory" className="block text-sm font-medium text-gray-700">
+							Package Type
+						</label>
+						<select
+							id="packageCategory"
+							value={packageCategoryFilter}
+							onChange={(e) => updateFilter('package_category', e.target.value)}
+							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+						>
+							<option value="">All</option>
+							<option value="os">OS/System</option>
+							<option value="application">App/Library</option>
+							<option value="unknown">Unknown</option>
+						</select>
+					</div>
+
+					<div>
+						<label htmlFor="imageFilter" className="block text-sm font-medium text-gray-700">
+							Image Name
 						</label>
 						<input
 							type="text"
-							id="packageFilter"
-							value={packageFilter}
-							onChange={(e) => updateFilter('package', e.target.value)}
-							placeholder="e.g., openssl"
+							id="imageFilter"
+							value={imageFilter}
+							onChange={(e) => updateFilter('image', e.target.value)}
+							placeholder="e.g., nginx:latest"
 							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						/>
 					</div>
@@ -196,6 +225,9 @@ export const VulnerabilitiesList: FC = () => {
 										Version
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+										Type
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
 										Severity
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -255,6 +287,9 @@ export const VulnerabilitiesList: FC = () => {
 											</td>
 											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
 												{vuln.package_version}
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm">
+												<PackageCategoryBadge packageType={vuln.package_type} />
 											</td>
 											<td className="px-6 py-4 whitespace-nowrap text-sm">
 												<SeverityBadge severity={vuln.severity} />

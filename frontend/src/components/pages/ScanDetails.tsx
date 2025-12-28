@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useScan } from '../../hooks/useScans';
 import { SeverityBadge } from '../ui/SeverityBadge';
 import { StatusBadge } from '../ui/StatusBadge';
+import { PackageCategoryBadge } from '../ui/PackageCategoryBadge';
 import { formatDate, daysSince, calculateSLAStatus } from '../../lib/utils/formatters';
 
 export const ScanDetails: FC = () => {
@@ -227,6 +228,9 @@ export const ScanDetails: FC = () => {
 										Version
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+										Type
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
 										Severity
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -271,6 +275,9 @@ export const ScanDetails: FC = () => {
 											</td>
 											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
 												{vuln.package_version}
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm">
+												<PackageCategoryBadge packageType={vuln.package_type} />
 											</td>
 											<td className="px-6 py-4 whitespace-nowrap text-sm">
 												<SeverityBadge severity={vuln.severity} />
