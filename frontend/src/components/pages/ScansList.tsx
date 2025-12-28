@@ -4,7 +4,6 @@ import { useScans } from '../../hooks/useScans';
 import { formatDate } from '../../lib/utils/formatters';
 
 export const ScansList: FC = () => {
-	const { scans, loading, error } = useScans({ limit: 100 });
 	const [searchParams, setSearchParams] = useSearchParams();
 
 	// Filters from URL
@@ -12,6 +11,12 @@ export const ScansList: FC = () => {
 	const fromDate = searchParams.get('from') || '';
 	const toDate = searchParams.get('to') || '';
 	const minVulnCount = searchParams.get('minVulns') || '';
+	const showUnfixed = searchParams.get('show_unfixed') === 'true'; // Default to false
+
+	const { scans, loading, error } = useScans({
+		limit: 100,
+		has_fix: showUnfixed ? undefined : true
+	});
 
 	useEffect(() => {
 		document.title = 'Scans - Invulnerable';
@@ -139,9 +144,20 @@ export const ScansList: FC = () => {
 				</div>
 
 				<div className="mt-4 flex justify-between items-center">
-					<p className="text-sm text-gray-600">
-						Showing {filteredScans.length} of {scans.length} scans
-					</p>
+					<div className="flex items-center space-x-4">
+						<p className="text-sm text-gray-600">
+							Showing {filteredScans.length} of {scans.length} scans
+						</p>
+						<label className="flex items-center space-x-2 text-sm">
+							<input
+								type="checkbox"
+								checked={showUnfixed}
+								onChange={(e) => updateFilter('show_unfixed', e.target.checked ? 'true' : 'false')}
+								className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+							/>
+							<span className="text-gray-700">Show unfixed CVEs</span>
+						</label>
+					</div>
 					<button onClick={handleClearFilters} className="btn btn-secondary text-sm">
 						Clear Filters
 					</button>

@@ -1,4 +1,4 @@
-import { FC, useEffect } from 'react';
+import { FC, useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useImageHistory } from '../../hooks/useImages';
 import { formatDate } from '../../lib/utils/formatters';
@@ -6,7 +6,8 @@ import { formatDate } from '../../lib/utils/formatters';
 export const ImageHistory: FC = () => {
 	const { id } = useParams<{ id: string }>();
 	const imageId = parseInt(id || '0', 10);
-	const { currentImageHistory, loading, error } = useImageHistory(imageId, 50);
+	const [showUnfixed, setShowUnfixed] = useState(false);
+	const { currentImageHistory, loading, error } = useImageHistory(imageId, 50, showUnfixed ? undefined : true);
 
 	useEffect(() => {
 		document.title = 'Image History - Invulnerable';
@@ -44,12 +45,25 @@ export const ImageHistory: FC = () => {
 			) : (
 				<>
 					<div className="card">
-						<h2 className="text-xl font-semibold text-gray-900 mb-4">
-							{currentImageHistory[0].image_name}
-						</h2>
-						<p className="text-sm text-gray-600 mb-4">
-							Total scans: {currentImageHistory.length}
-						</p>
+						<div className="flex justify-between items-center mb-4">
+							<div>
+								<h2 className="text-xl font-semibold text-gray-900">
+									{currentImageHistory[0].image_name}
+								</h2>
+								<p className="text-sm text-gray-600 mt-2">
+									Total scans: {currentImageHistory.length}
+								</p>
+							</div>
+							<label className="flex items-center space-x-2 text-sm">
+								<input
+									type="checkbox"
+									checked={showUnfixed}
+									onChange={(e) => setShowUnfixed(e.target.checked)}
+									className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+								/>
+								<span className="text-gray-700">Show unfixed CVEs</span>
+							</label>
+						</div>
 					</div>
 
 					<div className="card overflow-hidden">

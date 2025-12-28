@@ -4,7 +4,7 @@ import { api } from '../../lib/api/client';
 import type { Vulnerability } from '../../lib/api/types';
 import { SeverityBadge } from '../ui/SeverityBadge';
 import { StatusBadge } from '../ui/StatusBadge';
-import { formatDate } from '../../lib/utils/formatters';
+import { formatDate, daysSince } from '../../lib/utils/formatters';
 
 export const VulnerabilitiesList: FC = () => {
 	const [vulnerabilities, setVulnerabilities] = useState<Vulnerability[]>([]);
@@ -17,17 +17,20 @@ export const VulnerabilitiesList: FC = () => {
 	const statusFilter = searchParams.get('status') || '';
 	const packageFilter = searchParams.get('package') || '';
 	const cveFilter = searchParams.get('cve') || '';
+	const showUnfixed = searchParams.get('show_unfixed') === 'true'; // Default to false
 
 	const loadVulnerabilities = useCallback(async () => {
 		setLoading(true);
 		setError(null);
 
 		try {
-			const params: { limit: number; severity?: string; status?: string; package_name?: string; cve_id?: string } = { limit: 200 };
+			const params: { limit: number; severity?: string; status?: string; package_name?: string; cve_id?: string; has_fix?: boolean } = { limit: 200 };
 			if (severityFilter) params.severity = severityFilter;
 			if (statusFilter) params.status = statusFilter;
 			if (packageFilter) params.package_name = packageFilter;
 			if (cveFilter) params.cve_id = cveFilter;
+			// When showUnfixed is false, only show CVEs with fixes (has_fix = true)
+			if (!showUnfixed) params.has_fix = true;
 
 			const data = await api.vulnerabilities.list(params);
 			setVulnerabilities(data);
@@ -36,7 +39,7 @@ export const VulnerabilitiesList: FC = () => {
 		} finally {
 			setLoading(false);
 		}
-	}, [severityFilter, statusFilter, packageFilter, cveFilter]);
+	}, [severityFilter, statusFilter, packageFilter, cveFilter, showUnfixed]);
 
 	useEffect(() => {
 		document.title = 'Vulnerabilities - Invulnerable';
@@ -146,7 +149,18 @@ export const VulnerabilitiesList: FC = () => {
 				</div>
 
 				<div className="mt-4 flex justify-between items-center">
-					<p className="text-sm text-gray-600">Showing {vulnerabilities.length} vulnerabilities</p>
+					<div className="flex items-center space-x-4">
+						<p className="text-sm text-gray-600">Showing {vulnerabilities.length} vulnerabilities</p>
+						<label className="flex items-center space-x-2 text-sm">
+							<input
+								type="checkbox"
+								checked={showUnfixed}
+								onChange={(e) => updateFilter('show_unfixed', e.target.checked ? 'true' : 'false')}
+								className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+							/>
+							<span className="text-gray-700">Show unfixed CVEs</span>
+						</label>
+					</div>
 					<button onClick={handleClearFilters} className="btn btn-secondary text-sm">
 						Clear Filters
 					</button>
@@ -185,7 +199,7 @@ export const VulnerabilitiesList: FC = () => {
 										Status
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										First Detected
+										First Detected / Age
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
 										Fix Version
@@ -216,7 +230,12 @@ export const VulnerabilitiesList: FC = () => {
 											<StatusBadge status={vuln.status} />
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-											{formatDate(vuln.first_detected_at)}
+											<div>
+												{formatDate(vuln.first_detected_at)}
+											</div>
+											<div className="text-xs text-gray-400">
+												({daysSince(vuln.first_detected_at)} days ago)
+											</div>
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
 											{vuln.fix_version || 'N/A'}

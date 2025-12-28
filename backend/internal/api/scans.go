@@ -240,7 +240,17 @@ func (h *ScanHandler) ListScans(c echo.Context) error {
 		}
 	}
 
-	scans, err := h.scanRepo.List(c.Request().Context(), limit, offset, imageID)
+	// Parse has_fix parameter
+	var hasFix *bool
+	if hasFixStr := c.QueryParam("has_fix"); hasFixStr != "" {
+		hasFixBool, err := strconv.ParseBool(hasFixStr)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid has_fix parameter")
+		}
+		hasFix = &hasFixBool
+	}
+
+	scans, err := h.scanRepo.List(c.Request().Context(), limit, offset, imageID, hasFix)
 	if err != nil {
 		h.logger.Error("failed to list scans", zap.Error(err))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list scans")
@@ -256,7 +266,17 @@ func (h *ScanHandler) GetScan(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid scan ID")
 	}
 
-	scan, err := h.scanRepo.GetWithDetails(c.Request().Context(), id)
+	// Parse has_fix parameter for counts
+	var hasFix *bool
+	if hasFixStr := c.QueryParam("has_fix"); hasFixStr != "" {
+		hasFixBool, err := strconv.ParseBool(hasFixStr)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid has_fix parameter")
+		}
+		hasFix = &hasFixBool
+	}
+
+	scan, err := h.scanRepo.GetWithDetails(c.Request().Context(), id, hasFix)
 	if err != nil {
 		h.logger.Error("failed to get scan", zap.Error(err))
 		return echo.NewHTTPError(http.StatusNotFound, "scan not found")

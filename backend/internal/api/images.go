@@ -33,7 +33,17 @@ func (h *ImageHandler) ListImages(c echo.Context) error {
 		offset = 0
 	}
 
-	images, err := h.imageRepo.List(c.Request().Context(), limit, offset)
+	// Parse has_fix parameter
+	var hasFix *bool
+	if hasFixStr := c.QueryParam("has_fix"); hasFixStr != "" {
+		hasFixBool, err := strconv.ParseBool(hasFixStr)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid has_fix parameter")
+		}
+		hasFix = &hasFixBool
+	}
+
+	images, err := h.imageRepo.List(c.Request().Context(), limit, offset, hasFix)
 	if err != nil {
 		h.logger.Error("failed to list images", zap.Error(err))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list images")
@@ -54,7 +64,17 @@ func (h *ImageHandler) GetImageHistory(c echo.Context) error {
 		limit = 50
 	}
 
-	scans, err := h.imageRepo.GetScanHistory(c.Request().Context(), id, limit)
+	// Parse has_fix parameter
+	var hasFix *bool
+	if hasFixStr := c.QueryParam("has_fix"); hasFixStr != "" {
+		hasFixBool, err := strconv.ParseBool(hasFixStr)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid has_fix parameter")
+		}
+		hasFix = &hasFixBool
+	}
+
+	scans, err := h.imageRepo.GetScanHistory(c.Request().Context(), id, limit, hasFix)
 	if err != nil {
 		h.logger.Error("failed to get image history", zap.Error(err))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get image history")

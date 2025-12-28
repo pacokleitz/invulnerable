@@ -4,7 +4,7 @@ import { api } from '../../lib/api/client';
 import type { ScanDiff as ScanDiffType } from '../../lib/api/types';
 import { SeverityBadge } from '../ui/SeverityBadge';
 import { StatusBadge } from '../ui/StatusBadge';
-import { formatDate } from '../../lib/utils/formatters';
+import { formatDate, daysSince } from '../../lib/utils/formatters';
 
 export const ScanDiff: FC = () => {
 	const { id } = useParams<{ id: string }>();
@@ -12,6 +12,7 @@ export const ScanDiff: FC = () => {
 	const [diff, setDiff] = useState<ScanDiffType | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const [showUnfixed, setShowUnfixed] = useState(false);
 
 	useEffect(() => {
 		document.title = `Scan Diff - Scan ${scanId} - Invulnerable`;
@@ -29,6 +30,19 @@ export const ScanDiff: FC = () => {
 
 		fetchDiff();
 	}, [scanId]);
+
+	// Filter vulnerabilities based on showUnfixed
+	const filteredNewVulns = showUnfixed
+		? diff?.new_vulnerabilities || []
+		: (diff?.new_vulnerabilities || []).filter(v => v.fix_version !== null && v.fix_version !== undefined);
+
+	const filteredFixedVulns = showUnfixed
+		? diff?.fixed_vulnerabilities || []
+		: (diff?.fixed_vulnerabilities || []).filter(v => v.fix_version !== null && v.fix_version !== undefined);
+
+	const filteredPersistentVulns = showUnfixed
+		? diff?.persistent_vulnerabilities || []
+		: (diff?.persistent_vulnerabilities || []).filter(v => v.fix_version !== null && v.fix_version !== undefined);
 
 	if (loading) {
 		return (
@@ -54,9 +68,20 @@ export const ScanDiff: FC = () => {
 		<div className="space-y-6">
 			<div className="flex justify-between items-center">
 				<h1 className="text-3xl font-bold text-gray-900">Scan Comparison</h1>
-				<Link to={`/scans/${scanId}`} className="text-blue-600 hover:text-blue-800">
-					← Back to Scan
-				</Link>
+				<div className="flex items-center space-x-4">
+					<label className="flex items-center space-x-2 text-sm">
+						<input
+							type="checkbox"
+							checked={showUnfixed}
+							onChange={(e) => setShowUnfixed(e.target.checked)}
+							className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+						/>
+						<span className="text-gray-700">Show unfixed CVEs</span>
+					</label>
+					<Link to={`/scans/${scanId}`} className="text-blue-600 hover:text-blue-800">
+						← Back to Scan
+					</Link>
+				</div>
 			</div>
 
 			{/* Summary Cards */}
@@ -87,10 +112,10 @@ export const ScanDiff: FC = () => {
 			</div>
 
 			{/* New Vulnerabilities */}
-			{diff.new_vulnerabilities.length > 0 && (
+			{filteredNewVulns.length > 0 && (
 				<div className="card">
 					<h2 className="text-xl font-bold text-red-900 mb-4">
-						New Vulnerabilities ({diff.new_vulnerabilities.length})
+						New Vulnerabilities ({filteredNewVulns.length})
 					</h2>
 					<div className="overflow-x-auto">
 						<table className="min-w-full divide-y divide-gray-200">
@@ -112,12 +137,12 @@ export const ScanDiff: FC = () => {
 										Status
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										First Detected
+										First Detected / Age
 									</th>
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
-								{diff.new_vulnerabilities.map((vuln) => (
+								{filteredNewVulns.map((vuln) => (
 									<tr key={vuln.id} className="hover:bg-gray-50">
 										<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
 											<Link to={`/vulnerabilities/${vuln.cve_id}`} className="hover:underline">
@@ -137,7 +162,12 @@ export const ScanDiff: FC = () => {
 											<StatusBadge status={vuln.status} />
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-											{formatDate(vuln.first_detected_at)}
+											<div>
+												{formatDate(vuln.first_detected_at)}
+											</div>
+											<div className="text-xs text-gray-400">
+												({daysSince(vuln.first_detected_at)} days ago)
+											</div>
 										</td>
 									</tr>
 								))}
@@ -148,10 +178,10 @@ export const ScanDiff: FC = () => {
 			)}
 
 			{/* Fixed Vulnerabilities */}
-			{diff.fixed_vulnerabilities.length > 0 && (
+			{filteredFixedVulns.length > 0 && (
 				<div className="card">
 					<h2 className="text-xl font-bold text-green-900 mb-4">
-						Fixed Vulnerabilities ({diff.fixed_vulnerabilities.length})
+						Fixed Vulnerabilities ({filteredFixedVulns.length})
 					</h2>
 					<div className="overflow-x-auto">
 						<table className="min-w-full divide-y divide-gray-200">
@@ -170,12 +200,12 @@ export const ScanDiff: FC = () => {
 										Severity
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										First Detected
+										First Detected / Age
 									</th>
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
-								{diff.fixed_vulnerabilities.map((vuln) => (
+								{filteredFixedVulns.map((vuln) => (
 									<tr key={vuln.id} className="hover:bg-gray-50">
 										<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
 											{vuln.cve_id}
@@ -190,7 +220,12 @@ export const ScanDiff: FC = () => {
 											<SeverityBadge severity={vuln.severity} />
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-											{formatDate(vuln.first_detected_at)}
+											<div>
+												{formatDate(vuln.first_detected_at)}
+											</div>
+											<div className="text-xs text-gray-400">
+												({daysSince(vuln.first_detected_at)} days ago)
+											</div>
 										</td>
 									</tr>
 								))}
@@ -201,10 +236,10 @@ export const ScanDiff: FC = () => {
 			)}
 
 			{/* Persistent Vulnerabilities */}
-			{diff.persistent_vulnerabilities.length > 0 && (
+			{filteredPersistentVulns.length > 0 && (
 				<div className="card">
 					<h2 className="text-xl font-bold text-gray-900 mb-4">
-						Persistent Vulnerabilities ({diff.persistent_vulnerabilities.length})
+						Persistent Vulnerabilities ({filteredPersistentVulns.length})
 					</h2>
 					<div className="overflow-x-auto">
 						<table className="min-w-full divide-y divide-gray-200">
@@ -226,12 +261,12 @@ export const ScanDiff: FC = () => {
 										Status
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										First Detected
+										First Detected / Age
 									</th>
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
-								{diff.persistent_vulnerabilities.map((vuln) => (
+								{filteredPersistentVulns.map((vuln) => (
 									<tr key={vuln.id} className="hover:bg-gray-50">
 										<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
 											<Link to={`/vulnerabilities/${vuln.cve_id}`} className="hover:underline">
@@ -251,7 +286,12 @@ export const ScanDiff: FC = () => {
 											<StatusBadge status={vuln.status} />
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-											{formatDate(vuln.first_detected_at)}
+											<div>
+												{formatDate(vuln.first_detected_at)}
+											</div>
+											<div className="text-xs text-gray-400">
+												({daysSince(vuln.first_detected_at)} days ago)
+											</div>
 										</td>
 									</tr>
 								))}

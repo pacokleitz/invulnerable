@@ -372,6 +372,14 @@ func buildEnvVars(imageScan *invulnerablev1alpha1.ImageScan, apiEndpoint, sbomFo
 		})
 	}
 
+	// Set ONLY_FIXED_VULNS for Grype filtering
+	if imageScan.Spec.OnlyFixed {
+		env = append(env, corev1.EnvVar{
+			Name:  "ONLY_FIXED_VULNS",
+			Value: "true",
+		})
+	}
+
 	// Add webhook configuration if present and enabled
 	if imageScan.Spec.Webhook != nil && imageScan.Spec.Webhook.Enabled {
 		env = append(env,

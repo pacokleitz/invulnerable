@@ -21,10 +21,10 @@ export const createScansSlice: StateCreator<AppStore, [], [], ScansState> = (set
 		}
 	},
 
-	loadScan: async (id) => {
+	loadScan: async (id: number, hasFix?: boolean) => {
 		set({ loading: true, error: null });
 		try {
-			const currentScan = await api.scans.get(id);
+			const currentScan = await api.scans.get(id, hasFix);
 			set({ currentScan, loading: false });
 		} catch (error) {
 			set({

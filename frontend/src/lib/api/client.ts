@@ -36,6 +36,7 @@ export const api = {
 			image_id?: number;
 			from_date?: string;
 			to_date?: string;
+			has_fix?: boolean;
 		}) => {
 			const searchParams = new URLSearchParams();
 			if (params?.limit) searchParams.set('limit', params.limit.toString());
@@ -43,13 +44,17 @@ export const api = {
 			if (params?.image_id) searchParams.set('image_id', params.image_id.toString());
 			if (params?.from_date) searchParams.set('from_date', params.from_date);
 			if (params?.to_date) searchParams.set('to_date', params.to_date);
+			if (params?.has_fix !== undefined) searchParams.set('has_fix', params.has_fix.toString());
 
 			const query = searchParams.toString();
 			return fetchAPI<ScanWithDetails[]>(`/scans${query ? `?${query}` : ''}`);
 		},
 
-		get: (id: number) => {
-			return fetchAPI<{ scan: ScanWithDetails; vulnerabilities: Vulnerability[] }>(`/scans/${id}`);
+		get: (id: number, has_fix?: boolean) => {
+			const searchParams = new URLSearchParams();
+			if (has_fix !== undefined) searchParams.set('has_fix', has_fix.toString());
+			const query = searchParams.toString();
+			return fetchAPI<{ scan: ScanWithDetails; vulnerabilities: Vulnerability[] }>(`/scans/${id}${query ? `?${query}` : ''}`);
 		},
 
 		getSBOM: (id: number) => {
@@ -71,6 +76,7 @@ export const api = {
 			package_name?: string;
 			cve_id?: string;
 			image_id?: number;
+			has_fix?: boolean;
 		}) => {
 			const searchParams = new URLSearchParams();
 			if (params?.limit) searchParams.set('limit', params.limit.toString());
@@ -80,6 +86,7 @@ export const api = {
 			if (params?.package_name) searchParams.set('package_name', params.package_name);
 			if (params?.cve_id) searchParams.set('cve_id', params.cve_id);
 			if (params?.image_id) searchParams.set('image_id', params.image_id.toString());
+			if (params?.has_fix !== undefined) searchParams.set('has_fix', params.has_fix.toString());
 
 			const query = searchParams.toString();
 			return fetchAPI<Vulnerability[]>(`/vulnerabilities${query ? `?${query}` : ''}`);
@@ -105,6 +112,7 @@ export const api = {
 			registry?: string;
 			repository?: string;
 			tag?: string;
+			has_fix?: boolean;
 		}) => {
 			const searchParams = new URLSearchParams();
 			if (params?.limit) searchParams.set('limit', params.limit.toString());
@@ -112,14 +120,16 @@ export const api = {
 			if (params?.registry) searchParams.set('registry', params.registry);
 			if (params?.repository) searchParams.set('repository', params.repository);
 			if (params?.tag) searchParams.set('tag', params.tag);
+			if (params?.has_fix !== undefined) searchParams.set('has_fix', params.has_fix.toString());
 
 			const query = searchParams.toString();
 			return fetchAPI<ImageWithStats[]>(`/images${query ? `?${query}` : ''}`);
 		},
 
-		getHistory: (id: number, limit?: number) => {
+		getHistory: (id: number, limit?: number, has_fix?: boolean) => {
 			const searchParams = new URLSearchParams();
 			if (limit) searchParams.set('limit', limit.toString());
+			if (has_fix !== undefined) searchParams.set('has_fix', has_fix.toString());
 
 			const query = searchParams.toString();
 			return fetchAPI<ScanWithDetails[]>(`/images/${id}/history${query ? `?${query}` : ''}`);
@@ -128,8 +138,11 @@ export const api = {
 
 	// Metrics
 	metrics: {
-		getDashboard: () => {
-			return fetchAPI<DashboardMetrics>('/metrics');
+		getDashboard: (has_fix?: boolean) => {
+			const searchParams = new URLSearchParams();
+			if (has_fix !== undefined) searchParams.set('has_fix', has_fix.toString());
+			const query = searchParams.toString();
+			return fetchAPI<DashboardMetrics>(`/metrics${query ? `?${query}` : ''}`);
 		}
 	},
 

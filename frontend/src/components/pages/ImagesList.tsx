@@ -15,16 +15,18 @@ export const ImagesList: FC = () => {
 	const repositoryFilter = searchParams.get('repository') || '';
 	const tagFilter = searchParams.get('tag') || '';
 	const minVulnCount = searchParams.get('minVulns') || '';
+	const showUnfixed = searchParams.get('show_unfixed') === 'true'; // Default to false
 
 	const loadImages = useCallback(
 		async (filters?: { registry?: string; repository?: string; tag?: string }) => {
 			setLoading(true);
 			setError(null);
 			try {
-				const params: { limit: number; registry?: string; repository?: string; tag?: string } = { limit: 200 };
+				const params: { limit: number; registry?: string; repository?: string; tag?: string; has_fix?: boolean } = { limit: 200 };
 				if (filters?.registry) params.registry = filters.registry;
 				if (filters?.repository) params.repository = filters.repository;
 				if (filters?.tag) params.tag = filters.tag;
+				if (!showUnfixed) params.has_fix = true;
 
 				const data = await api.images.list(params);
 				setImages(data);
@@ -34,7 +36,7 @@ export const ImagesList: FC = () => {
 				setLoading(false);
 			}
 		},
-		[]
+		[showUnfixed]
 	);
 
 	useEffect(() => {
@@ -171,9 +173,20 @@ export const ImagesList: FC = () => {
 				</div>
 
 				<div className="mt-4 flex justify-between items-center">
-					<p className="text-sm text-gray-600">
-						Showing {filteredImages.length} of {images.length} images
-					</p>
+					<div className="flex items-center space-x-4">
+						<p className="text-sm text-gray-600">
+							Showing {filteredImages.length} of {images.length} images
+						</p>
+						<label className="flex items-center space-x-2 text-sm">
+							<input
+								type="checkbox"
+								checked={showUnfixed}
+								onChange={(e) => updateFilter('show_unfixed', e.target.checked ? 'true' : 'false')}
+								className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+							/>
+							<span className="text-gray-700">Show unfixed CVEs</span>
+						</label>
+					</div>
 					<button onClick={handleClearFilters} className="btn btn-secondary text-sm">
 						Clear Filters
 					</button>

@@ -1,15 +1,16 @@
-import { FC, useEffect, useCallback } from 'react';
+import { FC, useEffect, useCallback, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useScan } from '../../hooks/useScans';
 import { SeverityBadge } from '../ui/SeverityBadge';
 import { StatusBadge } from '../ui/StatusBadge';
-import { formatDate } from '../../lib/utils/formatters';
+import { formatDate, daysSince } from '../../lib/utils/formatters';
 
 export const ScanDetails: FC = () => {
 	const { id } = useParams<{ id: string }>();
 	const navigate = useNavigate();
 	const scanId = parseInt(id || '0', 10);
-	const { currentScan, loading, error } = useScan(scanId);
+	const [showUnfixed, setShowUnfixed] = useState(false);
+	const { currentScan, loading, error } = useScan(scanId, showUnfixed ? undefined : true);
 
 	useEffect(() => {
 		document.title = `Scan ${scanId} - Invulnerable`;
@@ -44,6 +45,11 @@ export const ScanDetails: FC = () => {
 	}
 
 	const { scan, vulnerabilities } = currentScan;
+
+	// Filter vulnerabilities based on showUnfixed checkbox
+	const filteredVulnerabilities = showUnfixed
+		? vulnerabilities
+		: vulnerabilities.filter(vuln => vuln.fix_version !== null && vuln.fix_version !== undefined);
 
 	return (
 		<div className="space-y-6">
@@ -121,8 +127,22 @@ export const ScanDetails: FC = () => {
 
 			{/* Vulnerabilities List */}
 			<div className="card">
-				<h2 className="text-xl font-bold text-gray-900 mb-4">Vulnerabilities</h2>
-				{vulnerabilities.length === 0 ? (
+				<div className="flex justify-between items-center mb-4">
+					<h2 className="text-xl font-bold text-gray-900">Vulnerabilities</h2>
+					<label className="flex items-center space-x-2 text-sm">
+						<input
+							type="checkbox"
+							checked={showUnfixed}
+							onChange={(e) => setShowUnfixed(e.target.checked)}
+							className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+						/>
+						<span className="text-gray-700">Show unfixed CVEs</span>
+					</label>
+				</div>
+				<p className="text-sm text-gray-600 mb-4">
+					Showing {filteredVulnerabilities.length} of {vulnerabilities.length} vulnerabilities
+				</p>
+				{filteredVulnerabilities.length === 0 ? (
 					<p className="text-gray-500">No vulnerabilities found</p>
 				) : (
 					<div className="overflow-x-auto">
@@ -145,7 +165,7 @@ export const ScanDetails: FC = () => {
 										Status
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										First Detected
+										First Detected / Age
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
 										Fix Version
@@ -153,7 +173,7 @@ export const ScanDetails: FC = () => {
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
-								{vulnerabilities.map((vuln) => (
+								{filteredVulnerabilities.map((vuln) => (
 									<tr key={vuln.id} className="hover:bg-gray-50">
 										<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
 											<Link
@@ -176,7 +196,12 @@ export const ScanDetails: FC = () => {
 											<StatusBadge status={vuln.status} />
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-											{formatDate(vuln.first_detected_at)}
+											<div>
+												{formatDate(vuln.first_detected_at)}
+											</div>
+											<div className="text-xs text-gray-400">
+												({daysSince(vuln.first_detected_at)} days ago)
+											</div>
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
 											{vuln.fix_version || 'N/A'}

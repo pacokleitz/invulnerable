@@ -21,10 +21,10 @@ export const createImagesSlice: StateCreator<AppStore, [], [], ImagesState> = (s
 		}
 	},
 
-	loadImageHistory: async (id, limit) => {
+	loadImageHistory: async (id: number, limit?: number, hasFix?: boolean) => {
 		set({ loading: true, error: null });
 		try {
-			const currentImageHistory = await api.images.getHistory(id, limit);
+			const currentImageHistory = await api.images.getHistory(id, limit, hasFix);
 			set({ currentImageHistory, loading: false });
 		} catch (error) {
 			set({

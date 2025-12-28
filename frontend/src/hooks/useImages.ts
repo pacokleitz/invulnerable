@@ -18,7 +18,7 @@ export const useImages = (params?: { limit?: number; offset?: number }) => {
 	return { images, loading, error, reload: () => loadImages(stableParams) };
 };
 
-export const useImageHistory = (id: number, limit?: number) => {
+export const useImageHistory = (id: number, limit?: number, hasFix?: boolean) => {
 	const { currentImageHistory, loading, error, loadImageHistory, clearImageHistory } = useStore(
 		(state) => ({
 			currentImageHistory: state.currentImageHistory,
@@ -30,9 +30,9 @@ export const useImageHistory = (id: number, limit?: number) => {
 	);
 
 	useEffect(() => {
-		loadImageHistory(id, limit);
+		loadImageHistory(id, limit, hasFix);
 		return () => clearImageHistory();
-	}, [id, limit, loadImageHistory, clearImageHistory]);
+	}, [id, limit, hasFix, loadImageHistory, clearImageHistory]);
 
-	return { currentImageHistory, loading, error, reload: () => loadImageHistory(id, limit) };
+	return { currentImageHistory, loading, error, reload: () => loadImageHistory(id, limit, hasFix) };
 };

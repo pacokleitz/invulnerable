@@ -44,6 +44,25 @@ spec:
       cpu: "500m"
 
 ---
+# Example: Only scan fixable vulnerabilities
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: fixed-only-scan
+  namespace: invulnerable
+spec:
+  image: "nginx:latest"
+  schedule: "0 2 * * *"
+
+  # Only report vulnerabilities with available fixes
+  onlyFixed: true
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+
+---
 # Secret creation examples (reference)
 #
 # Docker Hub:

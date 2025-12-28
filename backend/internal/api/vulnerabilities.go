@@ -42,7 +42,17 @@ func (h *VulnerabilityHandler) ListVulnerabilities(c echo.Context) error {
 		status = &st
 	}
 
-	vulns, err := h.vulnRepo.List(c.Request().Context(), limit, offset, severity, status)
+	// Parse has_fix parameter
+	var hasFix *bool
+	if hasFixStr := c.QueryParam("has_fix"); hasFixStr != "" {
+		hasFixBool, err := strconv.ParseBool(hasFixStr)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid has_fix parameter")
+		}
+		hasFix = &hasFixBool
+	}
+
+	vulns, err := h.vulnRepo.List(c.Request().Context(), limit, offset, severity, status, hasFix)
 	if err != nil {
 		h.logger.Error("failed to list vulnerabilities", zap.Error(err))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list vulnerabilities")

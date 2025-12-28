@@ -10,7 +10,7 @@ export interface MetricsState {
 	data: DashboardMetrics | null;
 	loading: boolean;
 	error: string | null;
-	loadMetrics: () => Promise<void>;
+	loadMetrics: (hasFix?: boolean) => Promise<void>;
 }
 
 export interface ScansState {
@@ -18,8 +18,8 @@ export interface ScansState {
 	currentScan: { scan: ScanWithDetails; vulnerabilities: Vulnerability[] } | null;
 	loading: boolean;
 	error: string | null;
-	loadScans: (params?: { limit?: number; offset?: number; image_id?: number }) => Promise<void>;
-	loadScan: (id: number) => Promise<void>;
+	loadScans: (params?: { limit?: number; offset?: number; image_id?: number; has_fix?: boolean }) => Promise<void>;
+	loadScan: (id: number, hasFix?: boolean) => Promise<void>;
 	clearCurrentScan: () => void;
 }
 
@@ -42,7 +42,7 @@ export interface ImagesState {
 	loading: boolean;
 	error: string | null;
 	loadImages: (params?: { limit?: number; offset?: number }) => Promise<void>;
-	loadImageHistory: (id: number, limit?: number) => Promise<void>;
+	loadImageHistory: (id: number, limit?: number, hasFix?: boolean) => Promise<void>;
 	clearImageHistory: () => void;
 }
 

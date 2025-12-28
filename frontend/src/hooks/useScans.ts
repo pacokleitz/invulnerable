@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useStore } from '../store';
 
-export const useScans = (params?: { limit?: number; offset?: number; image_id?: number }) => {
+export const useScans = (params?: { limit?: number; offset?: number; image_id?: number; has_fix?: boolean }) => {
 	const { scans, loading, error, loadScans } = useStore((state) => ({
 		scans: state.scans,
 		loading: state.loading,
@@ -9,7 +9,7 @@ export const useScans = (params?: { limit?: number; offset?: number; image_id?: 
 		loadScans: state.loadScans
 	}));
 
-	const stableParams = useMemo(() => params, [params?.limit, params?.offset, params?.image_id]);
+	const stableParams = useMemo(() => params, [params?.limit, params?.offset, params?.image_id, params?.has_fix]);
 
 	useEffect(() => {
 		loadScans(stableParams);
@@ -18,7 +18,7 @@ export const useScans = (params?: { limit?: number; offset?: number; image_id?: 
 	return { scans, loading, error, reload: () => loadScans(stableParams) };
 };
 
-export const useScan = (id: number) => {
+export const useScan = (id: number, hasFix?: boolean) => {
 	const { currentScan, loading, error, loadScan, clearCurrentScan } = useStore((state) => ({
 		currentScan: state.currentScan,
 		loading: state.loading,
@@ -28,9 +28,9 @@ export const useScan = (id: number) => {
 	}));
 
 	useEffect(() => {
-		loadScan(id);
+		loadScan(id, hasFix);
 		return () => clearCurrentScan();
-	}, [id, loadScan, clearCurrentScan]);
+	}, [id, hasFix, loadScan, clearCurrentScan]);
 
-	return { currentScan, loading, error, reload: () => loadScan(id) };
+	return { currentScan, loading, error, reload: () => loadScan(id, hasFix) };
 };

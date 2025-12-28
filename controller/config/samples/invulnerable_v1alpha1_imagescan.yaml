@@ -101,3 +101,11 @@ spec:
   # Then reference the secret(s) here:
   # imagePullSecrets:
   #   - name: my-registry-secret
+
+  # Filter unfixed vulnerabilities (optional)
+  #
+  # Only report vulnerabilities that have fixes available.
+  # When enabled, Grype will skip CVEs with no known fix.
+  #
+  # Default: false (report all vulnerabilities)
+  # onlyFixed: true

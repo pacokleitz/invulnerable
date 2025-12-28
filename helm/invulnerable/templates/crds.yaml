@@ -97,6 +97,13 @@ spec:
                   type: object
                   x-kubernetes-map-type: atomic
                 type: array
+              onlyFixed:
+                default: false
+                description: |-
+                  OnlyFixed specifies whether to only report vulnerabilities with available fixes.
+                  When true, Grype will skip vulnerabilities that have no fix available.
+                  Default: false (report all vulnerabilities)
+                type: boolean
               resources:
                 description: Resources defines the resource requirements for the scanner
                   job

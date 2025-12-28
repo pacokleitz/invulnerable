@@ -1,13 +1,22 @@
-import { FC, useEffect } from 'react';
-import { useMetrics } from '../../hooks/useMetrics';
+import { FC, useEffect, useState } from 'react';
+import { useStore } from '../../store';
 import { SeverityBadge } from '../ui/SeverityBadge';
 
 export const Dashboard: FC = () => {
-	const { data: metrics, loading } = useMetrics();
+	const [showUnfixed, setShowUnfixed] = useState(false);
+	const { data: metrics, loading, loadMetrics } = useStore((state) => ({
+		data: state.data,
+		loading: state.loading,
+		loadMetrics: state.loadMetrics
+	}));
 
 	useEffect(() => {
 		document.title = 'Dashboard - Invulnerable';
 	}, []);
+
+	useEffect(() => {
+		loadMetrics(showUnfixed ? undefined : true);
+	}, [loadMetrics, showUnfixed]);
 
 	if (loading) {
 		return (
@@ -27,7 +36,18 @@ export const Dashboard: FC = () => {
 
 	return (
 		<div className="space-y-6">
-			<h1 className="text-3xl font-bold text-gray-900" tabIndex={-1}>Dashboard</h1>
+			<div className="flex justify-between items-center">
+				<h1 className="text-3xl font-bold text-gray-900" tabIndex={-1}>Dashboard</h1>
+				<label className="flex items-center space-x-2 text-sm">
+					<input
+						type="checkbox"
+						checked={showUnfixed}
+						onChange={(e) => setShowUnfixed(e.target.checked)}
+						className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+					/>
+					<span className="text-gray-700">Show unfixed CVEs</span>
+				</label>
+			</div>
 
 			{/* Summary Cards */}
 			<section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" aria-label="Summary metrics">

@@ -77,6 +77,13 @@ type ImageScanSpec struct {
 	// See https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod
 	// +kubebuilder:validation:Optional
 	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
+
+	// OnlyFixed specifies whether to only report vulnerabilities with available fixes.
+	// When true, Grype will skip vulnerabilities that have no fix available.
+	// Default: false (report all vulnerabilities)
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	OnlyFixed bool `json:"onlyFixed,omitempty"`
 }
 
 // WebhookConfig defines webhook notification settings

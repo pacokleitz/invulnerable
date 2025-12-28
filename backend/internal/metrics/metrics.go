@@ -30,7 +30,7 @@ type SeverityCounts struct {
 	Low      int `json:"low"`
 }
 
-func (s *Service) GetDashboardMetrics(ctx context.Context) (*DashboardMetrics, error) {
+func (s *Service) GetDashboardMetrics(ctx context.Context, hasFix *bool) (*DashboardMetrics, error) {
 	metrics := &DashboardMetrics{}
 
 	// Total images
@@ -45,15 +45,26 @@ func (s *Service) GetDashboardMetrics(ctx context.Context) (*DashboardMetrics, e
 		return nil, err
 	}
 
+	// Build vulnerability filter
+	vulnFilter := "status = 'active'"
+	if hasFix != nil {
+		if *hasFix {
+			vulnFilter += " AND fix_version IS NOT NULL"
+		} else {
+			vulnFilter += " AND fix_version IS NULL"
+		}
+	}
+
 	// Total vulnerabilities
-	err = s.db.GetContext(ctx, &metrics.TotalVulnerabilities, "SELECT COUNT(*) FROM vulnerabilities")
+	err = s.db.GetContext(ctx, &metrics.TotalVulnerabilities,
+		"SELECT COUNT(*) FROM vulnerabilities WHERE " + vulnFilter)
 	if err != nil {
 		return nil, err
 	}
 
 	// Active vulnerabilities
 	err = s.db.GetContext(ctx, &metrics.ActiveVulnerabilities,
-		"SELECT COUNT(*) FROM vulnerabilities WHERE status = 'active'")
+		"SELECT COUNT(*) FROM vulnerabilities WHERE " + vulnFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -66,8 +77,7 @@ func (s *Service) GetDashboardMetrics(ctx context.Context) (*DashboardMetrics, e
 			COUNT(CASE WHEN severity = 'Medium' THEN 1 END) as medium,
 			COUNT(CASE WHEN severity = 'Low' THEN 1 END) as low
 		FROM vulnerabilities
-		WHERE status = 'active'
-	`
+		WHERE ` + vulnFilter
 	err = s.db.GetContext(ctx, &metrics.SeverityCounts, query)
 	if err != nil {
 		return nil, err

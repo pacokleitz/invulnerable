@@ -39,17 +39,27 @@ func (r *ScanRepository) GetByID(ctx context.Context, id int) (*models.Scan, err
 	return &scan, nil
 }
 
-func (r *ScanRepository) GetWithDetails(ctx context.Context, id int) (*models.ScanWithDetails, error) {
+func (r *ScanRepository) GetWithDetails(ctx context.Context, id int, hasFix *bool) (*models.ScanWithDetails, error) {
+	// Build fix filter
+	fixFilter := "1=1"
+	if hasFix != nil {
+		if *hasFix {
+			fixFilter = "v.fix_version IS NOT NULL"
+		} else {
+			fixFilter = "v.fix_version IS NULL"
+		}
+	}
+
 	query := `
 		SELECT
 			s.*,
 			i.registry || '/' || i.repository || ':' || i.tag as image_name,
 			i.digest as image_digest,
-			COUNT(DISTINCT sv.vulnerability_id) as vulnerability_count,
-			COUNT(DISTINCT CASE WHEN v.severity = 'Critical' THEN v.id END) as critical_count,
-			COUNT(DISTINCT CASE WHEN v.severity = 'High' THEN v.id END) as high_count,
-			COUNT(DISTINCT CASE WHEN v.severity = 'Medium' THEN v.id END) as medium_count,
-			COUNT(DISTINCT CASE WHEN v.severity = 'Low' THEN v.id END) as low_count
+			COUNT(DISTINCT CASE WHEN ` + fixFilter + ` THEN sv.vulnerability_id END) as vulnerability_count,
+			COUNT(DISTINCT CASE WHEN v.severity = 'Critical' AND ` + fixFilter + ` THEN v.id END) as critical_count,
+			COUNT(DISTINCT CASE WHEN v.severity = 'High' AND ` + fixFilter + ` THEN v.id END) as high_count,
+			COUNT(DISTINCT CASE WHEN v.severity = 'Medium' AND ` + fixFilter + ` THEN v.id END) as medium_count,
+			COUNT(DISTINCT CASE WHEN v.severity = 'Low' AND ` + fixFilter + ` THEN v.id END) as low_count
 		FROM scans s
 		JOIN images i ON i.id = s.image_id
 		LEFT JOIN scan_vulnerabilities sv ON sv.scan_id = s.id
@@ -67,17 +77,27 @@ func (r *ScanRepository) GetWithDetails(ctx context.Context, id int) (*models.Sc
 	return &scan, nil
 }
 
-func (r *ScanRepository) List(ctx context.Context, limit, offset int, imageID *int) ([]models.ScanWithDetails, error) {
+func (r *ScanRepository) List(ctx context.Context, limit, offset int, imageID *int, hasFix *bool) ([]models.ScanWithDetails, error) {
+	// Build fix filter
+	fixFilter := "1=1"
+	if hasFix != nil {
+		if *hasFix {
+			fixFilter = "v.fix_version IS NOT NULL"
+		} else {
+			fixFilter = "v.fix_version IS NULL"
+		}
+	}
+
 	query := `
 		SELECT
 			s.*,
 			i.registry || '/' || i.repository || ':' || i.tag as image_name,
 			i.digest as image_digest,
-			COUNT(DISTINCT sv.vulnerability_id) as vulnerability_count,
-			COUNT(DISTINCT CASE WHEN v.severity = 'Critical' THEN v.id END) as critical_count,
-			COUNT(DISTINCT CASE WHEN v.severity = 'High' THEN v.id END) as high_count,
-			COUNT(DISTINCT CASE WHEN v.severity = 'Medium' THEN v.id END) as medium_count,
-			COUNT(DISTINCT CASE WHEN v.severity = 'Low' THEN v.id END) as low_count
+			COUNT(DISTINCT CASE WHEN ` + fixFilter + ` THEN sv.vulnerability_id END) as vulnerability_count,
+			COUNT(DISTINCT CASE WHEN v.severity = 'Critical' AND ` + fixFilter + ` THEN v.id END) as critical_count,
+			COUNT(DISTINCT CASE WHEN v.severity = 'High' AND ` + fixFilter + ` THEN v.id END) as high_count,
+			COUNT(DISTINCT CASE WHEN v.severity = 'Medium' AND ` + fixFilter + ` THEN v.id END) as medium_count,
+			COUNT(DISTINCT CASE WHEN v.severity = 'Low' AND ` + fixFilter + ` THEN v.id END) as low_count
 		FROM scans s
 		JOIN images i ON i.id = s.image_id
 		LEFT JOIN scan_vulnerabilities sv ON sv.scan_id = s.id

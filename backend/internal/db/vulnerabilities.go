@@ -63,7 +63,7 @@ func (r *VulnerabilityRepository) GetByCVE(ctx context.Context, cveID string) ([
 	return vulns, nil
 }
 
-func (r *VulnerabilityRepository) List(ctx context.Context, limit, offset int, severity, status *string) ([]models.Vulnerability, error) {
+func (r *VulnerabilityRepository) List(ctx context.Context, limit, offset int, severity, status *string, hasFix *bool) ([]models.Vulnerability, error) {
 	query := `SELECT * FROM vulnerabilities WHERE 1=1`
 	args := []interface{}{}
 	argCount := 1
@@ -78,6 +78,15 @@ func (r *VulnerabilityRepository) List(ctx context.Context, limit, offset int, s
 		query += fmt.Sprintf(" AND status = $%d", argCount)
 		args = append(args, *status)
 		argCount++
+	}
+
+	// Filter by fix availability
+	if hasFix != nil {
+		if *hasFix {
+			query += " AND fix_version IS NOT NULL"
+		} else {
+			query += " AND fix_version IS NULL"
+		}
 	}
 
 	query += ` ORDER BY

@@ -45,7 +45,16 @@ echo "SBOM generated successfully"
 
 # Step 2: Scan SBOM with Grype
 echo "Step 2: Scanning SBOM with Grype..."
-grype "sbom:$SBOM_FILE" -o json > "$GRYPE_FILE"
+
+# Build Grype flags
+GRYPE_FLAGS="-o json"
+if [ "${ONLY_FIXED_VULNS:-false}" = "true" ]; then
+    echo "Filtering to only show vulnerabilities with available fixes"
+    GRYPE_FLAGS="$GRYPE_FLAGS --only-fixed"
+fi
+
+# Run Grype with optional filtering
+grype "sbom:$SBOM_FILE" $GRYPE_FLAGS > "$GRYPE_FILE"
 
 if [ $? -ne 0 ]; then
     echo "Error: Grype scan failed"
