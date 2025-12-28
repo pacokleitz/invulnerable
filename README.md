@@ -16,6 +16,7 @@ Invulnerable is a Kubernetes-native vulnerability management platform that provi
 - 🔍 **Automated SBOM Generation** - Uses Syft to create detailed Software Bill of Materials in CycloneDX/SPDX formats
 - 🛡️ **Vulnerability Scanning** - Powered by Grype for comprehensive CVE detection across multiple ecosystems
 - 📊 **Vulnerability Lifecycle Tracking** - Monitor vulnerabilities from discovery to resolution
+- ⏱️ **SLA Compliance Tracking** - Configurable remediation SLAs per severity with visual indicators and filtering
 - 🔄 **Scan Comparison & Diff** - Track changes between scans to identify new and fixed vulnerabilities
 - 📈 **Metrics & Dashboards** - Real-time insights into your security posture
 - 🔔 **Webhook Notifications** - Configurable alerts to Slack/Teams with severity-based filtering and scan result links
@@ -30,6 +31,11 @@ Invulnerable is a Kubernetes-native vulnerability management platform that provi
 - [Installation](#installation)
 - [Usage](#usage)
 - [Configuration](#configuration)
+  - [Authentication](#authentication)
+  - [Registry Configuration](#registry-configuration)
+  - [Database](#database)
+  - [Webhook Notifications](#webhook-notifications)
+  - [SLA Compliance Tracking](#sla-compliance-tracking)
 - [Documentation](#documentation)
 - [Development](#development)
 - [Contributing](#contributing)
@@ -262,6 +268,14 @@ spec:
   # SBOM format (cyclonedx or spdx)
   sbomFormat: "cyclonedx"
 
+  # SLA configuration for vulnerability remediation (optional)
+  # Defines the number of days allowed to remediate vulnerabilities by severity
+  sla:
+    critical: 7    # Critical vulnerabilities must be fixed within 7 days
+    high: 30       # High severity within 30 days
+    medium: 90     # Medium severity within 90 days
+    low: 180       # Low severity within 180 days
+
   # Webhook notifications (optional)
   webhook:
     url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
@@ -380,6 +394,44 @@ spec:
 backend:
   frontendURL: "https://invulnerable.example.com"
 ```
+
+### SLA Compliance Tracking
+
+Configure Service Level Agreement (SLA) remediation deadlines per severity level to track compliance and prioritize vulnerability remediation:
+
+```yaml
+# Per-ImageScan configuration
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+spec:
+  sla:
+    critical: 7    # Days to remediate critical vulnerabilities
+    high: 30       # Days to remediate high severity vulnerabilities
+    medium: 90     # Days to remediate medium severity vulnerabilities
+    low: 180       # Days to remediate low severity vulnerabilities
+```
+
+**Default SLA values** (if not specified):
+- Critical: 7 days
+- High: 30 days
+- Medium: 90 days
+- Low: 180 days
+
+**Features:**
+- **Visual indicators**: Color-coded badges show SLA status for each CVE
+  - 🟢 Green: Within SLA, plenty of time remaining
+  - 🟡 Yellow: Warning - approaching deadline (< 20% time remaining)
+  - 🔴 Red: SLA exceeded - remediation overdue
+- **Days remaining calculation**: Shows exact days until SLA deadline or how many days overdue
+- **SLA filtering**: Filter vulnerabilities by SLA status (All, At Risk, Exceeded Only)
+- **Per-scan configuration**: Each scan can have different SLA requirements
+- **Historical tracking**: SLA values are stored with each scan for compliance reporting
+
+**Web Interface:**
+- View SLA configuration summary at the top of scan details
+- See SLA status for each vulnerability in the table
+- Filter to focus on SLA-exceeded or at-risk vulnerabilities
+- Track remediation progress against defined SLAs
 
 See [Helm Chart README](helm/invulnerable/README.md) for all configuration options.
 

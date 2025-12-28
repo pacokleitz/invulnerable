@@ -12,6 +12,9 @@ The Invulnerable Scanner Controller watches for `ImageScan` custom resources and
 - **Per-Image Schedules**: Each image can have its own cron schedule
 - **Automatic CronJob Management**: Controller creates and updates CronJobs automatically
 - **Resource Control**: Specify CPU/memory limits per image scan
+- **SLA Compliance Tracking**: Configure remediation SLAs per severity with visual tracking
+- **Webhook Notifications**: Configurable alerts to Slack/Teams with severity-based filtering
+- **Private Registry Support**: Pull images from private registries using image pull secrets
 - **Suspend Support**: Temporarily pause scanning for specific images
 - **Status Reporting**: Track scan status and history via CRD status
 
@@ -102,8 +105,13 @@ kubectl get imagescan nginx-scan -n invulnerable -o yaml
 | `successfulJobsHistoryLimit` | int32 | No | 3 | Number of successful jobs to retain |
 | `failedJobsHistoryLimit` | int32 | No | 3 | Number of failed jobs to retain |
 | `resources` | ResourceRequirements | No | - | CPU/memory requests and limits |
+| `workspaceSize` | string | No | "10Gi" | Temporary workspace size for image extraction |
 | `apiEndpoint` | string | No | Auto-detected | Backend API endpoint |
 | `scannerImage` | object | No | - | Scanner container image configuration |
+| `webhook` | object | No | - | Webhook notification configuration |
+| `imagePullSecrets` | []LocalObjectReference | No | - | Secrets for pulling private images |
+| `onlyFixed` | boolean | No | false | Only report vulnerabilities with available fixes |
+| `sla` | object | No | See below | SLA remediation deadlines per severity (days) |
 
 ### Status Fields
 
@@ -151,6 +159,9 @@ spec:
       memory: "2Gi"
       cpu: "2000m"
 
+  # Workspace size for image extraction (optional)
+  workspaceSize: "10Gi"
+
   # API endpoint (optional, auto-detected if not specified)
   apiEndpoint: "http://invulnerable-backend.invulnerable.svc.cluster.local:8080"
 
@@ -159,6 +170,27 @@ spec:
     repository: "invulnerable-scanner"
     tag: "latest"
     pullPolicy: "IfNotPresent"
+
+  # Webhook notifications (optional)
+  webhook:
+    url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+    format: "slack"  # or "teams"
+    minSeverity: "High"  # Critical, High, Medium, Low, Negligible
+    enabled: true
+
+  # Image pull secrets for private registries (optional)
+  imagePullSecrets:
+    - name: my-registry-secret
+
+  # Only report fixable vulnerabilities (optional)
+  onlyFixed: false
+
+  # SLA configuration for compliance tracking (optional)
+  sla:
+    critical: 7    # Critical vulnerabilities must be fixed within 7 days
+    high: 30       # High severity within 30 days
+    medium: 90     # Medium severity within 90 days
+    low: 180       # Low severity within 180 days
 ```
 
 ## Common Use Cases
