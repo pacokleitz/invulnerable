@@ -85,6 +85,10 @@ jq -n \
     --arg webhook_url "${WEBHOOK_URL:-}" \
     --arg webhook_format "${WEBHOOK_FORMAT:-}" \
     --arg webhook_min_severity "${WEBHOOK_MIN_SEVERITY:-}" \
+    --arg sla_critical "${SLA_CRITICAL:-7}" \
+    --arg sla_high "${SLA_HIGH:-30}" \
+    --arg sla_medium "${SLA_MEDIUM:-90}" \
+    --arg sla_low "${SLA_LOW:-180}" \
     '{
         image: $image,
         sbom_format: $sbom_format,
@@ -96,7 +100,13 @@ jq -n \
                 format: $webhook_format,
                 min_severity: $webhook_min_severity
             } else null end
-        )
+        ),
+        sla_config: {
+            critical: ($sla_critical | tonumber),
+            high: ($sla_high | tonumber),
+            medium: ($sla_medium | tonumber),
+            low: ($sla_low | tonumber)
+        }
     }' > "$META_FILE"
 
 # Merge metadata with SBOM and Grype results

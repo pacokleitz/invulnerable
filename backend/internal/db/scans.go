@@ -18,12 +18,13 @@ func NewScanRepository(db *Database) *ScanRepository {
 
 func (r *ScanRepository) Create(ctx context.Context, scan *models.Scan) error {
 	query := `
-		INSERT INTO scans (image_id, scan_date, syft_version, grype_version, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+		INSERT INTO scans (image_id, scan_date, syft_version, grype_version, status, sla_critical, sla_high, sla_medium, sla_low, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
 		RETURNING id, created_at, updated_at
 	`
 	return r.db.QueryRowContext(ctx, query,
 		scan.ImageID, scan.ScanDate, scan.SyftVersion, scan.GrypeVersion, scan.Status,
+		scan.SLACritical, scan.SLAHigh, scan.SLAMedium, scan.SLALow,
 	).Scan(&scan.ID, &scan.CreatedAt, &scan.UpdatedAt)
 }
 

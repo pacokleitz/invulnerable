@@ -84,6 +84,39 @@ type ImageScanSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
 	OnlyFixed bool `json:"onlyFixed,omitempty"`
+
+	// SLA defines Service Level Agreement for vulnerability remediation in days per severity.
+	// This configuration is stored with each scan for compliance tracking.
+	// If not specified, default SLA values are used: Critical=7, High=30, Medium=90, Low=180
+	// +kubebuilder:validation:Optional
+	SLA *SLAConfig `json:"sla,omitempty"`
+}
+
+// SLAConfig defines remediation SLA in days for each severity level
+type SLAConfig struct {
+	// Critical severity SLA in days
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:default=7
+	Critical int `json:"critical,omitempty"`
+
+	// High severity SLA in days
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:default=30
+	High int `json:"high,omitempty"`
+
+	// Medium severity SLA in days
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:default=90
+	Medium int `json:"medium,omitempty"`
+
+	// Low severity SLA in days
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:default=180
+	Low int `json:"low,omitempty"`
 }
 
 // WebhookConfig defines webhook notification settings

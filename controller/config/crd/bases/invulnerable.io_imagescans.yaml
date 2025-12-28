@@ -191,6 +191,33 @@ spec:
                 example: 0 2 * * *
                 minLength: 1
                 type: string
+              sla:
+                description: |-
+                  SLA defines Service Level Agreement for vulnerability remediation in days per severity.
+                  This configuration is stored with each scan for compliance tracking.
+                  If not specified, default SLA values are used: Critical=7, High=30, Medium=90, Low=180
+                properties:
+                  critical:
+                    default: 7
+                    description: Critical severity SLA in days
+                    minimum: 1
+                    type: integer
+                  high:
+                    default: 30
+                    description: High severity SLA in days
+                    minimum: 1
+                    type: integer
+                  low:
+                    default: 180
+                    description: Low severity SLA in days
+                    minimum: 1
+                    type: integer
+                  medium:
+                    default: 90
+                    description: Medium severity SLA in days
+                    minimum: 1
+                    type: integer
+                type: object
               successfulJobsHistoryLimit:
                 default: 3
                 description: SuccessfulJobsHistoryLimit is the number of successful

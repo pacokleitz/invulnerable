@@ -24,6 +24,10 @@ export interface Scan {
 	syft_version?: string;
 	grype_version?: string;
 	status: string;
+	sla_critical: number;
+	sla_high: number;
+	sla_medium: number;
+	sla_low: number;
 	created_at: string;
 	updated_at: string;
 }

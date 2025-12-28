@@ -398,6 +398,28 @@ func buildEnvVars(imageScan *invulnerablev1alpha1.ImageScan, apiEndpoint, sbomFo
 		)
 	}
 
+	// Add SLA configuration if present
+	if imageScan.Spec.SLA != nil {
+		env = append(env,
+			corev1.EnvVar{
+				Name:  "SLA_CRITICAL",
+				Value: fmt.Sprintf("%d", imageScan.Spec.SLA.Critical),
+			},
+			corev1.EnvVar{
+				Name:  "SLA_HIGH",
+				Value: fmt.Sprintf("%d", imageScan.Spec.SLA.High),
+			},
+			corev1.EnvVar{
+				Name:  "SLA_MEDIUM",
+				Value: fmt.Sprintf("%d", imageScan.Spec.SLA.Medium),
+			},
+			corev1.EnvVar{
+				Name:  "SLA_LOW",
+				Value: fmt.Sprintf("%d", imageScan.Spec.SLA.Low),
+			},
+		)
+	}
+
 	return env
 }
 

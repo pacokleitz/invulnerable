@@ -3,13 +3,14 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useScan } from '../../hooks/useScans';
 import { SeverityBadge } from '../ui/SeverityBadge';
 import { StatusBadge } from '../ui/StatusBadge';
-import { formatDate, daysSince } from '../../lib/utils/formatters';
+import { formatDate, daysSince, calculateSLAStatus } from '../../lib/utils/formatters';
 
 export const ScanDetails: FC = () => {
 	const { id } = useParams<{ id: string }>();
 	const navigate = useNavigate();
 	const scanId = parseInt(id || '0', 10);
 	const [showUnfixed, setShowUnfixed] = useState(false);
+	const [slaFilter, setSlaFilter] = useState<'all' | 'exceeded' | 'warning'>('all');
 	const { currentScan, loading, error } = useScan(scanId, showUnfixed ? undefined : true);
 
 	useEffect(() => {
@@ -46,10 +47,32 @@ export const ScanDetails: FC = () => {
 
 	const { scan, vulnerabilities } = currentScan;
 
-	// Filter vulnerabilities based on showUnfixed checkbox
-	const filteredVulnerabilities = showUnfixed
+	// Filter vulnerabilities based on showUnfixed checkbox and SLA status
+	let filteredVulnerabilities = showUnfixed
 		? vulnerabilities
 		: vulnerabilities.filter(vuln => vuln.fix_version !== null && vuln.fix_version !== undefined);
+
+	// Apply SLA filter
+	if (slaFilter !== 'all') {
+		filteredVulnerabilities = filteredVulnerabilities.filter(vuln => {
+			const slaStatus = calculateSLAStatus(
+				vuln.first_detected_at,
+				vuln.severity,
+				{
+					critical: scan.sla_critical,
+					high: scan.sla_high,
+					medium: scan.sla_medium,
+					low: scan.sla_low,
+				}
+			);
+			if (slaFilter === 'exceeded') {
+				return slaStatus.status === 'exceeded';
+			} else if (slaFilter === 'warning') {
+				return slaStatus.status === 'warning' || slaStatus.status === 'exceeded';
+			}
+			return true;
+		});
+	}
 
 	return (
 		<div className="space-y-6">
@@ -125,19 +148,64 @@ export const ScanDetails: FC = () => {
 				</div>
 			</div>
 
+			{/* SLA Configuration */}
+			<div className="card">
+				<h2 className="text-xl font-bold text-gray-900 mb-4">SLA Configuration (Days to Remediate)</h2>
+				<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+					<div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+						<div>
+							<p className="text-sm font-medium text-gray-700">Critical</p>
+							<p className="text-2xl font-bold text-gray-900">{scan.sla_critical} days</p>
+						</div>
+					</div>
+					<div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+						<div>
+							<p className="text-sm font-medium text-gray-700">High</p>
+							<p className="text-2xl font-bold text-gray-900">{scan.sla_high} days</p>
+						</div>
+					</div>
+					<div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+						<div>
+							<p className="text-sm font-medium text-gray-700">Medium</p>
+							<p className="text-2xl font-bold text-gray-900">{scan.sla_medium} days</p>
+						</div>
+					</div>
+					<div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+						<div>
+							<p className="text-sm font-medium text-gray-700">Low</p>
+							<p className="text-2xl font-bold text-gray-900">{scan.sla_low} days</p>
+						</div>
+					</div>
+				</div>
+			</div>
+
 			{/* Vulnerabilities List */}
 			<div className="card">
 				<div className="flex justify-between items-center mb-4">
 					<h2 className="text-xl font-bold text-gray-900">Vulnerabilities</h2>
-					<label className="flex items-center space-x-2 text-sm">
-						<input
-							type="checkbox"
-							checked={showUnfixed}
-							onChange={(e) => setShowUnfixed(e.target.checked)}
-							className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-						/>
-						<span className="text-gray-700">Show unfixed CVEs</span>
-					</label>
+					<div className="flex items-center space-x-4">
+						<label className="flex items-center space-x-2 text-sm">
+							<input
+								type="checkbox"
+								checked={showUnfixed}
+								onChange={(e) => setShowUnfixed(e.target.checked)}
+								className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+							/>
+							<span className="text-gray-700">Show unfixed CVEs</span>
+						</label>
+						<div className="flex items-center space-x-2 text-sm">
+							<label className="text-gray-700">SLA Filter:</label>
+							<select
+								value={slaFilter}
+								onChange={(e) => setSlaFilter(e.target.value as 'all' | 'exceeded' | 'warning')}
+								className="rounded border-gray-300 text-sm focus:ring-blue-500 focus:border-blue-500"
+							>
+								<option value="all">All</option>
+								<option value="warning">At Risk</option>
+								<option value="exceeded">Exceeded Only</option>
+							</select>
+						</div>
+					</div>
 				</div>
 				<p className="text-sm text-gray-600 mb-4">
 					Showing {filteredVulnerabilities.length} of {vulnerabilities.length} vulnerabilities
@@ -168,46 +236,75 @@ export const ScanDetails: FC = () => {
 										First Detected / Age
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+										SLA Status
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
 										Fix Version
 									</th>
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
-								{filteredVulnerabilities.map((vuln) => (
-									<tr key={vuln.id} className="hover:bg-gray-50">
-										<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-											<Link
-												to={`/vulnerabilities/${vuln.cve_id}`}
-												className="hover:underline"
-											>
-												{vuln.cve_id}
-											</Link>
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-											{vuln.package_name}
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-											{vuln.package_version}
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm">
-											<SeverityBadge severity={vuln.severity} />
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm">
-											<StatusBadge status={vuln.status} />
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-											<div>
-												{formatDate(vuln.first_detected_at)}
-											</div>
-											<div className="text-xs text-gray-400">
-												({daysSince(vuln.first_detected_at)} days ago)
-											</div>
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-											{vuln.fix_version || 'N/A'}
-										</td>
-									</tr>
-								))}
+								{filteredVulnerabilities.map((vuln) => {
+									const slaStatus = calculateSLAStatus(
+										vuln.first_detected_at,
+										vuln.severity,
+										{
+											critical: scan.sla_critical,
+											high: scan.sla_high,
+											medium: scan.sla_medium,
+											low: scan.sla_low,
+										}
+									);
+
+									return (
+										<tr key={vuln.id} className="hover:bg-gray-50">
+											<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+												<Link
+													to={`/vulnerabilities/${vuln.cve_id}`}
+													className="hover:underline"
+												>
+													{vuln.cve_id}
+												</Link>
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+												{vuln.package_name}
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+												{vuln.package_version}
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm">
+												<SeverityBadge severity={vuln.severity} />
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm">
+												<StatusBadge status={vuln.status} />
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+												<div>
+													{formatDate(vuln.first_detected_at)}
+												</div>
+												<div className="text-xs text-gray-400">
+													({daysSince(vuln.first_detected_at)} days ago)
+												</div>
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm">
+												<div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${slaStatus.bgColor} ${slaStatus.color}`}>
+													{slaStatus.status === 'exceeded' && (
+														<span>Exceeded by {Math.abs(slaStatus.daysRemaining)} days</span>
+													)}
+													{slaStatus.status === 'warning' && (
+														<span>{slaStatus.daysRemaining} days remaining</span>
+													)}
+													{slaStatus.status === 'compliant' && (
+														<span>{slaStatus.daysRemaining} days remaining</span>
+													)}
+												</div>
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+												{vuln.fix_version || 'N/A'}
+											</td>
+										</tr>
+									);
+								})}
 							</tbody>
 						</table>
 					</div>

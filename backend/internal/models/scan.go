@@ -9,6 +9,10 @@ type Scan struct {
 	SyftVersion  *string   `db:"syft_version" json:"syft_version,omitempty"`
 	GrypeVersion *string   `db:"grype_version" json:"grype_version,omitempty"`
 	Status       string    `db:"status" json:"status"`
+	SLACritical  int       `db:"sla_critical" json:"sla_critical"`
+	SLAHigh      int       `db:"sla_high" json:"sla_high"`
+	SLAMedium    int       `db:"sla_medium" json:"sla_medium"`
+	SLALow       int       `db:"sla_low" json:"sla_low"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
 }
