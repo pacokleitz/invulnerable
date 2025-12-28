@@ -59,6 +59,16 @@ export interface Vulnerability {
 	notes?: string;
 	created_at: string;
 	updated_at: string;
+	// Image context for compliance tracking (when fetched with image info)
+	image_id?: number;
+	image_name?: string;
+	image_digest?: string;
+	latest_scan_id?: number;
+	latest_scan_date?: string;
+	sla_critical?: number;
+	sla_high?: number;
+	sla_medium?: number;
+	sla_low?: number;
 }
 
 export interface ScanDiff {

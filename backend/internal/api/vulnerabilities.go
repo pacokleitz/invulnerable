@@ -23,10 +23,11 @@ func NewVulnerabilityHandler(logger *zap.Logger, vulnRepo *db.VulnerabilityRepos
 }
 
 // ListVulnerabilities handles GET /api/v1/vulnerabilities
+// Returns vulnerabilities with image context for compliance tracking
 func (h *VulnerabilityHandler) ListVulnerabilities(c echo.Context) error {
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	if limit <= 0 || limit > 100 {
-		limit = 20
+		limit = 100
 	}
 
 	offset, _ := strconv.Atoi(c.QueryParam("offset"))
@@ -52,7 +53,18 @@ func (h *VulnerabilityHandler) ListVulnerabilities(c echo.Context) error {
 		hasFix = &hasFixBool
 	}
 
-	vulns, err := h.vulnRepo.List(c.Request().Context(), limit, offset, severity, status, hasFix)
+	// Parse image_id parameter for filtering by image
+	var imageID *int
+	if imageIDStr := c.QueryParam("image_id"); imageIDStr != "" {
+		id, err := strconv.Atoi(imageIDStr)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid image_id parameter")
+		}
+		imageID = &id
+	}
+
+	// Use ListWithImageInfo to get vulnerability+image combinations for compliance
+	vulns, err := h.vulnRepo.ListWithImageInfo(c.Request().Context(), limit, offset, severity, status, hasFix, imageID)
 	if err != nil {
 		h.logger.Error("failed to list vulnerabilities", zap.Error(err))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list vulnerabilities")

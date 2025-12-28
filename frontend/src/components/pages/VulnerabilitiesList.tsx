@@ -4,7 +4,7 @@ import { api } from '../../lib/api/client';
 import type { Vulnerability } from '../../lib/api/types';
 import { SeverityBadge } from '../ui/SeverityBadge';
 import { StatusBadge } from '../ui/StatusBadge';
-import { formatDate, daysSince } from '../../lib/utils/formatters';
+import { formatDate, daysSince, calculateSLAStatus } from '../../lib/utils/formatters';
 
 export const VulnerabilitiesList: FC = () => {
 	const [vulnerabilities, setVulnerabilities] = useState<Vulnerability[]>([]);
@@ -184,6 +184,9 @@ export const VulnerabilitiesList: FC = () => {
 							<thead className="bg-gray-50">
 								<tr>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+										Image
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
 										CVE ID
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -202,46 +205,94 @@ export const VulnerabilitiesList: FC = () => {
 										First Detected / Age
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+										SLA Status
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
 										Fix Version
 									</th>
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
-								{vulnerabilities.map((vuln) => (
-									<tr key={vuln.id} className="hover:bg-gray-50">
-										<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-											<Link
-												to={`/vulnerabilities/${vuln.cve_id}`}
-												className="hover:underline"
-											>
-												{vuln.cve_id}
-											</Link>
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-											{vuln.package_name}
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-											{vuln.package_version}
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm">
-											<SeverityBadge severity={vuln.severity} />
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm">
-											<StatusBadge status={vuln.status} />
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-											<div>
-												{formatDate(vuln.first_detected_at)}
-											</div>
-											<div className="text-xs text-gray-400">
-												({daysSince(vuln.first_detected_at)} days ago)
-											</div>
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-											{vuln.fix_version || 'N/A'}
-										</td>
-									</tr>
-								))}
+								{vulnerabilities.map((vuln) => {
+									// Calculate SLA status if we have the necessary data
+									const slaStatus = vuln.sla_critical && vuln.sla_high && vuln.sla_medium && vuln.sla_low
+										? calculateSLAStatus(
+												vuln.first_detected_at,
+												vuln.severity,
+												{
+													critical: vuln.sla_critical,
+													high: vuln.sla_high,
+													medium: vuln.sla_medium,
+													low: vuln.sla_low,
+												}
+										  )
+										: null;
+
+									return (
+										<tr key={`${vuln.id}-${vuln.image_id || 'unknown'}`} className="hover:bg-gray-50">
+											<td className="px-6 py-4 text-sm text-gray-900">
+												{vuln.image_name ? (
+													<Link
+														to={`/images/${vuln.image_id}`}
+														className="text-blue-600 hover:underline font-medium"
+													>
+														{vuln.image_name}
+													</Link>
+												) : (
+													<span className="text-gray-400">N/A</span>
+												)}
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+												<Link
+													to={`/vulnerabilities/${vuln.cve_id}`}
+													className="hover:underline"
+												>
+													{vuln.cve_id}
+												</Link>
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+												{vuln.package_name}
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+												{vuln.package_version}
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm">
+												<SeverityBadge severity={vuln.severity} />
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm">
+												<StatusBadge status={vuln.status} />
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+												<div>
+													{formatDate(vuln.first_detected_at)}
+												</div>
+												<div className="text-xs text-gray-400">
+													({daysSince(vuln.first_detected_at)} days ago)
+												</div>
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm">
+												{slaStatus ? (
+													<div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${slaStatus.bgColor} ${slaStatus.color}`}>
+														{slaStatus.status === 'exceeded' && (
+															<span>Exceeded by {Math.abs(slaStatus.daysRemaining)} days</span>
+														)}
+														{slaStatus.status === 'warning' && (
+															<span>{slaStatus.daysRemaining} days remaining</span>
+														)}
+														{slaStatus.status === 'compliant' && (
+															<span>{slaStatus.daysRemaining} days remaining</span>
+														)}
+													</div>
+												) : (
+													<span className="text-gray-400">N/A</span>
+												)}
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+												{vuln.fix_version || 'N/A'}
+											</td>
+										</tr>
+									);
+								})}
 							</tbody>
 						</table>
 					</div>

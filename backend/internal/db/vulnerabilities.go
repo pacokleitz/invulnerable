@@ -109,6 +109,94 @@ func (r *VulnerabilityRepository) List(ctx context.Context, limit, offset int, s
 	return vulns, nil
 }
 
+// ListWithImageInfo returns vulnerabilities with image context for compliance tracking
+// Each row represents a unique vulnerability+image combination
+func (r *VulnerabilityRepository) ListWithImageInfo(ctx context.Context, limit, offset int, severity, status *string, hasFix *bool, imageID *int) ([]models.VulnerabilityWithImageInfo, error) {
+	// This query returns one row per image+vulnerability combination
+	// showing when the vulnerability was first detected on that specific image
+	query := `
+		SELECT DISTINCT ON (v.id, i.id)
+			v.id,
+			v.cve_id,
+			v.package_name,
+			v.package_version,
+			v.package_type,
+			v.severity,
+			v.fix_version,
+			v.url,
+			v.description,
+			v.status,
+			v.last_seen_at,
+			v.remediation_date,
+			v.notes,
+			v.created_at,
+			v.updated_at,
+			i.id as image_id,
+			i.registry || '/' || i.repository || ':' || i.tag as image_name,
+			i.digest as image_digest,
+			MIN(s.scan_date) OVER (PARTITION BY v.id, i.id) as first_detected_at_for_image,
+			FIRST_VALUE(s.id) OVER (PARTITION BY v.id, i.id ORDER BY s.scan_date DESC) as latest_scan_id,
+			FIRST_VALUE(s.scan_date) OVER (PARTITION BY v.id, i.id ORDER BY s.scan_date DESC) as latest_scan_date,
+			FIRST_VALUE(s.sla_critical) OVER (PARTITION BY v.id, i.id ORDER BY s.scan_date DESC) as sla_critical,
+			FIRST_VALUE(s.sla_high) OVER (PARTITION BY v.id, i.id ORDER BY s.scan_date DESC) as sla_high,
+			FIRST_VALUE(s.sla_medium) OVER (PARTITION BY v.id, i.id ORDER BY s.scan_date DESC) as sla_medium,
+			FIRST_VALUE(s.sla_low) OVER (PARTITION BY v.id, i.id ORDER BY s.scan_date DESC) as sla_low
+		FROM vulnerabilities v
+		JOIN scan_vulnerabilities sv ON sv.vulnerability_id = v.id
+		JOIN scans s ON s.id = sv.scan_id
+		JOIN images i ON i.id = s.image_id
+		WHERE 1=1
+	`
+
+	args := []interface{}{}
+	argCount := 1
+
+	if severity != nil {
+		query += fmt.Sprintf(" AND v.severity = $%d", argCount)
+		args = append(args, *severity)
+		argCount++
+	}
+
+	if status != nil {
+		query += fmt.Sprintf(" AND v.status = $%d", argCount)
+		args = append(args, *status)
+		argCount++
+	}
+
+	if hasFix != nil {
+		if *hasFix {
+			query += " AND v.fix_version IS NOT NULL"
+		} else {
+			query += " AND v.fix_version IS NULL"
+		}
+	}
+
+	if imageID != nil {
+		query += fmt.Sprintf(" AND i.id = $%d", argCount)
+		args = append(args, *imageID)
+		argCount++
+	}
+
+	query += ` ORDER BY
+		v.id, i.id,
+		CASE v.severity
+			WHEN 'Critical' THEN 1
+			WHEN 'High' THEN 2
+			WHEN 'Medium' THEN 3
+			WHEN 'Low' THEN 4
+			ELSE 5
+		END`
+
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argCount, argCount+1)
+	args = append(args, limit, offset)
+
+	vulns := []models.VulnerabilityWithImageInfo{}
+	if err := r.db.SelectContext(ctx, &vulns, query, args...); err != nil {
+		return nil, err
+	}
+	return vulns, nil
+}
+
 func (r *VulnerabilityRepository) Update(ctx context.Context, id int, update *models.VulnerabilityUpdate) error {
 	query := `UPDATE vulnerabilities SET updated_at = NOW()`
 	args := []interface{}{}
