@@ -10,7 +10,7 @@ export const ScansList: FC = () => {
 	const imageFilter = searchParams.get('image') || '';
 	const fromDate = searchParams.get('from') || '';
 	const toDate = searchParams.get('to') || '';
-	const minVulnCount = searchParams.get('minVulns') || '';
+	const minSeverity = searchParams.get('minSeverity') || '';
 	const showUnfixed = searchParams.get('show_unfixed') === 'true'; // Default to false
 
 	const { scans, loading, error } = useScans({
@@ -53,13 +53,26 @@ export const ScansList: FC = () => {
 			if (toDate && new Date(scan.scan_date) > new Date(toDate)) {
 				return false;
 			}
-			// Filter by min vulnerabilities
-			if (minVulnCount && scan.vulnerability_count < parseInt(minVulnCount)) {
-				return false;
+			// Filter by minimum severity
+			if (minSeverity) {
+				switch (minSeverity) {
+					case 'Critical':
+						if (scan.critical_count === 0) return false;
+						break;
+					case 'High':
+						if (scan.critical_count === 0 && scan.high_count === 0) return false;
+						break;
+					case 'Medium':
+						if (scan.critical_count === 0 && scan.high_count === 0 && scan.medium_count === 0) return false;
+						break;
+					case 'Low':
+						if (scan.critical_count === 0 && scan.high_count === 0 && scan.medium_count === 0 && scan.low_count === 0) return false;
+						break;
+				}
 			}
 			return true;
 		});
-	}, [scans, imageFilter, fromDate, toDate, minVulnCount]);
+	}, [scans, imageFilter, fromDate, toDate, minSeverity]);
 
 	if (loading) {
 		return (
@@ -128,18 +141,21 @@ export const ScansList: FC = () => {
 					</div>
 
 					<div>
-						<label htmlFor="minVulnCount" className="block text-sm font-medium text-gray-700">
-							Min Vulnerabilities
+						<label htmlFor="minSeverity" className="block text-sm font-medium text-gray-700">
+							Min Severity
 						</label>
-						<input
-							type="number"
-							id="minVulnCount"
-							value={minVulnCount}
-							onChange={(e) => updateFilter('minVulns', e.target.value)}
-							placeholder="0"
-							min="0"
+						<select
+							id="minSeverity"
+							value={minSeverity}
+							onChange={(e) => updateFilter('minSeverity', e.target.value)}
 							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-						/>
+						>
+							<option value="">All Severities</option>
+							<option value="Critical">Critical</option>
+							<option value="High">High or above</option>
+							<option value="Medium">Medium or above</option>
+							<option value="Low">Low or above</option>
+						</select>
 					</div>
 				</div>
 

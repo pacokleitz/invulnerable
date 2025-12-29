@@ -14,7 +14,7 @@ export const ImagesList: FC = () => {
 	const registryFilter = searchParams.get('registry') || '';
 	const repositoryFilter = searchParams.get('repository') || '';
 	const tagFilter = searchParams.get('tag') || '';
-	const minVulnCount = searchParams.get('minVulns') || '';
+	const minSeverity = searchParams.get('minSeverity') || '';
 	const showUnfixed = searchParams.get('show_unfixed') === 'true'; // Default to false
 
 	const loadImages = useCallback(
@@ -75,15 +75,26 @@ export const ImagesList: FC = () => {
 			if (tagFilter && !image.tag.toLowerCase().includes(tagFilter.toLowerCase())) {
 				return false;
 			}
-			// Filter by min vulnerabilities
-			const totalVulns =
-				image.critical_count + image.high_count + image.medium_count + image.low_count;
-			if (minVulnCount && totalVulns < parseInt(minVulnCount)) {
-				return false;
+			// Filter by minimum severity
+			if (minSeverity) {
+				switch (minSeverity) {
+					case 'Critical':
+						if (image.critical_count === 0) return false;
+						break;
+					case 'High':
+						if (image.critical_count === 0 && image.high_count === 0) return false;
+						break;
+					case 'Medium':
+						if (image.critical_count === 0 && image.high_count === 0 && image.medium_count === 0) return false;
+						break;
+					case 'Low':
+						if (image.critical_count === 0 && image.high_count === 0 && image.medium_count === 0 && image.low_count === 0) return false;
+						break;
+				}
 			}
 			return true;
 		});
-	}, [images, registryFilter, repositoryFilter, tagFilter, minVulnCount]);
+	}, [images, registryFilter, repositoryFilter, tagFilter, minSeverity]);
 
 	if (loading) {
 		return (
@@ -157,18 +168,21 @@ export const ImagesList: FC = () => {
 					</div>
 
 					<div>
-						<label htmlFor="minVulnCount" className="block text-sm font-medium text-gray-700">
-							Min Vulnerabilities
+						<label htmlFor="minSeverity" className="block text-sm font-medium text-gray-700">
+							Min Severity
 						</label>
-						<input
-							type="number"
-							id="minVulnCount"
-							value={minVulnCount}
-							onChange={(e) => updateFilter('minVulns', e.target.value)}
-							placeholder="0"
-							min="0"
+						<select
+							id="minSeverity"
+							value={minSeverity}
+							onChange={(e) => updateFilter('minSeverity', e.target.value)}
 							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-						/>
+						>
+							<option value="">All Severities</option>
+							<option value="Critical">Critical</option>
+							<option value="High">High or above</option>
+							<option value="Medium">Medium or above</option>
+							<option value="Low">Low or above</option>
+						</select>
 					</div>
 				</div>
 
