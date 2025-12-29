@@ -61,6 +61,7 @@ type WebhookConfig struct {
 	URL         string `json:"url"`
 	Format      string `json:"format"`
 	MinSeverity string `json:"min_severity"`
+	OnlyFixed   bool   `json:"only_fixed"`
 }
 
 type SLAConfig struct {
@@ -194,37 +195,50 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 		}
 	}
 
-	// Calculate severity counts for notification
-	severityCounts := notifier.SeverityCounts{}
-	for _, match := range req.GrypeResult.Matches {
-		switch match.Vulnerability.Severity {
-		case "Critical":
-			severityCounts.Critical++
-		case "High":
-			severityCounts.High++
-		case "Medium":
-			severityCounts.Medium++
-		case "Low":
-			severityCounts.Low++
-		default:
-			severityCounts.Negligible++
-		}
-	}
-
 	// Send webhook notification if configured
 	if req.WebhookConfig != nil && req.WebhookConfig.URL != "" {
 		go func() {
+			// Filter matches based on onlyFixed setting
+			matchesToNotify := req.GrypeResult.Matches
+			if req.WebhookConfig.OnlyFixed {
+				filtered := []models.GrypeMatch{}
+				for _, match := range req.GrypeResult.Matches {
+					if match.Vulnerability.Fix.Versions != nil && len(match.Vulnerability.Fix.Versions) > 0 {
+						filtered = append(filtered, match)
+					}
+				}
+				matchesToNotify = filtered
+			}
+
+			// Calculate severity counts for notification (only for filtered matches)
+			severityCounts := notifier.SeverityCounts{}
+			for _, match := range matchesToNotify {
+				switch match.Vulnerability.Severity {
+				case "Critical":
+					severityCounts.Critical++
+				case "High":
+					severityCounts.High++
+				case "Medium":
+					severityCounts.Medium++
+				case "Low":
+					severityCounts.Low++
+				default:
+					severityCounts.Negligible++
+				}
+			}
+
 			webhookConfig := notifier.WebhookConfig{
 				URL:         req.WebhookConfig.URL,
 				Format:      req.WebhookConfig.Format,
 				MinSeverity: req.WebhookConfig.MinSeverity,
+				OnlyFixed:   req.WebhookConfig.OnlyFixed,
 			}
 
 			notificationPayload := notifier.NotificationPayload{
 				Image:          req.Image,
 				ImageDigest:    req.ImageDigest,
 				ScanID:         scan.ID,
-				TotalVulns:     len(req.GrypeResult.Matches),
+				TotalVulns:     len(matchesToNotify),
 				SeverityCounts: severityCounts,
 			}
 

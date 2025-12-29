@@ -124,57 +124,26 @@ export const ScanDetails: FC = () => {
 				<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
 					<div className="flex items-center justify-between p-4 bg-red-50 rounded-lg">
 						<div>
-							<p className="text-sm font-medium text-red-800">Critical</p>
+							<p className="text-sm font-medium text-red-800">Critical ({scan.sla_critical} days SLA)</p>
 							<p className="text-2xl font-bold text-red-900">{scan.critical_count}</p>
 						</div>
 					</div>
 					<div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg">
 						<div>
-							<p className="text-sm font-medium text-orange-800">High</p>
+							<p className="text-sm font-medium text-orange-800">High ({scan.sla_high} days SLA)</p>
 							<p className="text-2xl font-bold text-orange-900">{scan.high_count}</p>
 						</div>
 					</div>
 					<div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg">
 						<div>
-							<p className="text-sm font-medium text-yellow-800">Medium</p>
+							<p className="text-sm font-medium text-yellow-800">Medium ({scan.sla_medium} days SLA)</p>
 							<p className="text-2xl font-bold text-yellow-900">{scan.medium_count}</p>
 						</div>
 					</div>
 					<div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
 						<div>
-							<p className="text-sm font-medium text-blue-800">Low</p>
+							<p className="text-sm font-medium text-blue-800">Low ({scan.sla_low} days SLA)</p>
 							<p className="text-2xl font-bold text-blue-900">{scan.low_count}</p>
-						</div>
-					</div>
-				</div>
-			</div>
-
-			{/* SLA Configuration */}
-			<div className="card">
-				<h2 className="text-xl font-bold text-gray-900 mb-4">SLA Configuration (Days to Remediate)</h2>
-				<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-					<div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-						<div>
-							<p className="text-sm font-medium text-gray-700">Critical</p>
-							<p className="text-2xl font-bold text-gray-900">{scan.sla_critical} days</p>
-						</div>
-					</div>
-					<div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-						<div>
-							<p className="text-sm font-medium text-gray-700">High</p>
-							<p className="text-2xl font-bold text-gray-900">{scan.sla_high} days</p>
-						</div>
-					</div>
-					<div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-						<div>
-							<p className="text-sm font-medium text-gray-700">Medium</p>
-							<p className="text-2xl font-bold text-gray-900">{scan.sla_medium} days</p>
-						</div>
-					</div>
-					<div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-						<div>
-							<p className="text-sm font-medium text-gray-700">Low</p>
-							<p className="text-2xl font-bold text-gray-900">{scan.sla_low} days</p>
 						</div>
 					</div>
 				</div>

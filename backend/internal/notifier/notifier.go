@@ -32,6 +32,7 @@ type WebhookConfig struct {
 	URL         string `json:"url"`
 	Format      string `json:"format"`
 	MinSeverity string `json:"min_severity"`
+	OnlyFixed   bool   `json:"only_fixed"`
 }
 
 // NotificationPayload contains data for webhook notification
@@ -62,6 +63,14 @@ type VulnerabilityInfo struct {
 
 // SendNotification sends webhook notification
 func (n *Notifier) SendNotification(ctx context.Context, config WebhookConfig, payload NotificationPayload) error {
+	// Check if there are any vulnerabilities to notify about (e.g., when onlyFixed filters everything out)
+	if payload.TotalVulns == 0 {
+		n.logger.Info("no vulnerabilities to notify about, skipping notification",
+			zap.Bool("only_fixed", config.OnlyFixed),
+			zap.Int("scan_id", payload.ScanID))
+		return nil
+	}
+
 	// Check if notification should be sent based on severity threshold
 	if !n.shouldNotify(config.MinSeverity, payload.SeverityCounts) {
 		n.logger.Info("no vulnerabilities meet severity threshold, skipping notification",

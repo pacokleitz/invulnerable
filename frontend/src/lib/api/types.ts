@@ -57,6 +57,7 @@ export interface Vulnerability {
 	last_seen_at: string;
 	remediation_date?: string;
 	notes?: string;
+	updated_by?: string;
 	created_at: string;
 	updated_at: string;
 	// Image context for compliance tracking (when fetched with image info)
@@ -106,4 +107,16 @@ export interface VulnerabilityUpdate {
 export interface User {
 	email: string;
 	username?: string;
+}
+
+export interface VulnerabilityHistory {
+	id: number;
+	vulnerability_id: number;
+	field_name: string;
+	old_value?: string;
+	new_value?: string;
+	changed_by?: string;
+	changed_at: string;
+	image_id?: number;
+	image_name?: string;
 }

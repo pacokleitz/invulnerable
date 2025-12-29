@@ -13,6 +13,11 @@ export const VulnerabilitiesList: FC = () => {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [searchParams, setSearchParams] = useSearchParams();
+	const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+	const [bulkActionStatus, setBulkActionStatus] = useState<string>('');
+	const [bulkActionNotes, setBulkActionNotes] = useState<string>('');
+	const [showBulkActionModal, setShowBulkActionModal] = useState(false);
+	const [bulkUpdating, setBulkUpdating] = useState(false);
 
 	// Filters from URL
 	const severityFilter = searchParams.get('severity') || '';
@@ -76,6 +81,45 @@ export const VulnerabilitiesList: FC = () => {
 	const handleClearFilters = useCallback(() => {
 		setSearchParams({});
 	}, [setSearchParams]);
+
+	const toggleSelection = (id: number) => {
+		const newSelected = new Set(selectedIds);
+		if (newSelected.has(id)) {
+			newSelected.delete(id);
+		} else {
+			newSelected.add(id);
+		}
+		setSelectedIds(newSelected);
+	};
+
+	const toggleSelectAll = () => {
+		if (selectedIds.size === vulnerabilities.length) {
+			setSelectedIds(new Set());
+		} else {
+			setSelectedIds(new Set(vulnerabilities.map(v => v.id)));
+		}
+	};
+
+	const handleBulkUpdate = async () => {
+		if (selectedIds.size === 0) return;
+
+		setBulkUpdating(true);
+		try {
+			await api.vulnerabilities.bulkUpdate(Array.from(selectedIds), {
+				status: bulkActionStatus || undefined,
+				notes: bulkActionNotes || undefined
+			});
+			await loadVulnerabilities();
+			setSelectedIds(new Set());
+			setShowBulkActionModal(false);
+			setBulkActionStatus('');
+			setBulkActionNotes('');
+		} catch (e) {
+			alert(e instanceof Error ? e.message : 'Failed to bulk update');
+		} finally {
+			setBulkUpdating(false);
+		}
+	};
 
 	if (loading) {
 		return (
@@ -196,6 +240,29 @@ export const VulnerabilitiesList: FC = () => {
 				</div>
 			</div>
 
+			{/* Bulk action bar */}
+			{selectedIds.size > 0 && (
+				<div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex justify-between items-center">
+					<span className="text-sm font-medium text-blue-900">
+						{selectedIds.size} vulnerabilit{selectedIds.size === 1 ? 'y' : 'ies'} selected
+					</span>
+					<div className="space-x-2">
+						<button
+							onClick={() => setShowBulkActionModal(true)}
+							className="btn btn-primary"
+						>
+							Update Selected
+						</button>
+						<button
+							onClick={() => setSelectedIds(new Set())}
+							className="btn btn-secondary"
+						>
+							Clear Selection
+						</button>
+					</div>
+				</div>
+			)}
+
 			{error && (
 				<div className="card bg-red-50">
 					<p className="text-red-600">{error}</p>
@@ -212,6 +279,14 @@ export const VulnerabilitiesList: FC = () => {
 						<table className="min-w-full divide-y divide-gray-200">
 							<thead className="bg-gray-50">
 								<tr>
+									<th className="px-6 py-3 text-left">
+										<input
+											type="checkbox"
+											checked={selectedIds.size === vulnerabilities.length && vulnerabilities.length > 0}
+											onChange={toggleSelectAll}
+											className="rounded border-gray-300"
+										/>
+									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
 										Image
 									</th>
@@ -262,6 +337,14 @@ export const VulnerabilitiesList: FC = () => {
 
 									return (
 										<tr key={`${vuln.id}-${vuln.image_id || 'unknown'}`} className="hover:bg-gray-50">
+											<td className="px-6 py-4">
+												<input
+													type="checkbox"
+													checked={selectedIds.has(vuln.id)}
+													onChange={() => toggleSelection(vuln.id)}
+													className="rounded border-gray-300"
+												/>
+											</td>
 											<td className="px-6 py-4 text-sm text-gray-900">
 												{vuln.image_name ? (
 													<Link
@@ -330,6 +413,65 @@ export const VulnerabilitiesList: FC = () => {
 								})}
 							</tbody>
 						</table>
+					</div>
+				</div>
+			)}
+
+			{/* Bulk action modal */}
+			{showBulkActionModal && (
+				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+					<div className="bg-white rounded-lg max-w-md w-full p-6">
+						<h3 className="text-lg font-bold mb-4">
+							Update {selectedIds.size} Vulnerabilit{selectedIds.size === 1 ? 'y' : 'ies'}
+						</h3>
+						<div className="space-y-4">
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									Status
+								</label>
+								<select
+									value={bulkActionStatus}
+									onChange={(e) => setBulkActionStatus(e.target.value)}
+									className="w-full rounded-md border-gray-300"
+								>
+									<option value="">-- No change --</option>
+									<option value="active">Active</option>
+									<option value="fixed">Fixed</option>
+									<option value="ignored">Ignored</option>
+									<option value="accepted">Accepted</option>
+								</select>
+							</div>
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									{bulkActionStatus === 'accepted' ? 'Acceptance Justification' : 'Notes'}
+								</label>
+								<textarea
+									value={bulkActionNotes}
+									onChange={(e) => setBulkActionNotes(e.target.value)}
+									rows={3}
+									placeholder={bulkActionStatus === 'accepted'
+										? 'Explain why this risk is being accepted...'
+										: 'Optional notes about this update...'}
+									className="w-full rounded-md border-gray-300"
+								/>
+							</div>
+						</div>
+						<div className="mt-6 flex justify-end space-x-2">
+							<button
+								onClick={() => setShowBulkActionModal(false)}
+								className="btn btn-secondary"
+								disabled={bulkUpdating}
+							>
+								Cancel
+							</button>
+							<button
+								onClick={handleBulkUpdate}
+								className="btn btn-primary"
+								disabled={bulkUpdating || (!bulkActionStatus && !bulkActionNotes)}
+							>
+								{bulkUpdating ? 'Updating...' : 'Update'}
+							</button>
+						</div>
 					</div>
 				</div>
 			)}

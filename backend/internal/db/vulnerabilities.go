@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/invulnerable/backend/internal/models"
+	"github.com/lib/pq"
 )
 
 type VulnerabilityRepository struct {
@@ -15,6 +16,15 @@ type VulnerabilityRepository struct {
 
 func NewVulnerabilityRepository(db *Database) *VulnerabilityRepository {
 	return &VulnerabilityRepository{db: db}
+}
+
+func ValidateStatus(status string) error {
+	for _, valid := range models.ValidStatuses {
+		if status == valid {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid status: %s (must be one of: %v)", status, models.ValidStatuses)
 }
 
 func (r *VulnerabilityRepository) Upsert(ctx context.Context, vuln *models.Vulnerability) error {
@@ -203,7 +213,21 @@ func (r *VulnerabilityRepository) ListWithImageInfo(ctx context.Context, limit, 
 	return vulns, nil
 }
 
-func (r *VulnerabilityRepository) Update(ctx context.Context, id int, update *models.VulnerabilityUpdate) error {
+func (r *VulnerabilityRepository) Update(ctx context.Context, id int, update *models.VulnerabilityUpdateWithContext) error {
+	// Validate status if provided
+	if update.Status != nil {
+		if err := ValidateStatus(*update.Status); err != nil {
+			return err
+		}
+	}
+
+	// Get current state for audit trail
+	current, err := r.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("failed to get current vulnerability: %w", err)
+	}
+
+	// Build dynamic update query
 	query := `UPDATE vulnerabilities SET updated_at = NOW()`
 	args := []interface{}{}
 	argCount := 1
@@ -212,6 +236,13 @@ func (r *VulnerabilityRepository) Update(ctx context.Context, id int, update *mo
 		query += fmt.Sprintf(", status = $%d", argCount)
 		args = append(args, *update.Status)
 		argCount++
+
+		// Auto-set remediation_date when marking as fixed
+		if *update.Status == models.StatusFixed && current.RemediationDate == nil {
+			query += fmt.Sprintf(", remediation_date = $%d", argCount)
+			args = append(args, time.Now())
+			argCount++
+		}
 	}
 
 	if update.Notes != nil {
@@ -220,11 +251,129 @@ func (r *VulnerabilityRepository) Update(ctx context.Context, id int, update *mo
 		argCount++
 	}
 
+	if update.UpdatedBy != "" {
+		query += fmt.Sprintf(", updated_by = $%d", argCount)
+		args = append(args, update.UpdatedBy)
+		argCount++
+	}
+
 	query += fmt.Sprintf(" WHERE id = $%d", argCount)
 	args = append(args, id)
 
+	_, err = r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+
+	// Create audit trail entries
+	if update.Status != nil && current.Status != *update.Status {
+		if err := r.CreateHistoryEntry(ctx, id, "status", &current.Status, update.Status, update.UpdatedBy, update.ImageID, update.ImageName); err != nil {
+			// Log error but don't fail the update
+			return fmt.Errorf("warning: failed to create status history: %w", err)
+		}
+	}
+
+	if update.Notes != nil {
+		oldNotes := ""
+		if current.Notes != nil {
+			oldNotes = *current.Notes
+		}
+		newNotes := *update.Notes
+		if oldNotes != newNotes {
+			if err := r.CreateHistoryEntry(ctx, id, "notes", &oldNotes, &newNotes, update.UpdatedBy, update.ImageID, update.ImageName); err != nil {
+				return fmt.Errorf("warning: failed to create notes history: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (r *VulnerabilityRepository) BulkUpdate(ctx context.Context, ids []int, update *models.VulnerabilityUpdateWithContext) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	// Get current state for all vulnerabilities (for audit trail)
+	currentStates := make(map[int]*models.Vulnerability)
+	for _, id := range ids {
+		current, err := r.GetByID(ctx, id)
+		if err != nil {
+			return fmt.Errorf("failed to get vulnerability %d: %w", id, err)
+		}
+		currentStates[id] = current
+	}
+
+	// Validate status if provided
+	if update.Status != nil {
+		if err := ValidateStatus(*update.Status); err != nil {
+			return err
+		}
+	}
+
+	// Build dynamic update query
+	query := `UPDATE vulnerabilities SET updated_at = NOW()`
+	args := []interface{}{}
+	argCount := 1
+
+	if update.Status != nil {
+		query += fmt.Sprintf(", status = $%d", argCount)
+		args = append(args, *update.Status)
+		argCount++
+
+		// Auto-set remediation_date when marking as fixed (only if not already set)
+		if *update.Status == models.StatusFixed {
+			query += fmt.Sprintf(", remediation_date = COALESCE(remediation_date, $%d)", argCount)
+			args = append(args, time.Now())
+			argCount++
+		}
+	}
+
+	if update.Notes != nil {
+		query += fmt.Sprintf(", notes = $%d", argCount)
+		args = append(args, *update.Notes)
+		argCount++
+	}
+
+	if update.UpdatedBy != "" {
+		query += fmt.Sprintf(", updated_by = $%d", argCount)
+		args = append(args, update.UpdatedBy)
+		argCount++
+	}
+
+	query += fmt.Sprintf(" WHERE id = ANY($%d)", argCount)
+	args = append(args, pq.Array(ids))
+
 	_, err := r.db.ExecContext(ctx, query, args...)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Create audit trail entries for each vulnerability
+	for _, id := range ids {
+		current := currentStates[id]
+
+		if update.Status != nil && current.Status != *update.Status {
+			if err := r.CreateHistoryEntry(ctx, id, "status", &current.Status, update.Status, update.UpdatedBy, update.ImageID, update.ImageName); err != nil {
+				// Log but don't fail
+			}
+		}
+
+		if update.Notes != nil {
+			oldNotes := ""
+			if current.Notes != nil {
+				oldNotes = *current.Notes
+			}
+			newNotes := *update.Notes
+			if oldNotes != newNotes {
+				if err := r.CreateHistoryEntry(ctx, id, "notes", &oldNotes, &newNotes, update.UpdatedBy, update.ImageID, update.ImageName); err != nil {
+					// Log but don't fail
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func (r *VulnerabilityRepository) MarkAsFixed(ctx context.Context, vulnerabilityIDs []int) error {
@@ -232,13 +381,34 @@ func (r *VulnerabilityRepository) MarkAsFixed(ctx context.Context, vulnerability
 		return nil
 	}
 
+	// Get current state for audit trail
+	currentStates := make(map[int]string)
+	for _, id := range vulnerabilityIDs {
+		current, err := r.GetByID(ctx, id)
+		if err == nil && current.Status != models.StatusFixed {
+			currentStates[id] = current.Status
+		}
+	}
+
 	query := `
 		UPDATE vulnerabilities
-		SET status = 'fixed', remediation_date = $1, updated_at = NOW()
-		WHERE id = ANY($2) AND status = 'active'
+		SET status = 'fixed', remediation_date = $1, updated_at = NOW(), updated_by = 'system'
+		WHERE id = ANY($2) AND status != 'fixed'
 	`
-	_, err := r.db.ExecContext(ctx, query, time.Now(), vulnerabilityIDs)
-	return err
+	_, err := r.db.ExecContext(ctx, query, time.Now(), pq.Array(vulnerabilityIDs))
+	if err != nil {
+		return err
+	}
+
+	// Create audit entries for automatic fixes
+	for id, oldStatus := range currentStates {
+		newStatus := models.StatusFixed
+		if err := r.CreateHistoryEntry(ctx, id, "status", &oldStatus, &newStatus, "system", nil, nil); err != nil {
+			// Log but don't fail
+		}
+	}
+
+	return nil
 }
 
 func (r *VulnerabilityRepository) LinkToScan(ctx context.Context, scanID, vulnerabilityID int) error {
@@ -261,4 +431,29 @@ func (r *VulnerabilityRepository) GetByUniqueKey(ctx context.Context, cveID, pac
 		return nil, err
 	}
 	return &vuln, nil
+}
+
+func (r *VulnerabilityRepository) CreateHistoryEntry(ctx context.Context, vulnerabilityID int, fieldName string, oldValue, newValue *string, changedBy string, imageID *int, imageName *string) error {
+	query := `
+		INSERT INTO vulnerability_history (
+			vulnerability_id, field_name, old_value, new_value,
+			changed_by, changed_at, image_id, image_name
+		)
+		VALUES ($1, $2, $3, $4, $5, NOW(), $6, $7)
+	`
+	_, err := r.db.ExecContext(ctx, query,
+		vulnerabilityID, fieldName, oldValue, newValue,
+		changedBy, imageID, imageName)
+	return err
+}
+
+func (r *VulnerabilityRepository) GetHistory(ctx context.Context, vulnerabilityID int) ([]models.VulnerabilityHistory, error) {
+	var history []models.VulnerabilityHistory
+	query := `
+		SELECT * FROM vulnerability_history
+		WHERE vulnerability_id = $1
+		ORDER BY changed_at DESC
+	`
+	err := r.db.SelectContext(ctx, &history, query, vulnerabilityID)
+	return history, err
 }

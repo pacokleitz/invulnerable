@@ -5,6 +5,7 @@ import type {
 	ScanWithDetails,
 	User,
 	Vulnerability,
+	VulnerabilityHistory,
 	VulnerabilityUpdate
 } from './types';
 
@@ -101,6 +102,20 @@ export const api = {
 				method: 'PATCH',
 				body: JSON.stringify(update)
 			});
+		},
+
+		bulkUpdate: (vulnerabilityIds: number[], update: VulnerabilityUpdate) => {
+			return fetchAPI<{ updated_count: number; status?: string }>(`/vulnerabilities/bulk`, {
+				method: 'PATCH',
+				body: JSON.stringify({
+					vulnerability_ids: vulnerabilityIds,
+					...update
+				})
+			});
+		},
+
+		getHistory: (id: number) => {
+			return fetchAPI<VulnerabilityHistory[]>(`/vulnerabilities/${id}/history`);
 		}
 	},
 

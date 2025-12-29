@@ -22,6 +22,18 @@ func NewVulnerabilityHandler(logger *zap.Logger, vulnRepo *db.VulnerabilityRepos
 	}
 }
 
+func getUserFromHeaders(c echo.Context) string {
+	// Try X-Auth-Request-Email first (more specific)
+	if email := c.Request().Header.Get("X-Auth-Request-Email"); email != "" {
+		return email
+	}
+	// Fall back to X-Auth-Request-User
+	if user := c.Request().Header.Get("X-Auth-Request-User"); user != "" {
+		return user
+	}
+	return "unknown"
+}
+
 // ListVulnerabilities handles GET /api/v1/vulnerabilities
 // Returns vulnerabilities with image context for compliance tracking
 func (h *VulnerabilityHandler) ListVulnerabilities(c echo.Context) error {
@@ -109,7 +121,17 @@ func (h *VulnerabilityHandler) UpdateVulnerability(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
 
-	if err := h.vulnRepo.Update(c.Request().Context(), id, &update); err != nil {
+	// Get user from OAuth2 Proxy headers
+	updatedBy := getUserFromHeaders(c)
+
+	// Create update with context
+	updateWithContext := &models.VulnerabilityUpdateWithContext{
+		Status:    update.Status,
+		Notes:     update.Notes,
+		UpdatedBy: updatedBy,
+	}
+
+	if err := h.vulnRepo.Update(c.Request().Context(), id, updateWithContext); err != nil {
 		h.logger.Error("failed to update vulnerability", zap.Error(err))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to update vulnerability")
 	}
@@ -122,4 +144,56 @@ func (h *VulnerabilityHandler) UpdateVulnerability(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, vuln)
+}
+
+// BulkUpdateVulnerabilities handles PATCH /api/v1/vulnerabilities/bulk
+func (h *VulnerabilityHandler) BulkUpdateVulnerabilities(c echo.Context) error {
+	var req models.BulkUpdateRequest
+	if err := c.Bind(&req); err != nil {
+		h.logger.Error("failed to bind request", zap.Error(err))
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+
+	if len(req.VulnerabilityIDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "no vulnerability IDs provided")
+	}
+
+	if len(req.VulnerabilityIDs) > 100 {
+		return echo.NewHTTPError(http.StatusBadRequest, "cannot update more than 100 vulnerabilities at once")
+	}
+
+	// Get user from headers
+	updatedBy := getUserFromHeaders(c)
+
+	updateWithContext := &models.VulnerabilityUpdateWithContext{
+		Status:    req.Status,
+		Notes:     req.Notes,
+		UpdatedBy: updatedBy,
+	}
+
+	if err := h.vulnRepo.BulkUpdate(c.Request().Context(), req.VulnerabilityIDs, updateWithContext); err != nil {
+		h.logger.Error("failed to bulk update vulnerabilities", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to update vulnerabilities")
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"updated_count": len(req.VulnerabilityIDs),
+		"status":        req.Status,
+	})
+}
+
+// GetVulnerabilityHistory handles GET /api/v1/vulnerabilities/:id/history
+func (h *VulnerabilityHandler) GetVulnerabilityHistory(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid vulnerability ID")
+	}
+
+	history, err := h.vulnRepo.GetHistory(c.Request().Context(), id)
+	if err != nil {
+		h.logger.Error("failed to get vulnerability history", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get history")
+	}
+
+	return c.JSON(http.StatusOK, history)
 }

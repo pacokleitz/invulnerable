@@ -105,6 +105,8 @@ func main() {
 	api.GET("/vulnerabilities", vulnHandler.ListVulnerabilities)
 	api.GET("/vulnerabilities/:cve", vulnHandler.GetVulnerabilityByCVE)
 	api.PATCH("/vulnerabilities/:id", vulnHandler.UpdateVulnerability)
+	api.PATCH("/vulnerabilities/bulk", vulnHandler.BulkUpdateVulnerabilities)
+	api.GET("/vulnerabilities/:id/history", vulnHandler.GetVulnerabilityHistory)
 
 	// Images
 	api.GET("/images", imageHandler.ListImages)
