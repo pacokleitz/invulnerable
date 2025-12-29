@@ -10,6 +10,7 @@ export const StatusBadge: FC<StatusBadgeProps> = ({ status, onClick, title }) =>
 	const badgeClass =
 		{
 			active: 'badge-active',
+			in_progress: 'badge-in-progress',
 			fixed: 'badge-fixed',
 			ignored: 'badge-ignored',
 			accepted: 'badge-accepted'

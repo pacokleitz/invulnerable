@@ -96,10 +96,14 @@ Invulnerable is a Kubernetes-native vulnerability management platform that provi
 ### Installation with Helm
 
 ```bash
-# Add Helm repository (if published)
-# helm repo add invulnerable https://pacokleitz.github.io/invulnerable
+# Install from GitHub Container Registry (GHCR) using OCI
+helm install invulnerable \
+  oci://ghcr.io/pacokleitz/charts/invulnerable \
+  --version 1.0.0 \
+  --namespace invulnerable \
+  --create-namespace
 
-# Install with default values
+# Or install from local chart (for development)
 helm install invulnerable ./helm/invulnerable \
   --namespace invulnerable \
   --create-namespace
@@ -142,7 +146,8 @@ See the complete [Deployment Guide](docs/DEPLOYMENT.md) for production installat
 # 1. Create values file
 cat > production-values.yaml <<EOF
 image:
-  registry: "ghcr.io/yourusername"
+  registry: "ghcr.io/pacokleitz"
+  tag: "1.0.0"
 
 backend:
   database:
@@ -471,7 +476,7 @@ spec:
 - Track remediation progress against defined SLAs
 
 **Smart Status Management:**
-- **Automatic reversion**: CVEs manually marked as "fixed" are automatically reverted to "active" if they reappear in subsequent scans
+- **Automatic reversion**: CVEs manually marked as "fixed" are automatically reverted to "active" if they reappear in subsequent scans (statuses like "in_progress", "ignored", and "accepted" are preserved across scans)
 - **Audit trail**: All status changes (manual and automatic) are logged with user attribution
 - **System attribution**: Automatic fixes and reversions are marked with "system" as the changed_by user
 
@@ -483,6 +488,7 @@ Invulnerable provides comprehensive vulnerability lifecycle management with full
 
 **Status Management:**
 - **Active**: Vulnerability is present and unresolved (default)
+- **In Progress**: Currently being worked on - shows others remediation is underway
 - **Fixed**: Vulnerability has been remediated (auto-detected or manually marked)
 - **Accepted**: Risk accepted with justification notes (compliance requirement)
 - **Ignored**: Vulnerability deemed not applicable (e.g., false positive)

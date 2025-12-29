@@ -171,6 +171,7 @@ export const VulnerabilitiesList: FC = () => {
 						>
 							<option value="">All</option>
 							<option value="active">Active</option>
+							<option value="in_progress">In Progress</option>
 							<option value="fixed">Fixed</option>
 							<option value="ignored">Ignored</option>
 							<option value="accepted">Accepted</option>
@@ -441,6 +442,7 @@ export const VulnerabilitiesList: FC = () => {
 								>
 									<option value="">-- No change --</option>
 									<option value="active">Active</option>
+									<option value="in_progress">In Progress</option>
 									<option value="fixed">Fixed</option>
 									<option value="ignored">Ignored</option>
 									<option value="accepted">Accepted</option>
