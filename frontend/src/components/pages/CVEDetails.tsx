@@ -4,25 +4,26 @@ import { api } from '../../lib/api/client';
 import type { Vulnerability } from '../../lib/api/types';
 import { SeverityBadge } from '../ui/SeverityBadge';
 import { StatusBadge } from '../ui/StatusBadge';
-import { formatDate } from '../../lib/utils/formatters';
+import { VulnerabilityHistory } from '../ui/VulnerabilityHistory';
+import { formatDate, daysSince, calculateSLAStatus } from '../../lib/utils/formatters';
 
 export const CVEDetails: FC = () => {
 	const { cve } = useParams<{ cve: string }>();
 	const [vulnerabilities, setVulnerabilities] = useState<Vulnerability[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [showUpdateModal, setShowUpdateModal] = useState(false);
-	const [selectedVuln, setSelectedVuln] = useState<Vulnerability | null>(null);
-	const [updateStatus, setUpdateStatus] = useState('');
-	const [updateNotes, setUpdateNotes] = useState('');
-	const [updating, setUpdating] = useState(false);
+	const [historyVulnId, setHistoryVulnId] = useState<number | null>(null);
 
 	const loadVulnerabilities = useCallback(async () => {
 		if (!cve) return;
 		setLoading(true);
 		setError(null);
 		try {
-			const data = await api.vulnerabilities.getByCVE(cve);
+			// Use the list endpoint with cve_id filter to get image context
+			const data = await api.vulnerabilities.list({
+				cve_id: cve,
+				limit: 200
+			});
 			setVulnerabilities(data);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : 'Failed to load vulnerability');
@@ -35,38 +36,6 @@ export const CVEDetails: FC = () => {
 		document.title = `${cve} - Invulnerable`;
 		loadVulnerabilities();
 	}, [cve, loadVulnerabilities]);
-
-	const openUpdateModal = useCallback((vuln: Vulnerability) => {
-		setSelectedVuln(vuln);
-		setUpdateStatus(vuln.status);
-		setUpdateNotes(vuln.notes || '');
-		setShowUpdateModal(true);
-	}, []);
-
-	const closeUpdateModal = useCallback(() => {
-		setShowUpdateModal(false);
-		setSelectedVuln(null);
-		setUpdateStatus('');
-		setUpdateNotes('');
-	}, []);
-
-	const handleUpdate = useCallback(async () => {
-		if (!selectedVuln) return;
-
-		setUpdating(true);
-		try {
-			await api.vulnerabilities.update(selectedVuln.id, {
-				status: updateStatus,
-				notes: updateNotes || undefined
-			});
-			await loadVulnerabilities();
-			closeUpdateModal();
-		} catch (e) {
-			alert(e instanceof Error ? e.message : 'Failed to update vulnerability');
-		} finally {
-			setUpdating(false);
-		}
-	}, [selectedVuln, updateStatus, updateNotes, loadVulnerabilities, closeUpdateModal]);
 
 	if (loading) {
 		return (
@@ -119,19 +88,30 @@ export const CVEDetails: FC = () => {
 							</dd>
 						</div>
 						<div>
-							<dt className="text-sm font-medium text-gray-500">Affected Packages</dt>
+							<dt className="text-sm font-medium text-gray-500">Description</dt>
+							<dd className="mt-1 text-sm text-gray-900">{cveInfo.description || 'N/A'}</dd>
+						</div>
+						<div>
+							<dt className="text-sm font-medium text-gray-500">Fix Available</dt>
+							<dd className="mt-1 text-sm text-gray-900">{cveInfo.fix_version || 'No fix available'}</dd>
+						</div>
+						<div className="md:col-span-2">
+							<dt className="text-sm font-medium text-gray-500">Affected Images</dt>
 							<dd className="mt-1 text-sm text-gray-900">{vulnerabilities.length}</dd>
 						</div>
 					</dl>
 				</div>
 
-				{/* Affected Packages */}
+				{/* Affected Images */}
 				<div className="card">
-					<h2 className="text-xl font-bold text-gray-900 mb-4">Affected Packages</h2>
+					<h2 className="text-xl font-bold text-gray-900 mb-4">Affected Images</h2>
 					<div className="overflow-x-auto">
 						<table className="min-w-full divide-y divide-gray-200">
 							<thead className="bg-gray-50">
 								<tr>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+										Image
+									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
 										Package
 									</th>
@@ -142,103 +122,84 @@ export const CVEDetails: FC = () => {
 										Status
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										First Detected
+										First Detected / Age
 									</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Fix Version
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Actions
+										SLA Status
 									</th>
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
-								{vulnerabilities.map((vuln) => (
-									<tr key={vuln.id} className="hover:bg-gray-50">
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-											{vuln.package_name}
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-											{vuln.package_version}
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm">
-											<StatusBadge status={vuln.status} />
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-											{formatDate(vuln.first_detected_at)}
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-											{vuln.fix_version || 'N/A'}
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm">
-											<button
-												onClick={() => openUpdateModal(vuln)}
-												className="text-blue-600 hover:text-blue-800"
-											>
-												Update
-											</button>
-										</td>
-									</tr>
-								))}
+								{vulnerabilities.map((vuln) => {
+									const slaStatus = calculateSLAStatus(
+										vuln.first_detected_at_for_image || vuln.first_detected_at,
+										vuln.severity,
+										{
+											critical: vuln.sla_critical || 7,
+											high: vuln.sla_high || 30,
+											medium: vuln.sla_medium || 90,
+											low: vuln.sla_low || 180,
+										}
+									);
+
+									return (
+										<tr key={`${vuln.id}-${vuln.image_id}`} className="hover:bg-gray-50">
+											<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+												<Link
+													to={`/scans/${vuln.latest_scan_id}`}
+													className="hover:underline"
+												>
+													{vuln.image_name}
+												</Link>
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+												{vuln.package_name}
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+												{vuln.package_version}
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm">
+												<StatusBadge
+													status={vuln.status}
+													onClick={() => setHistoryVulnId(vuln.id)}
+												/>
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+												<div>
+													{formatDate(vuln.first_detected_at_for_image || vuln.first_detected_at)}
+												</div>
+												<div className="text-xs text-gray-400">
+													({daysSince(vuln.first_detected_at_for_image || vuln.first_detected_at)} days ago)
+												</div>
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm">
+												<div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${slaStatus.bgColor} ${slaStatus.color}`}>
+													{slaStatus.status === 'exceeded' && (
+														<span>Exceeded by {Math.abs(slaStatus.daysRemaining)} days</span>
+													)}
+													{slaStatus.status === 'warning' && (
+														<span>{slaStatus.daysRemaining} days remaining</span>
+													)}
+													{slaStatus.status === 'compliant' && (
+														<span>{slaStatus.daysRemaining} days remaining</span>
+													)}
+												</div>
+											</td>
+										</tr>
+									);
+								})}
 							</tbody>
 						</table>
 					</div>
 				</div>
 			</div>
 
-			{/* Update Modal */}
-			{showUpdateModal && (
-				<div
-					className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4 z-50"
-					role="dialog"
-					aria-modal="true"
-					aria-labelledby="modal-title"
-				>
-					<div className="bg-white rounded-lg max-w-md w-full p-6">
-						<h3 id="modal-title" className="text-lg font-bold text-gray-900 mb-4">Update Vulnerability</h3>
-						<div className="space-y-4">
-							<div>
-								<label htmlFor="status-select" className="block text-sm font-medium text-gray-700">Status</label>
-								<select
-									id="status-select"
-									value={updateStatus}
-									onChange={(e) => setUpdateStatus(e.target.value)}
-									className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-									aria-label="Vulnerability status"
-								>
-									<option value="active">Active</option>
-									<option value="fixed">Fixed</option>
-									<option value="ignored">Ignored</option>
-									<option value="accepted">Accepted</option>
-								</select>
-							</div>
-							<div>
-								<label htmlFor="notes-textarea" className="block text-sm font-medium text-gray-700">Notes</label>
-								<textarea
-									id="notes-textarea"
-									value={updateNotes}
-									onChange={(e) => setUpdateNotes(e.target.value)}
-									rows={3}
-									className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-									aria-label="Additional notes"
-								/>
-							</div>
-						</div>
-						<div className="mt-6 flex justify-end space-x-2">
-							<button onClick={closeUpdateModal} className="btn btn-secondary" aria-label="Cancel update">
-								Cancel
-							</button>
-							<button
-								onClick={handleUpdate}
-								disabled={updating}
-								className="btn btn-primary"
-								aria-label={updating ? 'Updating vulnerability' : 'Update vulnerability'}
-							>
-								{updating ? 'Updating...' : 'Update'}
-							</button>
-						</div>
-					</div>
-				</div>
+			{/* Vulnerability History Modal */}
+			{historyVulnId && (
+				<VulnerabilityHistory
+					vulnerabilityId={historyVulnId}
+					onClose={() => setHistoryVulnId(null)}
+				/>
 			)}
 		</>
 	);

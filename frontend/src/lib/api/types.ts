@@ -64,6 +64,7 @@ export interface Vulnerability {
 	image_id?: number;
 	image_name?: string;
 	image_digest?: string;
+	first_detected_at_for_image?: string;
 	latest_scan_id?: number;
 	latest_scan_date?: string;
 	sla_critical?: number;

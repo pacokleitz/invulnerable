@@ -121,7 +121,7 @@ func (r *VulnerabilityRepository) List(ctx context.Context, limit, offset int, s
 
 // ListWithImageInfo returns vulnerabilities with image context for compliance tracking
 // Each row represents a unique vulnerability+image combination
-func (r *VulnerabilityRepository) ListWithImageInfo(ctx context.Context, limit, offset int, severity, status *string, hasFix *bool, imageID *int, imageName *string) ([]models.VulnerabilityWithImageInfo, error) {
+func (r *VulnerabilityRepository) ListWithImageInfo(ctx context.Context, limit, offset int, severity, status *string, hasFix *bool, imageID *int, imageName, cveID *string) ([]models.VulnerabilityWithImageInfo, error) {
 	// This query returns one row per image+vulnerability combination
 	// showing when the vulnerability was first detected on that specific image
 	query := `
@@ -190,6 +190,12 @@ func (r *VulnerabilityRepository) ListWithImageInfo(ctx context.Context, limit, 
 	if imageName != nil {
 		query += fmt.Sprintf(" AND (i.registry || '/' || i.repository || ':' || i.tag) ILIKE $%d", argCount)
 		args = append(args, "%"+*imageName+"%")
+		argCount++
+	}
+
+	if cveID != nil {
+		query += fmt.Sprintf(" AND v.cve_id = $%d", argCount)
+		args = append(args, *cveID)
 		argCount++
 	}
 

@@ -81,8 +81,14 @@ func (h *VulnerabilityHandler) ListVulnerabilities(c echo.Context) error {
 		imageName = &imageNameStr
 	}
 
+	// Parse cve_id parameter for filtering by specific CVE
+	var cveID *string
+	if cveIDStr := c.QueryParam("cve_id"); cveIDStr != "" {
+		cveID = &cveIDStr
+	}
+
 	// Use ListWithImageInfo to get vulnerability+image combinations for compliance
-	vulns, err := h.vulnRepo.ListWithImageInfo(c.Request().Context(), limit, offset, severity, status, hasFix, imageID, imageName)
+	vulns, err := h.vulnRepo.ListWithImageInfo(c.Request().Context(), limit, offset, severity, status, hasFix, imageID, imageName, cveID)
 	if err != nil {
 		h.logger.Error("failed to list vulnerabilities", zap.Error(err))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list vulnerabilities")
