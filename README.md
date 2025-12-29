@@ -15,13 +15,17 @@ Invulnerable is a Kubernetes-native vulnerability management platform that provi
 
 - 🔍 **Automated SBOM Generation** - Uses Syft to create detailed Software Bill of Materials in CycloneDX/SPDX formats
 - 🛡️ **Vulnerability Scanning** - Powered by Grype for comprehensive CVE detection across multiple ecosystems
-- 📊 **Vulnerability Lifecycle Tracking** - Monitor vulnerabilities from discovery to resolution
-- ⏱️ **SLA Compliance Tracking** - Configurable remediation SLAs per severity with visual indicators and filtering
+- 📊 **Vulnerability Lifecycle Tracking** - Monitor vulnerabilities from discovery to resolution with status management
+- 🔍 **Audit Trail & Compliance** - Full change history tracking with user attribution for all vulnerability status updates
+- 🔄 **Bulk Operations** - Update status and notes for multiple vulnerabilities at once with audit logging
+- 🔁 **Smart Status Reversion** - Automatically reverts manually-fixed CVEs back to active when they reappear in new scans
+- ⏱️ **SLA Compliance Tracking** - Configurable remediation SLAs per severity with visual indicators, filtering, and inline display
+- 🎯 **Image-Centric CVE View** - See which images are affected by specific CVEs for better compliance tracking
 - 🔄 **Scan Comparison & Diff** - Track changes between scans to identify new and fixed vulnerabilities
-- 📈 **Metrics & Dashboards** - Real-time insights into your security posture
-- 🔔 **Webhook Notifications** - Configurable alerts to Slack/Teams with severity-based filtering and scan result links
+- 📈 **Metrics & Dashboards** - Real-time insights into your security posture with severity-based filtering
+- 🔔 **Webhook Notifications** - Configurable alerts to Slack/Teams with severity filtering, fix-only mode, and status change notifications
 - 🎯 **Kubernetes-Native** - CRD-based controller for declarative image scanning
-- 🔐 **OAuth2 Authentication** - Support for Google, GitHub, Keycloak, Azure AD, and more
+- 🔐 **OAuth2 Authentication** - Support for Google, GitHub, Keycloak, Azure AD, and more with user tracking
 - 🚀 **Production-Ready** - Helm charts, HPA, and non-root containers
 
 ## 📑 Table of Contents
@@ -36,6 +40,7 @@ Invulnerable is a Kubernetes-native vulnerability management platform that provi
   - [Database](#database)
   - [Webhook Notifications](#webhook-notifications)
   - [SLA Compliance Tracking](#sla-compliance-tracking)
+  - [Vulnerability Management & Audit Trail](#vulnerability-management--audit-trail)
 - [Documentation](#documentation)
 - [Development](#development)
 - [Contributing](#contributing)
@@ -204,11 +209,16 @@ task deploy
 
 Access the dashboard at your ingress hostname or via port-forward:
 
-- **Dashboard**: View metrics, trends, and recent activity
-- **Images**: Browse scanned container images
-- **Scans**: View scan history and results
-- **Vulnerabilities**: Search and filter CVEs, update status
+- **Dashboard**: View metrics, trends, and recent activity with severity-based filtering
+- **Images**: Browse scanned container images with minimum severity filtering
+- **Scans**: View scan history and results with severity filtering and inline SLA display
+- **Vulnerabilities**: Search and filter CVEs with:
+  - **Bulk operations** - Select and update multiple CVEs at once
+  - **Status management** - Track as active, fixed, ignored, or accepted with justification notes
+  - **Change history** - Click status badges to view full audit trail with user attribution
+  - **Image-centric view** - See which images are affected by specific CVEs
 - **Scan Diff**: Compare scans to see what changed
+- **CVE Details**: View all images affected by a specific CVE with SLA status and scan links
 
 ### API Endpoints
 
@@ -229,15 +239,26 @@ curl http://api/v1/scans/{id}/diff
 
 **Vulnerabilities**
 ```bash
-# List vulnerabilities with filters
-curl "http://api/v1/vulnerabilities?severity=critical&status=active"
+# List vulnerabilities with filters (includes image context)
+curl "http://api/v1/vulnerabilities?severity=critical&status=active&cve_id=CVE-2024-1234"
 
-# Get CVE details
+# Get CVE details by ID
 curl http://api/v1/vulnerabilities/{cve}
 
-# Update vulnerability status
+# Update vulnerability status (tracked with user from OAuth2 headers)
 curl -X PATCH http://api/v1/vulnerabilities/{id} \
   -d '{"status":"accepted","notes":"Risk accepted for legacy system"}'
+
+# Bulk update multiple vulnerabilities
+curl -X PATCH http://api/v1/vulnerabilities/bulk \
+  -d '{
+    "vulnerability_ids": [1, 2, 3],
+    "status": "ignored",
+    "notes": "False positive - package not used"
+  }'
+
+# Get vulnerability change history (audit trail)
+curl http://api/v1/vulnerabilities/{id}/history
 ```
 
 **Metrics**
@@ -281,6 +302,7 @@ spec:
     url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
     format: "slack"  # or "teams"
     minSeverity: "High"  # Critical, High, Medium, Low, or Negligible
+    onlyFixed: false  # If true, only notify about vulnerabilities with available fixes
     enabled: true
 
   # Resource limits for scanner jobs
@@ -353,7 +375,7 @@ backend:
 
 ### Webhook Notifications
 
-Configure webhook notifications to receive scan alerts in Slack or Microsoft Teams:
+Configure webhook notifications to receive scan alerts and status change notifications in Slack or Microsoft Teams:
 
 ```yaml
 # Per-ImageScan configuration
@@ -371,6 +393,10 @@ spec:
     # Options: Critical, High, Medium, Low, Negligible
     minSeverity: "High"
 
+    # Only notify about vulnerabilities with available fixes (optional)
+    # Useful to reduce noise from unfixable vulnerabilities
+    onlyFixed: false
+
     # Enable/disable notifications
     enabled: true
 ```
@@ -381,13 +407,23 @@ spec:
 - **Microsoft Teams**: Add an incoming webhook connector to your Teams channel
 - **Testing**: Use https://webhook.site to test webhook payloads
 
-**Notification includes:**
-- Vulnerability counts by severity (Critical, High, Medium, Low)
-- Color-coded message based on highest severity found
-- Clickable link to view full scan results in the web interface
-- Image name and digest
+**Notification types:**
 
-**Configure frontend URL** (required for scan result links):
+1. **Scan Completion Notifications**:
+   - Vulnerability counts by severity (Critical, High, Medium, Low)
+   - Color-coded message based on highest severity found
+   - Clickable link to view full scan results in the web interface
+   - Image name and digest
+   - Respects `minSeverity` and `onlyFixed` filters
+
+2. **Status Change Notifications** (sent when CVE status is updated):
+   - CVE ID and affected package
+   - Old and new status (e.g., active → accepted)
+   - User who made the change (from OAuth2)
+   - Justification notes if provided
+   - Link to CVE details page
+
+**Configure frontend URL** (required for notification links):
 
 ```yaml
 # values.yaml
@@ -424,16 +460,65 @@ spec:
   - 🔴 Red: SLA exceeded - remediation overdue
 - **Days remaining calculation**: Shows exact days until SLA deadline or how many days overdue
 - **SLA filtering**: Filter vulnerabilities by SLA status (All, At Risk, Exceeded Only)
+- **Inline display**: SLA thresholds shown directly in severity summary (e.g., "Critical (7 days SLA)")
 - **Per-scan configuration**: Each scan can have different SLA requirements
 - **Historical tracking**: SLA values are stored with each scan for compliance reporting
 
 **Web Interface:**
-- View SLA configuration summary at the top of scan details
+- SLA thresholds displayed inline with severity counts on scan details
 - See SLA status for each vulnerability in the table
 - Filter to focus on SLA-exceeded or at-risk vulnerabilities
 - Track remediation progress against defined SLAs
 
+**Smart Status Management:**
+- **Automatic reversion**: CVEs manually marked as "fixed" are automatically reverted to "active" if they reappear in subsequent scans
+- **Audit trail**: All status changes (manual and automatic) are logged with user attribution
+- **System attribution**: Automatic fixes and reversions are marked with "system" as the changed_by user
+
 See [Helm Chart README](helm/invulnerable/README.md) for all configuration options.
+
+### Vulnerability Management & Audit Trail
+
+Invulnerable provides comprehensive vulnerability lifecycle management with full audit capabilities:
+
+**Status Management:**
+- **Active**: Vulnerability is present and unresolved (default)
+- **Fixed**: Vulnerability has been remediated (auto-detected or manually marked)
+- **Accepted**: Risk accepted with justification notes (compliance requirement)
+- **Ignored**: Vulnerability deemed not applicable (e.g., false positive)
+
+**Audit Trail:**
+- Every status change is logged with:
+  - User who made the change (from OAuth2 authentication)
+  - Timestamp of the change
+  - Old and new values
+  - Justification notes
+  - Image context (when applicable)
+- Click any status badge to view full change history
+- System-initiated changes (automatic fixes/reversions) are marked with "system" attribution
+
+**Bulk Operations:**
+- Select multiple vulnerabilities from the list view
+- Update status and notes for all selected items at once
+- All changes are individually tracked in the audit log
+- Supports up to 100 vulnerabilities per bulk operation
+
+**Automatic Status Tracking:**
+- When a CVE is no longer detected in scans, it's automatically marked as "fixed" (system)
+- If a manually-fixed CVE reappears in subsequent scans, it's automatically reverted to "active"
+- Prevents false reporting of remediated vulnerabilities
+- All automatic changes are logged in the audit trail
+
+**Image-Centric Compliance:**
+- CVE Details page shows all images affected by a specific vulnerability
+- Each row displays: image name, package, status, SLA compliance, and scan link
+- Clickable status badges open audit history for that specific vulnerability+image combination
+- Answers compliance questions like "Which production images have CVE-2024-1234?"
+
+**Filtering:**
+- Filter images and scans by minimum severity (Critical, High, Medium, Low)
+- Filter vulnerabilities by status, severity, image, and SLA compliance
+- "Show unfixed CVEs" toggle on all pages to focus on actionable items
 
 ## 📚 Documentation
 
@@ -623,10 +708,23 @@ Found a bug or have a feature request? Please open an issue on GitHub with:
 
 ## 🗺️ Roadmap
 
+**Recently Completed:**
+- ✅ Full audit trail with user attribution
+- ✅ Bulk vulnerability updates
+- ✅ Automatic status reversion for reappearing CVEs
+- ✅ Image-centric CVE view for compliance
+- ✅ Severity-based filtering across all pages
+- ✅ Webhook notifications for status changes
+- ✅ Smart notification filtering (onlyFixed mode)
+
+**Coming Soon:**
 - [ ] Prometheus metrics exporter
-- [ ] Policy engine for vulnerability acceptance
-- [ ] Historical trend analysis
-- [ ] Custom vulnerability data sources
+- [ ] Policy engine for vulnerability acceptance rules
+- [ ] Historical trend analysis and reporting
+- [ ] Custom vulnerability data sources integration
+- [ ] Export audit trail to CSV/JSON
+- [ ] Scheduled compliance reports via email
+- [ ] Integration with ticketing systems (Jira, ServiceNow)
 
 ## 📄 License
 
