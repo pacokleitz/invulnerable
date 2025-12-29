@@ -5,6 +5,7 @@ import type { Vulnerability } from '../../lib/api/types';
 import { SeverityBadge } from '../ui/SeverityBadge';
 import { StatusBadge } from '../ui/StatusBadge';
 import { PackageCategoryBadge } from '../ui/PackageCategoryBadge';
+import { VulnerabilityHistory } from '../ui/VulnerabilityHistory';
 import { formatDate, daysSince, calculateSLAStatus } from '../../lib/utils/formatters';
 import { categorizePackageType } from '../../lib/utils/packageTypes';
 
@@ -18,6 +19,7 @@ export const VulnerabilitiesList: FC = () => {
 	const [bulkActionNotes, setBulkActionNotes] = useState<string>('');
 	const [showBulkActionModal, setShowBulkActionModal] = useState(false);
 	const [bulkUpdating, setBulkUpdating] = useState(false);
+	const [historyVulnId, setHistoryVulnId] = useState<number | null>(null);
 
 	// Filters from URL
 	const severityFilter = searchParams.get('severity') || '';
@@ -378,7 +380,10 @@ export const VulnerabilitiesList: FC = () => {
 												<SeverityBadge severity={vuln.severity} />
 											</td>
 											<td className="px-6 py-4 whitespace-nowrap text-sm">
-												<StatusBadge status={vuln.status} />
+												<StatusBadge
+													status={vuln.status}
+													onClick={() => setHistoryVulnId(vuln.id)}
+												/>
 											</td>
 											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
 												<div>
@@ -474,6 +479,14 @@ export const VulnerabilitiesList: FC = () => {
 						</div>
 					</div>
 				</div>
+			)}
+
+			{/* Vulnerability History Modal */}
+			{historyVulnId && (
+				<VulnerabilityHistory
+					vulnerabilityId={historyVulnId}
+					onClose={() => setHistoryVulnId(null)}
+				/>
 			)}
 		</div>
 	);

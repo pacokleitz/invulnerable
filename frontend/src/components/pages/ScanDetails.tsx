@@ -4,6 +4,7 @@ import { useScan } from '../../hooks/useScans';
 import { SeverityBadge } from '../ui/SeverityBadge';
 import { StatusBadge } from '../ui/StatusBadge';
 import { PackageCategoryBadge } from '../ui/PackageCategoryBadge';
+import { VulnerabilityHistory } from '../ui/VulnerabilityHistory';
 import { formatDate, daysSince, calculateSLAStatus } from '../../lib/utils/formatters';
 
 export const ScanDetails: FC = () => {
@@ -12,6 +13,7 @@ export const ScanDetails: FC = () => {
 	const scanId = parseInt(id || '0', 10);
 	const [showUnfixed, setShowUnfixed] = useState(false);
 	const [slaFilter, setSlaFilter] = useState<'all' | 'exceeded' | 'warning'>('all');
+	const [historyVulnId, setHistoryVulnId] = useState<number | null>(null);
 	const { currentScan, loading, error } = useScan(scanId, showUnfixed ? undefined : true);
 
 	useEffect(() => {
@@ -252,7 +254,10 @@ export const ScanDetails: FC = () => {
 												<SeverityBadge severity={vuln.severity} />
 											</td>
 											<td className="px-6 py-4 whitespace-nowrap text-sm">
-												<StatusBadge status={vuln.status} />
+												<StatusBadge
+													status={vuln.status}
+													onClick={() => setHistoryVulnId(vuln.id)}
+												/>
 											</td>
 											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
 												<div>
@@ -286,6 +291,14 @@ export const ScanDetails: FC = () => {
 					</div>
 				)}
 			</div>
+
+			{/* Vulnerability History Modal */}
+			{historyVulnId && (
+				<VulnerabilityHistory
+					vulnerabilityId={historyVulnId}
+					onClose={() => setHistoryVulnId(null)}
+				/>
+			)}
 		</div>
 	);
 };

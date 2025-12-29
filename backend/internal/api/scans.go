@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -142,6 +143,9 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create SBOM")
 	}
 
+	// Track which vulnerabilities we've already reverted in this scan to avoid duplicates
+	revertedVulns := make(map[string]bool)
+
 	// Process vulnerabilities
 	for _, match := range req.GrypeResult.Matches {
 		// Determine fix version
@@ -182,6 +186,53 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 			// Update last_seen_at
 			vuln.ID = existing.ID
 			vuln.FirstDetectedAt = existing.FirstDetectedAt
+
+			// Log existing vulnerability status for debugging
+			updatedByStr := "nil"
+			if existing.UpdatedBy != nil {
+				updatedByStr = *existing.UpdatedBy
+			}
+			h.logger.Debug("processing existing vulnerability",
+				zap.String("cve_id", vuln.CVEID),
+				zap.String("package", vuln.PackageName),
+				zap.String("current_status", existing.Status),
+				zap.String("updated_by", updatedByStr))
+
+			// Check if this CVE was manually marked as fixed
+			// If so, revert it back to active since it's still being detected
+			// We revert if: status is "fixed" AND (updated_by is NULL OR updated_by is not "system")
+			// This handles both manually fixed CVEs and CVEs fixed before the audit migration
+
+			// Create unique key for this vulnerability (cve_id + package_name + package_version)
+			vulnKey := fmt.Sprintf("%s|%s|%s", vuln.CVEID, vuln.PackageName, vuln.PackageVersion)
+
+			shouldRevert := existing.Status == models.StatusFixed &&
+				(existing.UpdatedBy == nil || *existing.UpdatedBy != "system") &&
+				!revertedVulns[vulnKey] // Only revert once per scan
+
+			if shouldRevert {
+				h.logger.Info("reverting fixed CVE back to active (still detected in scan)",
+					zap.String("cve_id", vuln.CVEID),
+					zap.String("package", vuln.PackageName),
+					zap.String("previous_updated_by", updatedByStr))
+
+				// Revert status to active
+				newStatus := models.StatusActive
+				updateCtx := &models.VulnerabilityUpdateWithContext{
+					Status:    &newStatus,
+					UpdatedBy: "system",
+				}
+
+				if err := h.vulnRepo.Update(ctx, existing.ID, updateCtx); err != nil {
+					h.logger.Error("failed to revert manually fixed CVE",
+						zap.Error(err),
+						zap.Int("vuln_id", existing.ID))
+				} else {
+					// Mark as reverted to prevent duplicate history entries
+					revertedVulns[vulnKey] = true
+				}
+				// Note: Update() method already creates history entry, no need to duplicate
+			}
 		}
 
 		if err := h.vulnRepo.Upsert(ctx, vuln); err != nil {

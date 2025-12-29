@@ -448,12 +448,19 @@ func (r *VulnerabilityRepository) CreateHistoryEntry(ctx context.Context, vulner
 }
 
 func (r *VulnerabilityRepository) GetHistory(ctx context.Context, vulnerabilityID int) ([]models.VulnerabilityHistory, error) {
-	var history []models.VulnerabilityHistory
+	history := []models.VulnerabilityHistory{}
 	query := `
 		SELECT * FROM vulnerability_history
 		WHERE vulnerability_id = $1
 		ORDER BY changed_at DESC
 	`
 	err := r.db.SelectContext(ctx, &history, query, vulnerabilityID)
-	return history, err
+	if err != nil {
+		return nil, err
+	}
+	// Ensure we always return an empty slice, never nil
+	if history == nil {
+		history = []models.VulnerabilityHistory{}
+	}
+	return history, nil
 }
