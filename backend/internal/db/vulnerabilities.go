@@ -249,6 +249,11 @@ func (r *VulnerabilityRepository) Update(ctx context.Context, id int, update *mo
 			args = append(args, time.Now())
 			argCount++
 		}
+
+		// Clear remediation_date when reverting from fixed to active
+		if *update.Status == models.StatusActive && current.Status == models.StatusFixed && current.RemediationDate != nil {
+			query += ", remediation_date = NULL"
+		}
 	}
 
 	if update.Notes != nil {
@@ -332,6 +337,11 @@ func (r *VulnerabilityRepository) BulkUpdate(ctx context.Context, ids []int, upd
 			query += fmt.Sprintf(", remediation_date = COALESCE(remediation_date, $%d)", argCount)
 			args = append(args, time.Now())
 			argCount++
+		}
+
+		// Clear remediation_date when changing to active (for vulnerabilities that were previously fixed)
+		if *update.Status == models.StatusActive {
+			query += ", remediation_date = NULL"
 		}
 	}
 

@@ -17,12 +17,34 @@ export const daysSince = (date: string): number => {
 
 export interface SLAStatus {
 	daysRemaining: number;
-	status: 'compliant' | 'warning' | 'exceeded';
+	status: 'compliant' | 'warning' | 'exceeded' | 'fixed';
 	color: string;
 	bgColor: string;
+	daysToFix?: number; // Time taken to fix (only for fixed status)
 }
 
-export const calculateSLAStatus = (firstDetectedAt: string, severity: string, slaLimits: { critical: number; high: number; medium: number; low: number }): SLAStatus => {
+export const calculateSLAStatus = (
+	firstDetectedAt: string,
+	severity: string,
+	slaLimits: { critical: number; high: number; medium: number; low: number },
+	vulnerabilityStatus?: string,
+	remediationDate?: string
+): SLAStatus => {
+	// If status is "fixed" and we have a remediation date, calculate time to fix
+	if (vulnerabilityStatus === 'fixed' && remediationDate) {
+		const firstDetected = new Date(firstDetectedAt);
+		const remediated = new Date(remediationDate);
+		const diffMs = remediated.getTime() - firstDetected.getTime();
+		const daysToFix = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+		return {
+			daysRemaining: 0,
+			daysToFix: Math.max(0, daysToFix), // Ensure non-negative
+			status: 'fixed',
+			color: 'text-green-700',
+			bgColor: 'bg-green-50',
+		};
+	}
+
 	const daysElapsed = daysSince(firstDetectedAt);
 
 	let slaLimit: number;

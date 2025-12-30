@@ -66,7 +66,9 @@ export const ScanDetails: FC = () => {
 					high: scan.sla_high,
 					medium: scan.sla_medium,
 					low: scan.sla_low,
-				}
+				},
+				vuln.status,
+				vuln.remediation_date
 			);
 			if (slaFilter === 'exceeded') {
 				return slaStatus.status === 'exceeded';
@@ -228,7 +230,9 @@ export const ScanDetails: FC = () => {
 											high: scan.sla_high,
 											medium: scan.sla_medium,
 											low: scan.sla_low,
-										}
+										},
+										vuln.status,
+										vuln.remediation_date
 									);
 
 									return (
@@ -269,6 +273,9 @@ export const ScanDetails: FC = () => {
 											</td>
 											<td className="px-6 py-4 whitespace-nowrap text-sm">
 												<div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${slaStatus.bgColor} ${slaStatus.color}`}>
+													{slaStatus.status === 'fixed' && slaStatus.daysToFix !== undefined && (
+														<span>Fixed in {slaStatus.daysToFix} {slaStatus.daysToFix === 1 ? 'day' : 'days'}</span>
+													)}
 													{slaStatus.status === 'exceeded' && (
 														<span>Exceeded by {Math.abs(slaStatus.daysRemaining)} days</span>
 													)}
