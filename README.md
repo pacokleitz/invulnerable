@@ -1,10 +1,14 @@
 # Invulnerable
 
+<p align="center">
+  <img src="docs/images/invulnerable.jpeg" alt="Invulnerable Logo" width="300">
+</p>
+
 > Cloud-native container vulnerability management platform
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.19%2B-blue)](https://kubernetes.io/)
-[![Go Version](https://img.shields.io/badge/Go-1.21%2B-00ADD8?logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.24%2B-00ADD8?logo=go)](https://go.dev/)
 [![Helm](https://img.shields.io/badge/Helm-3.0%2B-0F1689?logo=helm)](https://helm.sh/)
 
 Invulnerable is a Kubernetes-native vulnerability management platform that provides automated container image scanning, SBOM generation, and vulnerability lifecycle tracking. Built on top of Anchore's industry-standard tools (Syft and Grype), it offers a modern web interface and comprehensive API for managing security at scale.
