@@ -3,8 +3,8 @@ package api
 import (
 	"net/http"
 
-	"github.com/labstack/echo/v4"
 	"github.com/invulnerable/backend/internal/db"
+	"github.com/labstack/echo/v4"
 )
 
 type HealthHandler struct {

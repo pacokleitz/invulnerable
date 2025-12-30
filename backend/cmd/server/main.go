@@ -9,13 +9,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 	"github.com/invulnerable/backend/internal/analyzer"
 	"github.com/invulnerable/backend/internal/api"
 	"github.com/invulnerable/backend/internal/db"
 	"github.com/invulnerable/backend/internal/metrics"
 	"github.com/invulnerable/backend/internal/notifier"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"go.uber.org/zap"
 )
 

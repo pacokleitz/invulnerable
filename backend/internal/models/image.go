@@ -14,12 +14,12 @@ type Image struct {
 
 type ImageWithStats struct {
 	Image
-	ScanCount          int        `db:"scan_count" json:"scan_count"`
-	LastScanDate       *time.Time `db:"last_scan_date" json:"last_scan_date,omitempty"`
-	CriticalCount      int        `db:"critical_count" json:"critical_count"`
-	HighCount          int        `db:"high_count" json:"high_count"`
-	MediumCount        int        `db:"medium_count" json:"medium_count"`
-	LowCount           int        `db:"low_count" json:"low_count"`
+	ScanCount     int        `db:"scan_count" json:"scan_count"`
+	LastScanDate  *time.Time `db:"last_scan_date" json:"last_scan_date,omitempty"`
+	CriticalCount int        `db:"critical_count" json:"critical_count"`
+	HighCount     int        `db:"high_count" json:"high_count"`
+	MediumCount   int        `db:"medium_count" json:"medium_count"`
+	LowCount      int        `db:"low_count" json:"low_count"`
 }
 
 func (i *Image) FullName() string {

@@ -17,7 +17,11 @@
       "Bash(docker build:*)",
       "Bash(docker inspect:*)",
       "WebFetch(domain:github.com)",
-      "Bash(kubectl get:*)"
+      "Bash(kubectl get:*)",
+      "Bash(task lint)",
+      "Bash(task test)",
+      "Bash(go fmt:*)",
+      "Bash(gofmt:*)"
     ],
     "deny": [],
     "ask": []

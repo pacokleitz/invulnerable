@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/labstack/echo/v4"
 	"github.com/invulnerable/backend/internal/db"
 	"github.com/invulnerable/backend/internal/models"
+	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
 

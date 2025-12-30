@@ -360,9 +360,8 @@ func (r *VulnerabilityRepository) BulkUpdate(ctx context.Context, ids []int, upd
 		current := currentStates[id]
 
 		if update.Status != nil && current.Status != *update.Status {
-			if err := r.CreateHistoryEntry(ctx, id, "status", &current.Status, update.Status, update.UpdatedBy, update.ImageID, update.ImageName); err != nil {
-				// Log but don't fail
-			}
+			_ = r.CreateHistoryEntry(ctx, id, "status", &current.Status, update.Status, update.UpdatedBy, update.ImageID, update.ImageName)
+			// Ignore error - audit trail is best-effort
 		}
 
 		if update.Notes != nil {
@@ -372,9 +371,8 @@ func (r *VulnerabilityRepository) BulkUpdate(ctx context.Context, ids []int, upd
 			}
 			newNotes := *update.Notes
 			if oldNotes != newNotes {
-				if err := r.CreateHistoryEntry(ctx, id, "notes", &oldNotes, &newNotes, update.UpdatedBy, update.ImageID, update.ImageName); err != nil {
-					// Log but don't fail
-				}
+				_ = r.CreateHistoryEntry(ctx, id, "notes", &oldNotes, &newNotes, update.UpdatedBy, update.ImageID, update.ImageName)
+				// Ignore error - audit trail is best-effort
 			}
 		}
 	}
@@ -409,9 +407,8 @@ func (r *VulnerabilityRepository) MarkAsFixed(ctx context.Context, vulnerability
 	// Create audit entries for automatic fixes
 	for id, oldStatus := range currentStates {
 		newStatus := models.StatusFixed
-		if err := r.CreateHistoryEntry(ctx, id, "status", &oldStatus, &newStatus, "system", nil, nil); err != nil {
-			// Log but don't fail
-		}
+		_ = r.CreateHistoryEntry(ctx, id, "status", &oldStatus, &newStatus, "system", nil, nil)
+		// Ignore error - audit trail is best-effort
 	}
 
 	return nil
@@ -432,7 +429,7 @@ func (r *VulnerabilityRepository) GetByUniqueKey(ctx context.Context, cveID, pac
 	query := `SELECT * FROM vulnerabilities WHERE cve_id = $1 AND package_name = $2 AND package_version = $3`
 	if err := r.db.GetContext(ctx, &vuln, query, cveID, packageName, packageVersion); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil
+			return nil, fmt.Errorf("vulnerability not found")
 		}
 		return nil, err
 	}

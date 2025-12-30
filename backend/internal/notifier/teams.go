@@ -3,19 +3,19 @@ package notifier
 import "fmt"
 
 type TeamsPayload struct {
-	Type             string           `json:"@type"`
-	Context          string           `json:"@context"`
-	Summary          string           `json:"summary"`
-	ThemeColor       string           `json:"themeColor"`
-	Title            string           `json:"title"`
-	Sections         []TeamsSection   `json:"sections"`
-	PotentialAction  []TeamsAction    `json:"potentialAction,omitempty"`
+	Type            string         `json:"@type"`
+	Context         string         `json:"@context"`
+	Summary         string         `json:"summary"`
+	ThemeColor      string         `json:"themeColor"`
+	Title           string         `json:"title"`
+	Sections        []TeamsSection `json:"sections"`
+	PotentialAction []TeamsAction  `json:"potentialAction,omitempty"`
 }
 
 type TeamsAction struct {
-	Type    string          `json:"@type"`
-	Name    string          `json:"name"`
-	Targets []TeamsTarget   `json:"targets,omitempty"`
+	Type    string        `json:"@type"`
+	Name    string        `json:"name"`
+	Targets []TeamsTarget `json:"targets,omitempty"`
 }
 
 type TeamsTarget struct {

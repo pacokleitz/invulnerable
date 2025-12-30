@@ -9,22 +9,22 @@ import (
 	"strings"
 	"time"
 
-	"github.com/labstack/echo/v4"
 	"github.com/invulnerable/backend/internal/analyzer"
 	"github.com/invulnerable/backend/internal/db"
 	"github.com/invulnerable/backend/internal/models"
 	"github.com/invulnerable/backend/internal/notifier"
+	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
 
 type ScanHandler struct {
-	logger       *zap.Logger
-	imageRepo    *db.ImageRepository
-	scanRepo     *db.ScanRepository
-	vulnRepo     *db.VulnerabilityRepository
-	sbomRepo     *db.SBOMRepository
-	analyzer     *analyzer.Analyzer
-	notifier     *notifier.Notifier
+	logger    *zap.Logger
+	imageRepo *db.ImageRepository
+	scanRepo  *db.ScanRepository
+	vulnRepo  *db.VulnerabilityRepository
+	sbomRepo  *db.SBOMRepository
+	analyzer  *analyzer.Analyzer
+	notifier  *notifier.Notifier
 }
 
 func NewScanHandler(
@@ -254,7 +254,7 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 			if req.WebhookConfig.OnlyFixed {
 				filtered := []models.GrypeMatch{}
 				for _, match := range req.GrypeResult.Matches {
-					if match.Vulnerability.Fix.Versions != nil && len(match.Vulnerability.Fix.Versions) > 0 {
+					if len(match.Vulnerability.Fix.Versions) > 0 {
 						filtered = append(filtered, match)
 					}
 				}

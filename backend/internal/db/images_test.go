@@ -5,218 +5,252 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/invulnerable/backend/internal/models"
-	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func setupMockDB(t *testing.T) (*Database, sqlmock.Sqlmock) {
-	mockDB, mock, err := sqlmock.New()
-	require.NoError(t, err)
-
-	sqlxDB := sqlx.NewDb(mockDB, "sqlmock")
-	db := &Database{sqlxDB}
-
-	return db, mock
-}
-
 func TestImageRepository_Create(t *testing.T) {
-	db, mock := setupMockDB(t)
+	db := SetupTestDatabase(t)
 	defer db.Close()
 
 	repo := NewImageRepository(db)
 
-	now := time.Now()
-	img := &models.Image{
+	digest := "sha256:abc123"
+	image := &models.Image{
+		Registry:   "docker.io",
+		Repository: "library/nginx",
+		Tag:        "latest",
+		Digest:     &digest,
+	}
+
+	err := repo.Create(context.Background(), image)
+	require.NoError(t, err)
+	assert.NotZero(t, image.ID)
+	assert.NotZero(t, image.CreatedAt)
+	assert.NotZero(t, image.UpdatedAt)
+}
+
+func TestImageRepository_Create_UpdateDigest(t *testing.T) {
+	db := SetupTestDatabase(t)
+	defer db.Close()
+
+	repo := NewImageRepository(db)
+
+	// Create image with initial digest
+	digest1 := "sha256:abc123"
+	image := &models.Image{
+		Registry:   "docker.io",
+		Repository: "library/nginx",
+		Tag:        "latest",
+		Digest:     &digest1,
+	}
+
+	err := repo.Create(context.Background(), image)
+	require.NoError(t, err)
+	firstID := image.ID
+
+	// Create same image with different digest (should update)
+	digest2 := "sha256:def456"
+	image2 := &models.Image{
+		Registry:   "docker.io",
+		Repository: "library/nginx",
+		Tag:        "latest",
+		Digest:     &digest2,
+	}
+
+	err = repo.Create(context.Background(), image2)
+	require.NoError(t, err)
+
+	// Should have same ID (updated, not inserted)
+	assert.Equal(t, firstID, image2.ID)
+	assert.Equal(t, &digest2, image2.Digest)
+}
+
+func TestImageRepository_GetByID(t *testing.T) {
+	db := SetupTestDatabase(t)
+	defer db.Close()
+
+	repo := NewImageRepository(db)
+
+	// Create image first
+	image := &models.Image{
+		Registry:   "docker.io",
+		Repository: "library/alpine",
+		Tag:        "3.18",
+	}
+	err := repo.Create(context.Background(), image)
+	require.NoError(t, err)
+
+	// Get by ID
+	retrieved, err := repo.GetByID(context.Background(), image.ID)
+	require.NoError(t, err)
+	assert.Equal(t, image.Registry, retrieved.Registry)
+	assert.Equal(t, image.Repository, retrieved.Repository)
+	assert.Equal(t, image.Tag, retrieved.Tag)
+}
+
+func TestImageRepository_List(t *testing.T) {
+	db := SetupTestDatabase(t)
+	defer db.Close()
+
+	repo := NewImageRepository(db)
+	scanRepo := NewScanRepository(db)
+	vulnRepo := NewVulnerabilityRepository(db)
+
+	// Create images
+	image1 := &models.Image{
 		Registry:   "docker.io",
 		Repository: "library/nginx",
 		Tag:        "latest",
 	}
-
-	mock.ExpectQuery(`INSERT INTO images`).
-		WithArgs("docker.io", "library/nginx", "latest", sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "updated_at"}).
-			AddRow(1, now, now))
-
-	err := repo.Create(context.Background(), img)
-
-	assert.NoError(t, err)
-	assert.Equal(t, 1, img.ID)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestImageRepository_GetByID(t *testing.T) {
-	db, mock := setupMockDB(t)
-	defer db.Close()
-
-	repo := NewImageRepository(db)
-
-	now := time.Now()
-	rows := sqlmock.NewRows([]string{"id", "registry", "repository", "tag", "digest", "created_at", "updated_at"}).
-		AddRow(1, "docker.io", "library/nginx", "latest", nil, now, now)
-
-	mock.ExpectQuery(`SELECT \* FROM images WHERE id`).
-		WithArgs(1).
-		WillReturnRows(rows)
-
-	img, err := repo.GetByID(context.Background(), 1)
-
+	err := repo.Create(context.Background(), image1)
 	require.NoError(t, err)
-	assert.Equal(t, 1, img.ID)
-	assert.Equal(t, "docker.io", img.Registry)
-	assert.Equal(t, "library/nginx", img.Repository)
-	assert.Equal(t, "latest", img.Tag)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
 
-func TestImageRepository_List(t *testing.T) {
-	db, mock := setupMockDB(t)
-	defer db.Close()
+	image2 := &models.Image{
+		Registry:   "docker.io",
+		Repository: "library/alpine",
+		Tag:        "3.18",
+	}
+	err = repo.Create(context.Background(), image2)
+	require.NoError(t, err)
 
-	repo := NewImageRepository(db)
+	// Create scan for image1
+	syft := "0.100.0"
+	grype := "0.74.0"
+	scan := &models.Scan{
+		ImageID:      image1.ID,
+		ScanDate:     time.Now(),
+		SyftVersion:  &syft,
+		GrypeVersion: &grype,
+		Status:       "completed",
+		SLACritical:  7,
+		SLAHigh:      30,
+		SLAMedium:    90,
+		SLALow:       180,
+	}
+	err = scanRepo.Create(context.Background(), scan)
+	require.NoError(t, err)
 
-	now := time.Now()
-	rows := sqlmock.NewRows([]string{
-		"id", "registry", "repository", "tag", "digest", "created_at", "updated_at",
-		"scan_count", "last_scan_date", "critical_count", "high_count", "medium_count", "low_count",
-	}).
-		AddRow(1, "docker.io", "library/nginx", "latest", nil, now, now, 5, now, 1, 2, 3, 4).
-		AddRow(2, "docker.io", "library/alpine", "3.18", nil, now, now, 3, now, 0, 1, 2, 0)
+	// Create vulnerabilities for image1
+	vuln := &models.Vulnerability{
+		CVEID:           "CVE-2023-0001",
+		PackageName:     "openssl",
+		PackageVersion:  "1.1.1",
+		Severity:        "Critical",
+		Status:          "active",
+		FirstDetectedAt: time.Now(),
+		LastSeenAt:      time.Now(),
+	}
+	err = vulnRepo.Upsert(context.Background(), vuln)
+	require.NoError(t, err)
+	err = vulnRepo.LinkToScan(context.Background(), scan.ID, vuln.ID)
+	require.NoError(t, err)
 
-	mock.ExpectQuery(`SELECT`).
-		WithArgs(10, 0).
-		WillReturnRows(rows)
-
-	images, err := repo.List(context.Background(), 10, 0)
-
+	// List images
+	images, err := repo.List(context.Background(), 10, 0, nil)
 	require.NoError(t, err)
 	assert.Len(t, images, 2)
-	assert.Equal(t, "library/nginx", images[0].Repository)
-	assert.Equal(t, 5, images[0].ScanCount)
-	assert.Equal(t, 1, images[0].CriticalCount)
-	assert.NoError(t, mock.ExpectationsWereMet())
+
+	// Find image1 and check stats
+	var img1Stats *models.ImageWithStats
+	for i := range images {
+		if images[i].ID == image1.ID {
+			img1Stats = &images[i]
+			break
+		}
+	}
+	require.NotNil(t, img1Stats)
+	assert.Equal(t, 1, img1Stats.ScanCount)
+	assert.Equal(t, 1, img1Stats.CriticalCount)
 }
 
 func TestImageRepository_GetByName(t *testing.T) {
-	db, mock := setupMockDB(t)
+	db := SetupTestDatabase(t)
 	defer db.Close()
 
 	repo := NewImageRepository(db)
 
-	now := time.Now()
-	digest := "sha256:abc123"
-	rows := sqlmock.NewRows([]string{"id", "registry", "repository", "tag", "digest", "created_at", "updated_at"}).
-		AddRow(1, "docker.io", "library/nginx", "latest", &digest, now, now)
-
-	mock.ExpectQuery(`SELECT \* FROM images WHERE registry = \$1 AND repository = \$2 AND tag = \$3`).
-		WithArgs("docker.io", "library/nginx", "latest").
-		WillReturnRows(rows)
-
-	img, err := repo.GetByName(context.Background(), "docker.io", "library/nginx", "latest")
-
+	// Create image
+	image := &models.Image{
+		Registry:   "docker.io",
+		Repository: "library/nginx",
+		Tag:        "latest",
+	}
+	err := repo.Create(context.Background(), image)
 	require.NoError(t, err)
-	require.NotNil(t, img)
-	assert.Equal(t, 1, img.ID)
-	assert.Equal(t, "docker.io", img.Registry)
-	assert.Equal(t, "library/nginx", img.Repository)
-	assert.Equal(t, "latest", img.Tag)
-	assert.Equal(t, &digest, img.Digest)
-	assert.NoError(t, mock.ExpectationsWereMet())
+
+	// Get by name
+	retrieved, err := repo.GetByName(context.Background(), "docker.io", "library/nginx", "latest")
+	require.NoError(t, err)
+	assert.Equal(t, image.ID, retrieved.ID)
+	assert.Equal(t, image.Registry, retrieved.Registry)
 }
 
 func TestImageRepository_GetByName_NotFound(t *testing.T) {
-	db, mock := setupMockDB(t)
+	db := SetupTestDatabase(t)
 	defer db.Close()
 
 	repo := NewImageRepository(db)
 
-	mock.ExpectQuery(`SELECT \* FROM images WHERE registry = \$1 AND repository = \$2 AND tag = \$3`).
-		WithArgs("docker.io", "library/notfound", "latest").
-		WillReturnError(sqlmock.ErrCancelled)
-
-	img, err := repo.GetByName(context.Background(), "docker.io", "library/notfound", "latest")
-
+	_, err := repo.GetByName(context.Background(), "docker.io", "library/notfound", "latest")
 	assert.Error(t, err)
-	assert.Nil(t, img)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestImageRepository_GetByName_NoRows(t *testing.T) {
-	db, mock := setupMockDB(t)
-	defer db.Close()
-
-	repo := NewImageRepository(db)
-
-	// Test when no rows are returned - GetByName returns nil, nil in this case
-	mock.ExpectQuery(`SELECT \* FROM images WHERE registry = \$1 AND repository = \$2 AND tag = \$3`).
-		WithArgs("docker.io", "library/noexist", "latest").
-		WillReturnRows(sqlmock.NewRows([]string{"id", "registry", "repository", "tag", "digest", "created_at", "updated_at"}))
-
-	img, err := repo.GetByName(context.Background(), "docker.io", "library/noexist", "latest")
-
-	assert.NoError(t, err)
-	assert.Nil(t, img)
-	assert.NoError(t, mock.ExpectationsWereMet())
+	assert.Contains(t, err.Error(), "not found")
 }
 
 func TestImageRepository_GetScanHistory(t *testing.T) {
-	db, mock := setupMockDB(t)
+	db := SetupTestDatabase(t)
 	defer db.Close()
 
 	repo := NewImageRepository(db)
+	scanRepo := NewScanRepository(db)
 
-	now := time.Now()
-	scanDate1, _ := time.Parse(time.RFC3339, "2024-01-15T10:00:00Z")
-	scanDate2, _ := time.Parse(time.RFC3339, "2024-01-14T09:00:00Z")
-	syftVersion := "0.100.0"
-	grypeVersion := "0.74.0"
-
-	rows := sqlmock.NewRows([]string{
-		"id", "image_id", "scan_date", "syft_version", "grype_version", "status", "created_at", "updated_at",
-		"image_name", "vulnerability_count", "critical_count", "high_count", "medium_count", "low_count",
-	}).
-		AddRow(1, 1, scanDate1, &syftVersion, &grypeVersion, "completed", now, now,
-			"docker.io/library/nginx:latest", 10, 2, 3, 4, 1).
-		AddRow(2, 1, scanDate2, &syftVersion, &grypeVersion, "completed", now, now,
-			"docker.io/library/nginx:latest", 8, 1, 2, 3, 2)
-
-	mock.ExpectQuery(`SELECT\s+s\.\*,`).
-		WithArgs(1, 10).
-		WillReturnRows(rows)
-
-	scans, err := repo.GetScanHistory(context.Background(), 1, 10)
-
+	// Create image
+	image := &models.Image{
+		Registry:   "docker.io",
+		Repository: "library/nginx",
+		Tag:        "latest",
+	}
+	err := repo.Create(context.Background(), image)
 	require.NoError(t, err)
-	assert.Len(t, scans, 2)
-	assert.Equal(t, 1, scans[0].ID)
-	assert.Equal(t, "docker.io/library/nginx:latest", scans[0].ImageName)
-	assert.Equal(t, 10, scans[0].VulnerabilityCount)
-	assert.Equal(t, 2, scans[0].CriticalCount)
-	assert.Equal(t, 2, scans[1].ID)
-	assert.Equal(t, 8, scans[1].VulnerabilityCount)
-	assert.NoError(t, mock.ExpectationsWereMet())
+
+	// Create scans
+	syft := "0.100.0"
+	grype := "0.74.0"
+	for i := 0; i < 3; i++ {
+		scan := &models.Scan{
+			ImageID:      image.ID,
+			ScanDate:     time.Now().Add(time.Duration(-i) * time.Hour),
+			SyftVersion:  &syft,
+			GrypeVersion: &grype,
+			Status:       "completed",
+			SLACritical:  7,
+			SLAHigh:      30,
+			SLAMedium:    90,
+			SLALow:       180,
+		}
+		err = scanRepo.Create(context.Background(), scan)
+		require.NoError(t, err)
+	}
+
+	// Get scan history
+	scans, err := repo.GetScanHistory(context.Background(), image.ID, 10, nil)
+	require.NoError(t, err)
+	assert.Len(t, scans, 3)
+
+	// Should be ordered by scan_date DESC
+	assert.True(t, scans[0].ScanDate.After(scans[1].ScanDate))
+	assert.True(t, scans[1].ScanDate.After(scans[2].ScanDate))
 }
 
 func TestImageRepository_GetScanHistory_EmptyResult(t *testing.T) {
-	db, mock := setupMockDB(t)
+	db := SetupTestDatabase(t)
 	defer db.Close()
 
 	repo := NewImageRepository(db)
 
-	rows := sqlmock.NewRows([]string{
-		"id", "image_id", "scan_date", "syft_version", "grype_version", "status", "created_at", "updated_at",
-		"image_name", "vulnerability_count", "critical_count", "high_count", "medium_count", "low_count",
-	})
-
-	mock.ExpectQuery(`SELECT\s+s\.\*,`).
-		WithArgs(999, 10).
-		WillReturnRows(rows)
-
-	scans, err := repo.GetScanHistory(context.Background(), 999, 10)
-
+	// Image doesn't exist
+	scans, err := repo.GetScanHistory(context.Background(), 999, 10, nil)
 	require.NoError(t, err)
 	assert.Len(t, scans, 0)
-	assert.NoError(t, mock.ExpectationsWereMet())
 }

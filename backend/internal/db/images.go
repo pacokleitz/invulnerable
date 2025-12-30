@@ -46,7 +46,7 @@ func (r *ImageRepository) GetByName(ctx context.Context, registry, repository, t
 	query := `SELECT * FROM images WHERE registry = $1 AND repository = $2 AND tag = $3`
 	if err := r.db.GetContext(ctx, &img, query, registry, repository, tag); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil // Return nil if not found
+			return nil, fmt.Errorf("image not found")
 		}
 		return nil, err
 	}

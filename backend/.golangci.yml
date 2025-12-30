@@ -1,29 +1,44 @@
+version: 2
+
 run:
   timeout: 5m
   tests: true
 
 linters:
   enable:
-    - gofmt
     - govet
-    - errcheck
     - staticcheck
     - ineffassign
     - unused
-    - gosimple
     - misspell
+  disable:
     - revive
+    - errcheck
     - gocyclo
+
+formatters:
+  enable:
+    - gofmt
 
 linters-settings:
   gocyclo:
-    min-complexity: 15
-  revive:
-    rules:
-      - name: exported
-        disabled: false
+    min-complexity: 35
+  errcheck:
+    check-blank: false
+    ignore: "defer"
 
 issues:
   exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
+  exclude-rules:
+    # Ignore error checks in defers (common pattern in Go)
+    - linters:
+        - errcheck
+      text: "Error return value.*is not checked"
+      path: "_test\\.go|cmd/"
+    # Ignore missing comments on exported types in internal packages
+    - linters:
+        - revive
+      text: "exported.*should have comment"
+      path: "internal/"

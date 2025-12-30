@@ -29,12 +29,12 @@ type ScanWithDetails struct {
 }
 
 type ScanDiff struct {
-	ScanID           int              `json:"scan_id"`
-	PreviousScanID   int              `json:"previous_scan_id"`
-	NewVulns         []Vulnerability  `json:"new_vulnerabilities"`
-	FixedVulns       []Vulnerability  `json:"fixed_vulnerabilities"`
-	PersistentVulns  []Vulnerability  `json:"persistent_vulnerabilities"`
-	Summary          ScanDiffSummary  `json:"summary"`
+	ScanID          int             `json:"scan_id"`
+	PreviousScanID  int             `json:"previous_scan_id"`
+	NewVulns        []Vulnerability `json:"new_vulnerabilities"`
+	FixedVulns      []Vulnerability `json:"fixed_vulnerabilities"`
+	PersistentVulns []Vulnerability `json:"persistent_vulnerabilities"`
+	Summary         ScanDiffSummary `json:"summary"`
 }
 
 type ScanDiffSummary struct {

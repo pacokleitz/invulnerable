@@ -15,11 +15,11 @@ import (
 
 func TestParseImageName(t *testing.T) {
 	tests := []struct {
-		name              string
-		fullName          string
-		expectedRegistry  string
-		expectedRepo      string
-		expectedTag       string
+		name             string
+		fullName         string
+		expectedRegistry string
+		expectedRepo     string
+		expectedTag      string
 	}{
 		{
 			name:             "docker hub with tag",

@@ -15,12 +15,12 @@ func New(database *db.Database) *Service {
 }
 
 type DashboardMetrics struct {
-	TotalImages            int            `json:"total_images"`
-	TotalScans             int            `json:"total_scans"`
-	TotalVulnerabilities   int            `json:"total_vulnerabilities"`
-	ActiveVulnerabilities  int            `json:"active_vulnerabilities"`
-	SeverityCounts         SeverityCounts `json:"severity_counts"`
-	RecentScans            int            `json:"recent_scans_24h"`
+	TotalImages           int            `json:"total_images"`
+	TotalScans            int            `json:"total_scans"`
+	TotalVulnerabilities  int            `json:"total_vulnerabilities"`
+	ActiveVulnerabilities int            `json:"active_vulnerabilities"`
+	SeverityCounts        SeverityCounts `json:"severity_counts"`
+	RecentScans           int            `json:"recent_scans_24h"`
 }
 
 type SeverityCounts struct {
@@ -57,14 +57,14 @@ func (s *Service) GetDashboardMetrics(ctx context.Context, hasFix *bool) (*Dashb
 
 	// Total vulnerabilities
 	err = s.db.GetContext(ctx, &metrics.TotalVulnerabilities,
-		"SELECT COUNT(*) FROM vulnerabilities WHERE " + vulnFilter)
+		"SELECT COUNT(*) FROM vulnerabilities WHERE "+vulnFilter)
 	if err != nil {
 		return nil, err
 	}
 
 	// Active vulnerabilities
 	err = s.db.GetContext(ctx, &metrics.ActiveVulnerabilities,
-		"SELECT COUNT(*) FROM vulnerabilities WHERE " + vulnFilter)
+		"SELECT COUNT(*) FROM vulnerabilities WHERE "+vulnFilter)
 	if err != nil {
 		return nil, err
 	}
