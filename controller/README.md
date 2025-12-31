@@ -118,7 +118,6 @@ kubectl get imagescan nginx-scan -n invulnerable -o yaml
 | Field | Type | Description |
 |-------|------|-------------|
 | `cronJobName` | string | Name of the managed CronJob |
-| `lastScheduledTime` | metav1.Time | Last time a job was scheduled |
 | `lastSuccessfulTime` | metav1.Time | Last successful scan completion |
 | `conditions` | []metav1.Condition | Current status conditions |
 | `observedGeneration` | int64 | Last observed generation |
