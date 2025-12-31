@@ -141,7 +141,8 @@ export const CVEDetails: FC = () => {
 											low: vuln.sla_low || 180,
 										},
 										vuln.status,
-										vuln.remediation_date
+										vuln.remediation_date,
+										vuln.updated_at
 									);
 
 									return (
@@ -178,6 +179,12 @@ export const CVEDetails: FC = () => {
 												<div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${slaStatus.bgColor} ${slaStatus.color}`}>
 													{slaStatus.status === 'fixed' && slaStatus.daysToFix !== undefined && (
 														<span>Fixed in {slaStatus.daysToFix} {slaStatus.daysToFix === 1 ? 'day' : 'days'}</span>
+													)}
+													{slaStatus.status === 'accepted' && slaStatus.daysToFix !== undefined && (
+														<span>Accepted in {slaStatus.daysToFix} {slaStatus.daysToFix === 1 ? 'day' : 'days'}</span>
+													)}
+													{slaStatus.status === 'ignored' && slaStatus.daysToFix !== undefined && (
+														<span>Ignored in {slaStatus.daysToFix} {slaStatus.daysToFix === 1 ? 'day' : 'days'}</span>
 													)}
 													{slaStatus.status === 'exceeded' && (
 														<span>Exceeded by {Math.abs(slaStatus.daysRemaining)} days</span>

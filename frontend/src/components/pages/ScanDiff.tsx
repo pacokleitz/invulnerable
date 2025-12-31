@@ -1,11 +1,12 @@
-import { FC, useState, useEffect } from 'react';
+import { FC, useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../lib/api/client';
-import type { ScanDiff as ScanDiffType, Scan } from '../../lib/api/types';
+import type { ScanDiff as ScanDiffType, Scan, Vulnerability } from '../../lib/api/types';
 import { SeverityBadge } from '../ui/SeverityBadge';
 import { StatusBadge } from '../ui/StatusBadge';
 import { PackageCategoryBadge } from '../ui/PackageCategoryBadge';
 import { VulnerabilityHistory } from '../ui/VulnerabilityHistory';
+import { SortableTableHeader, useSortState } from '../ui/SortableTableHeader';
 import { formatDate, daysSince, calculateSLAStatus } from '../../lib/utils/formatters';
 
 export const ScanDiff: FC = () => {
@@ -17,6 +18,11 @@ export const ScanDiff: FC = () => {
 	const [error, setError] = useState<string | null>(null);
 	const [showUnfixed, setShowUnfixed] = useState(false);
 	const [historyVulnId, setHistoryVulnId] = useState<number | null>(null);
+
+	// Separate sort states for each table
+	const newVulnsSort = useSortState('severity', 'desc');
+	const fixedVulnsSort = useSortState('severity', 'desc');
+	const persistentVulnsSort = useSortState('sla_status', 'desc');
 
 	useEffect(() => {
 		document.title = `Scan Diff - Scan ${scanId} - Invulnerable`;
@@ -39,18 +45,102 @@ export const ScanDiff: FC = () => {
 		fetchData();
 	}, [scanId]);
 
-	// Filter vulnerabilities based on showUnfixed
-	const filteredNewVulns = showUnfixed
-		? diff?.new_vulnerabilities || []
-		: (diff?.new_vulnerabilities || []).filter(v => v.fix_version !== null && v.fix_version !== undefined);
+	// Helper function to sort vulnerabilities
+	const sortVulnerabilities = (vulns: Vulnerability[], sortKey: string | null, sortDirection: 'asc' | 'desc' | null, slaConfig: any) => {
+		if (!sortKey || !sortDirection) return vulns;
 
-	const filteredFixedVulns = showUnfixed
-		? diff?.fixed_vulnerabilities || []
-		: (diff?.fixed_vulnerabilities || []).filter(v => v.fix_version !== null && v.fix_version !== undefined);
+		return [...vulns].sort((a, b) => {
+			let aVal: any;
+			let bVal: any;
 
-	const filteredPersistentVulns = showUnfixed
-		? diff?.persistent_vulnerabilities || []
-		: (diff?.persistent_vulnerabilities || []).filter(v => v.fix_version !== null && v.fix_version !== undefined);
+			// Handle SLA status FIRST (not a real property)
+			if (sortKey === 'sla_status') {
+				const getSLASortValue = (vuln: Vulnerability) => {
+					const slaStatus = calculateSLAStatus(
+						vuln.first_detected_at,
+						vuln.severity,
+						slaConfig,
+						vuln.status,
+						vuln.remediation_date,
+						vuln.updated_at
+					);
+
+					if (slaStatus.status === 'exceeded') {
+						return 2000 + Math.abs(slaStatus.daysRemaining);
+					}
+					if (slaStatus.status === 'warning' || slaStatus.status === 'compliant') {
+						return 1000 - slaStatus.daysRemaining;
+					}
+					return 0;
+				};
+
+				aVal = getSLASortValue(a);
+				bVal = getSLASortValue(b);
+			} else {
+				aVal = a[sortKey as keyof Vulnerability];
+				bVal = b[sortKey as keyof Vulnerability];
+
+				if (aVal == null && bVal == null) return 0;
+				if (aVal == null) return 1;
+				if (bVal == null) return -1;
+
+				if (sortKey === 'first_detected_at' || sortKey === 'remediation_date') {
+					aVal = new Date(aVal).getTime();
+					bVal = new Date(bVal).getTime();
+				}
+
+				if (sortKey === 'severity') {
+					const severityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1, Negligible: 0, Unknown: -1 };
+					aVal = severityOrder[aVal as keyof typeof severityOrder] || -1;
+					bVal = severityOrder[bVal as keyof typeof severityOrder] || -1;
+				}
+			}
+
+			if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+			if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+			return 0;
+		});
+	};
+
+	// Filter and sort vulnerabilities
+	const filteredNewVulns = useMemo(() => {
+		const filtered = showUnfixed
+			? diff?.new_vulnerabilities || []
+			: (diff?.new_vulnerabilities || []).filter(v => v.fix_version !== null && v.fix_version !== undefined);
+
+		return scan ? sortVulnerabilities(filtered, newVulnsSort.sortKey, newVulnsSort.sortDirection, {
+			critical: scan.sla_critical,
+			high: scan.sla_high,
+			medium: scan.sla_medium,
+			low: scan.sla_low,
+		}) : filtered;
+	}, [diff, showUnfixed, newVulnsSort.sortKey, newVulnsSort.sortDirection, scan]);
+
+	const filteredFixedVulns = useMemo(() => {
+		const filtered = showUnfixed
+			? diff?.fixed_vulnerabilities || []
+			: (diff?.fixed_vulnerabilities || []).filter(v => v.fix_version !== null && v.fix_version !== undefined);
+
+		return scan ? sortVulnerabilities(filtered, fixedVulnsSort.sortKey, fixedVulnsSort.sortDirection, {
+			critical: scan.sla_critical,
+			high: scan.sla_high,
+			medium: scan.sla_medium,
+			low: scan.sla_low,
+		}) : filtered;
+	}, [diff, showUnfixed, fixedVulnsSort.sortKey, fixedVulnsSort.sortDirection, scan]);
+
+	const filteredPersistentVulns = useMemo(() => {
+		const filtered = showUnfixed
+			? diff?.persistent_vulnerabilities || []
+			: (diff?.persistent_vulnerabilities || []).filter(v => v.fix_version !== null && v.fix_version !== undefined);
+
+		return scan ? sortVulnerabilities(filtered, persistentVulnsSort.sortKey, persistentVulnsSort.sortDirection, {
+			critical: scan.sla_critical,
+			high: scan.sla_high,
+			medium: scan.sla_medium,
+			low: scan.sla_low,
+		}) : filtered;
+	}, [diff, showUnfixed, persistentVulnsSort.sortKey, persistentVulnsSort.sortDirection, scan]);
 
 	if (loading) {
 		return (
@@ -129,33 +219,69 @@ export const ScanDiff: FC = () => {
 						<table className="min-w-full divide-y divide-gray-200">
 							<thead className="bg-gray-50">
 								<tr>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										CVE ID
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Package
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Version
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Type
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Severity
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Status
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										First Detected / Age
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										SLA Status
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Fix Version
-									</th>
+									<SortableTableHeader
+										label="CVE ID"
+										sortKey="cve_id"
+										currentSortKey={newVulnsSort.sortKey}
+										currentSortDirection={newVulnsSort.sortDirection}
+										onSort={newVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Package"
+										sortKey="package_name"
+										currentSortKey={newVulnsSort.sortKey}
+										currentSortDirection={newVulnsSort.sortDirection}
+										onSort={newVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Version"
+										sortKey="package_version"
+										currentSortKey={newVulnsSort.sortKey}
+										currentSortDirection={newVulnsSort.sortDirection}
+										onSort={newVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Type"
+										sortKey="package_type"
+										currentSortKey={newVulnsSort.sortKey}
+										currentSortDirection={newVulnsSort.sortDirection}
+										onSort={newVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Severity"
+										sortKey="severity"
+										currentSortKey={newVulnsSort.sortKey}
+										currentSortDirection={newVulnsSort.sortDirection}
+										onSort={newVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Status"
+										sortKey="status"
+										currentSortKey={newVulnsSort.sortKey}
+										currentSortDirection={newVulnsSort.sortDirection}
+										onSort={newVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="First Detected / Age"
+										sortKey="first_detected_at"
+										currentSortKey={newVulnsSort.sortKey}
+										currentSortDirection={newVulnsSort.sortDirection}
+										onSort={newVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="SLA Status"
+										sortKey="sla_status"
+										currentSortKey={newVulnsSort.sortKey}
+										currentSortDirection={newVulnsSort.sortDirection}
+										onSort={newVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Fix Version"
+										sortKey="fix_version"
+										currentSortKey={newVulnsSort.sortKey}
+										currentSortDirection={newVulnsSort.sortDirection}
+										onSort={newVulnsSort.handleSort}
+									/>
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
@@ -170,7 +296,8 @@ export const ScanDiff: FC = () => {
 											low: scan.sla_low,
 										},
 										vuln.status,
-										vuln.remediation_date
+										vuln.remediation_date,
+										vuln.updated_at
 									);
 
 									return (
@@ -210,6 +337,12 @@ export const ScanDiff: FC = () => {
 												<div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${slaStatus.bgColor} ${slaStatus.color}`}>
 													{slaStatus.status === 'fixed' && slaStatus.daysToFix !== undefined && (
 														<span>Fixed in {slaStatus.daysToFix} {slaStatus.daysToFix === 1 ? 'day' : 'days'}</span>
+													)}
+													{slaStatus.status === 'accepted' && slaStatus.daysToFix !== undefined && (
+														<span>Accepted in {slaStatus.daysToFix} {slaStatus.daysToFix === 1 ? 'day' : 'days'}</span>
+													)}
+													{slaStatus.status === 'ignored' && slaStatus.daysToFix !== undefined && (
+														<span>Ignored in {slaStatus.daysToFix} {slaStatus.daysToFix === 1 ? 'day' : 'days'}</span>
 													)}
 													{slaStatus.status === 'exceeded' && (
 														<span>Exceeded by {Math.abs(slaStatus.daysRemaining)} days</span>
@@ -244,33 +377,69 @@ export const ScanDiff: FC = () => {
 						<table className="min-w-full divide-y divide-gray-200">
 							<thead className="bg-gray-50">
 								<tr>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										CVE ID
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Package
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Version
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Type
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Severity
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Status
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										First Detected / Age
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										SLA Status
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Fix Version
-									</th>
+									<SortableTableHeader
+										label="CVE ID"
+										sortKey="cve_id"
+										currentSortKey={fixedVulnsSort.sortKey}
+										currentSortDirection={fixedVulnsSort.sortDirection}
+										onSort={fixedVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Package"
+										sortKey="package_name"
+										currentSortKey={fixedVulnsSort.sortKey}
+										currentSortDirection={fixedVulnsSort.sortDirection}
+										onSort={fixedVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Version"
+										sortKey="package_version"
+										currentSortKey={fixedVulnsSort.sortKey}
+										currentSortDirection={fixedVulnsSort.sortDirection}
+										onSort={fixedVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Type"
+										sortKey="package_type"
+										currentSortKey={fixedVulnsSort.sortKey}
+										currentSortDirection={fixedVulnsSort.sortDirection}
+										onSort={fixedVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Severity"
+										sortKey="severity"
+										currentSortKey={fixedVulnsSort.sortKey}
+										currentSortDirection={fixedVulnsSort.sortDirection}
+										onSort={fixedVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Status"
+										sortKey="status"
+										currentSortKey={fixedVulnsSort.sortKey}
+										currentSortDirection={fixedVulnsSort.sortDirection}
+										onSort={fixedVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="First Detected / Age"
+										sortKey="first_detected_at"
+										currentSortKey={fixedVulnsSort.sortKey}
+										currentSortDirection={fixedVulnsSort.sortDirection}
+										onSort={fixedVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="SLA Status"
+										sortKey="sla_status"
+										currentSortKey={fixedVulnsSort.sortKey}
+										currentSortDirection={fixedVulnsSort.sortDirection}
+										onSort={fixedVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Fix Version"
+										sortKey="fix_version"
+										currentSortKey={fixedVulnsSort.sortKey}
+										currentSortDirection={fixedVulnsSort.sortDirection}
+										onSort={fixedVulnsSort.handleSort}
+									/>
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
@@ -285,7 +454,8 @@ export const ScanDiff: FC = () => {
 											low: scan.sla_low,
 										},
 										vuln.status,
-										vuln.remediation_date
+										vuln.remediation_date,
+										vuln.updated_at
 									);
 
 									return (
@@ -325,6 +495,12 @@ export const ScanDiff: FC = () => {
 												<div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${slaStatus.bgColor} ${slaStatus.color}`}>
 													{slaStatus.status === 'fixed' && slaStatus.daysToFix !== undefined && (
 														<span>Fixed in {slaStatus.daysToFix} {slaStatus.daysToFix === 1 ? 'day' : 'days'}</span>
+													)}
+													{slaStatus.status === 'accepted' && slaStatus.daysToFix !== undefined && (
+														<span>Accepted in {slaStatus.daysToFix} {slaStatus.daysToFix === 1 ? 'day' : 'days'}</span>
+													)}
+													{slaStatus.status === 'ignored' && slaStatus.daysToFix !== undefined && (
+														<span>Ignored in {slaStatus.daysToFix} {slaStatus.daysToFix === 1 ? 'day' : 'days'}</span>
 													)}
 													{slaStatus.status === 'exceeded' && (
 														<span>Exceeded by {Math.abs(slaStatus.daysRemaining)} days</span>
@@ -359,33 +535,69 @@ export const ScanDiff: FC = () => {
 						<table className="min-w-full divide-y divide-gray-200">
 							<thead className="bg-gray-50">
 								<tr>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										CVE ID
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Package
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Version
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Type
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Severity
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Status
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										First Detected / Age
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										SLA Status
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Fix Version
-									</th>
+									<SortableTableHeader
+										label="CVE ID"
+										sortKey="cve_id"
+										currentSortKey={persistentVulnsSort.sortKey}
+										currentSortDirection={persistentVulnsSort.sortDirection}
+										onSort={persistentVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Package"
+										sortKey="package_name"
+										currentSortKey={persistentVulnsSort.sortKey}
+										currentSortDirection={persistentVulnsSort.sortDirection}
+										onSort={persistentVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Version"
+										sortKey="package_version"
+										currentSortKey={persistentVulnsSort.sortKey}
+										currentSortDirection={persistentVulnsSort.sortDirection}
+										onSort={persistentVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Type"
+										sortKey="package_type"
+										currentSortKey={persistentVulnsSort.sortKey}
+										currentSortDirection={persistentVulnsSort.sortDirection}
+										onSort={persistentVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Severity"
+										sortKey="severity"
+										currentSortKey={persistentVulnsSort.sortKey}
+										currentSortDirection={persistentVulnsSort.sortDirection}
+										onSort={persistentVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Status"
+										sortKey="status"
+										currentSortKey={persistentVulnsSort.sortKey}
+										currentSortDirection={persistentVulnsSort.sortDirection}
+										onSort={persistentVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="First Detected / Age"
+										sortKey="first_detected_at"
+										currentSortKey={persistentVulnsSort.sortKey}
+										currentSortDirection={persistentVulnsSort.sortDirection}
+										onSort={persistentVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="SLA Status"
+										sortKey="sla_status"
+										currentSortKey={persistentVulnsSort.sortKey}
+										currentSortDirection={persistentVulnsSort.sortDirection}
+										onSort={persistentVulnsSort.handleSort}
+									/>
+									<SortableTableHeader
+										label="Fix Version"
+										sortKey="fix_version"
+										currentSortKey={persistentVulnsSort.sortKey}
+										currentSortDirection={persistentVulnsSort.sortDirection}
+										onSort={persistentVulnsSort.handleSort}
+									/>
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
@@ -400,7 +612,8 @@ export const ScanDiff: FC = () => {
 											low: scan.sla_low,
 										},
 										vuln.status,
-										vuln.remediation_date
+										vuln.remediation_date,
+										vuln.updated_at
 									);
 
 									return (
@@ -440,6 +653,12 @@ export const ScanDiff: FC = () => {
 												<div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${slaStatus.bgColor} ${slaStatus.color}`}>
 													{slaStatus.status === 'fixed' && slaStatus.daysToFix !== undefined && (
 														<span>Fixed in {slaStatus.daysToFix} {slaStatus.daysToFix === 1 ? 'day' : 'days'}</span>
+													)}
+													{slaStatus.status === 'accepted' && slaStatus.daysToFix !== undefined && (
+														<span>Accepted in {slaStatus.daysToFix} {slaStatus.daysToFix === 1 ? 'day' : 'days'}</span>
+													)}
+													{slaStatus.status === 'ignored' && slaStatus.daysToFix !== undefined && (
+														<span>Ignored in {slaStatus.daysToFix} {slaStatus.daysToFix === 1 ? 'day' : 'days'}</span>
 													)}
 													{slaStatus.status === 'exceeded' && (
 														<span>Exceeded by {Math.abs(slaStatus.daysRemaining)} days</span>

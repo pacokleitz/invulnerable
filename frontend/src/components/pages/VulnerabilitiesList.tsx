@@ -59,25 +59,74 @@ export const VulnerabilitiesList: FC = () => {
 			// Apply client-side sorting
 			if (sortKey && sortDirection) {
 				data.sort((a, b) => {
-					let aVal: any = a[sortKey as keyof Vulnerability];
-					let bVal: any = b[sortKey as keyof Vulnerability];
+					let aVal: any;
+					let bVal: any;
 
-					// Handle null/undefined values
-					if (aVal == null && bVal == null) return 0;
-					if (aVal == null) return 1;
-					if (bVal == null) return -1;
+					// Handle SLA status FIRST (special ordering for compliance - not a real property)
+					if (sortKey === 'sla_status') {
+						const getSLASortValue = (vuln: typeof a) => {
+							// Check if we have SLA data
+							if (!vuln.sla_critical || !vuln.sla_high || !vuln.sla_medium || !vuln.sla_low) {
+								return -1; // No SLA data - sort to bottom
+							}
 
-					// Handle dates
-					if (sortKey === 'first_detected_at' || sortKey === 'remediation_date') {
-						aVal = new Date(aVal).getTime();
-						bVal = new Date(bVal).getTime();
-					}
+							const slaStatus = calculateSLAStatus(
+								vuln.first_detected_at,
+								vuln.severity,
+								{
+									critical: vuln.sla_critical,
+									high: vuln.sla_high,
+									medium: vuln.sla_medium,
+									low: vuln.sla_low,
+								},
+								vuln.status,
+								vuln.remediation_date,
+								vuln.updated_at
+							);
 
-					// Handle severity (special ordering)
-					if (sortKey === 'severity') {
-						const severityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1, Negligible: 0, Unknown: -1 };
-						aVal = severityOrder[aVal as keyof typeof severityOrder] || -1;
-						bVal = severityOrder[bVal as keyof typeof severityOrder] || -1;
+							// Priority 1: Exceeded SLA (most overdue first)
+							// Higher value = higher priority in descending sort
+							// Range: 2000+ (more overdue = higher value)
+							if (slaStatus.status === 'exceeded') {
+								return 2000 + Math.abs(slaStatus.daysRemaining);
+							}
+
+							// Priority 2: Warning/Compliant (fewest days remaining first)
+							// Fewer days = higher value = higher priority in descending sort
+							// Range: 1-1000 (subtract from 1000 so fewer days = higher value)
+							if (slaStatus.status === 'warning' || slaStatus.status === 'compliant') {
+								return 1000 - slaStatus.daysRemaining;
+							}
+
+							// Priority 3: Fixed/Ignored/Accepted (at the bottom)
+							// Lowest value = lowest priority
+							return 0;
+						};
+
+						aVal = getSLASortValue(a);
+						bVal = getSLASortValue(b);
+					} else {
+						// For all other fields, get the property value
+						aVal = a[sortKey as keyof Vulnerability];
+						bVal = b[sortKey as keyof Vulnerability];
+
+						// Handle null/undefined values
+						if (aVal == null && bVal == null) return 0;
+						if (aVal == null) return 1;
+						if (bVal == null) return -1;
+
+						// Handle dates
+						if (sortKey === 'first_detected_at' || sortKey === 'remediation_date') {
+							aVal = new Date(aVal).getTime();
+							bVal = new Date(bVal).getTime();
+						}
+
+						// Handle severity (special ordering)
+						if (sortKey === 'severity') {
+							const severityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1, Negligible: 0, Unknown: -1 };
+							aVal = severityOrder[aVal as keyof typeof severityOrder] || -1;
+							bVal = severityOrder[bVal as keyof typeof severityOrder] || -1;
+						}
 					}
 
 					// Compare
@@ -381,9 +430,13 @@ export const VulnerabilitiesList: FC = () => {
 										currentSortDirection={sortDirection}
 										onSort={handleSort}
 									/>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										SLA Status
-									</th>
+									<SortableTableHeader
+										label="SLA Status"
+										sortKey="sla_status"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
 									<SortableTableHeader
 										label="Fix Version"
 										sortKey="fix_version"
@@ -407,7 +460,8 @@ export const VulnerabilitiesList: FC = () => {
 													low: vuln.sla_low,
 												},
 												vuln.status,
-												vuln.remediation_date
+												vuln.remediation_date,
+												vuln.updated_at
 										  )
 										: null;
 
@@ -472,6 +526,12 @@ export const VulnerabilitiesList: FC = () => {
 													<div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${slaStatus.bgColor} ${slaStatus.color}`}>
 														{slaStatus.status === 'fixed' && slaStatus.daysToFix !== undefined && (
 															<span>Fixed in {slaStatus.daysToFix} {slaStatus.daysToFix === 1 ? 'day' : 'days'}</span>
+														)}
+														{slaStatus.status === 'accepted' && slaStatus.daysToFix !== undefined && (
+															<span>Accepted in {slaStatus.daysToFix} {slaStatus.daysToFix === 1 ? 'day' : 'days'}</span>
+														)}
+														{slaStatus.status === 'ignored' && slaStatus.daysToFix !== undefined && (
+															<span>Ignored in {slaStatus.daysToFix} {slaStatus.daysToFix === 1 ? 'day' : 'days'}</span>
 														)}
 														{slaStatus.status === 'exceeded' && (
 															<span>Exceeded by {Math.abs(slaStatus.daysRemaining)} days</span>

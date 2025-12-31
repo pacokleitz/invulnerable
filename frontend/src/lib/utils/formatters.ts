@@ -17,10 +17,10 @@ export const daysSince = (date: string): number => {
 
 export interface SLAStatus {
 	daysRemaining: number;
-	status: 'compliant' | 'warning' | 'exceeded' | 'fixed';
+	status: 'compliant' | 'warning' | 'exceeded' | 'fixed' | 'accepted' | 'ignored';
 	color: string;
 	bgColor: string;
-	daysToFix?: number; // Time taken to fix (only for fixed status)
+	daysToFix?: number; // Time taken to fix/accept/ignore
 }
 
 export const calculateSLAStatus = (
@@ -28,7 +28,8 @@ export const calculateSLAStatus = (
 	severity: string,
 	slaLimits: { critical: number; high: number; medium: number; low: number },
 	vulnerabilityStatus?: string,
-	remediationDate?: string
+	remediationDate?: string,
+	updatedAt?: string
 ): SLAStatus => {
 	// If status is "fixed" and we have a remediation date, calculate time to fix
 	if (vulnerabilityStatus === 'fixed' && remediationDate) {
@@ -42,6 +43,36 @@ export const calculateSLAStatus = (
 			status: 'fixed',
 			color: 'text-green-700',
 			bgColor: 'bg-green-50',
+		};
+	}
+
+	// If status is "accepted", calculate time to acceptance decision
+	if (vulnerabilityStatus === 'accepted' && updatedAt) {
+		const firstDetected = new Date(firstDetectedAt);
+		const acceptedDate = new Date(updatedAt);
+		const diffMs = acceptedDate.getTime() - firstDetected.getTime();
+		const daysToAccept = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+		return {
+			daysRemaining: 0,
+			daysToFix: Math.max(0, daysToAccept), // Reuse daysToFix field
+			status: 'accepted',
+			color: 'text-purple-700',
+			bgColor: 'bg-purple-50',
+		};
+	}
+
+	// If status is "ignored", calculate time to ignore decision
+	if (vulnerabilityStatus === 'ignored' && updatedAt) {
+		const firstDetected = new Date(firstDetectedAt);
+		const ignoredDate = new Date(updatedAt);
+		const diffMs = ignoredDate.getTime() - firstDetected.getTime();
+		const daysToIgnore = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+		return {
+			daysRemaining: 0,
+			daysToFix: Math.max(0, daysToIgnore), // Reuse daysToFix field
+			status: 'ignored',
+			color: 'text-gray-700',
+			bgColor: 'bg-gray-50',
 		};
 	}
 
