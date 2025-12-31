@@ -30,9 +30,6 @@ spec:
     - jsonPath: .status.cronJobName
       name: CronJob
       type: string
-    - jsonPath: .status.lastScheduledTime
-      name: Last Scheduled
-      type: date
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -343,10 +340,6 @@ spec:
                 type: array
               cronJobName:
                 description: CronJobName is the name of the managed CronJob
-                type: string
-              lastScheduledTime:
-                description: LastScheduledTime is the last time a job was scheduled
-                format: date-time
                 type: string
               lastSuccessfulTime:
                 description: LastSuccessfulTime is the last time a scan completed

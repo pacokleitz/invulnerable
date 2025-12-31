@@ -170,10 +170,6 @@ type ImageScanStatus struct {
 	// +kubebuilder:validation:Optional
 	CronJobName string `json:"cronJobName,omitempty"`
 
-	// LastScheduledTime is the last time a job was scheduled
-	// +kubebuilder:validation:Optional
-	LastScheduledTime *metav1.Time `json:"lastScheduledTime,omitempty"`
-
 	// LastSuccessfulTime is the last time a scan completed successfully
 	// +kubebuilder:validation:Optional
 	LastSuccessfulTime *metav1.Time `json:"lastSuccessfulTime,omitempty"`
@@ -194,7 +190,6 @@ type ImageScanStatus struct {
 // +kubebuilder:printcolumn:name="Schedule",type=string,JSONPath=`.spec.schedule`
 // +kubebuilder:printcolumn:name="Suspend",type=boolean,JSONPath=`.spec.suspend`
 // +kubebuilder:printcolumn:name="CronJob",type=string,JSONPath=`.status.cronJobName`
-// +kubebuilder:printcolumn:name="Last Scheduled",type=date,JSONPath=`.status.lastScheduledTime`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // ImageScan is the Schema for the imagescans API
