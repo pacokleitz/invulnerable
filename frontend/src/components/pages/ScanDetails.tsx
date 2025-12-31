@@ -1,11 +1,13 @@
-import { FC, useEffect, useCallback, useState } from 'react';
+import { FC, useEffect, useCallback, useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useScan } from '../../hooks/useScans';
 import { SeverityBadge } from '../ui/SeverityBadge';
 import { StatusBadge } from '../ui/StatusBadge';
 import { PackageCategoryBadge } from '../ui/PackageCategoryBadge';
 import { VulnerabilityHistory } from '../ui/VulnerabilityHistory';
+import { SortableTableHeader, useSortState } from '../ui/SortableTableHeader';
 import { formatDate, daysSince, calculateSLAStatus } from '../../lib/utils/formatters';
+import type { Vulnerability } from '../../lib/api/types';
 
 export const ScanDetails: FC = () => {
 	const { id } = useParams<{ id: string }>();
@@ -14,6 +16,7 @@ export const ScanDetails: FC = () => {
 	const [showUnfixed, setShowUnfixed] = useState(false);
 	const [slaFilter, setSlaFilter] = useState<'all' | 'exceeded' | 'warning'>('all');
 	const [historyVulnId, setHistoryVulnId] = useState<number | null>(null);
+	const { sortKey, sortDirection, handleSort } = useSortState('severity', 'desc');
 	const { currentScan, loading, error } = useScan(scanId, showUnfixed ? undefined : true);
 
 	useEffect(() => {
@@ -27,6 +30,74 @@ export const ScanDetails: FC = () => {
 	const viewSBOM = useCallback(() => {
 		navigate(`/scans/${scanId}/sbom`);
 	}, [navigate, scanId]);
+
+	// Filter and sort vulnerabilities - must be called before conditional returns (Rules of Hooks)
+	const filteredVulnerabilities = useMemo(() => {
+		if (!currentScan) return [];
+
+		const { scan, vulnerabilities } = currentScan;
+		// Filter based on showUnfixed checkbox
+		let filtered = showUnfixed
+			? vulnerabilities
+			: vulnerabilities.filter(vuln => vuln.fix_version !== null && vuln.fix_version !== undefined);
+
+		// Apply SLA filter
+		if (slaFilter !== 'all') {
+			filtered = filtered.filter(vuln => {
+				const slaStatus = calculateSLAStatus(
+					vuln.first_detected_at,
+					vuln.severity,
+					{
+						critical: scan.sla_critical,
+						high: scan.sla_high,
+						medium: scan.sla_medium,
+						low: scan.sla_low,
+					},
+					vuln.status,
+					vuln.remediation_date
+				);
+				if (slaFilter === 'exceeded') {
+					return slaStatus.status === 'exceeded';
+				} else if (slaFilter === 'warning') {
+					return slaStatus.status === 'warning' || slaStatus.status === 'exceeded';
+				}
+				return true;
+			});
+		}
+
+		// Apply sorting
+		if (sortKey && sortDirection) {
+			filtered.sort((a, b) => {
+				let aVal: any = a[sortKey as keyof Vulnerability];
+				let bVal: any = b[sortKey as keyof Vulnerability];
+
+				// Handle null/undefined values
+				if (aVal == null && bVal == null) return 0;
+				if (aVal == null) return 1;
+				if (bVal == null) return -1;
+
+				// Handle dates
+				if (sortKey === 'first_detected_at' || sortKey === 'remediation_date') {
+					aVal = new Date(aVal).getTime();
+					bVal = new Date(bVal).getTime();
+				}
+
+				// Handle severity (special ordering)
+				if (sortKey === 'severity') {
+					const severityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1, Negligible: 0, Unknown: -1 };
+					aVal = severityOrder[aVal as keyof typeof severityOrder] || -1;
+					bVal = severityOrder[bVal as keyof typeof severityOrder] || -1;
+				}
+
+				// Compare
+				if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+				if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+				return 0;
+			});
+		}
+
+		return filtered;
+	}, [currentScan, showUnfixed, slaFilter, sortKey, sortDirection]);
 
 	if (loading) {
 		return (
@@ -49,35 +120,6 @@ export const ScanDetails: FC = () => {
 	}
 
 	const { scan, vulnerabilities } = currentScan;
-
-	// Filter vulnerabilities based on showUnfixed checkbox and SLA status
-	let filteredVulnerabilities = showUnfixed
-		? vulnerabilities
-		: vulnerabilities.filter(vuln => vuln.fix_version !== null && vuln.fix_version !== undefined);
-
-	// Apply SLA filter
-	if (slaFilter !== 'all') {
-		filteredVulnerabilities = filteredVulnerabilities.filter(vuln => {
-			const slaStatus = calculateSLAStatus(
-				vuln.first_detected_at,
-				vuln.severity,
-				{
-					critical: scan.sla_critical,
-					high: scan.sla_high,
-					medium: scan.sla_medium,
-					low: scan.sla_low,
-				},
-				vuln.status,
-				vuln.remediation_date
-			);
-			if (slaFilter === 'exceeded') {
-				return slaStatus.status === 'exceeded';
-			} else if (slaFilter === 'warning') {
-				return slaStatus.status === 'warning' || slaStatus.status === 'exceeded';
-			}
-			return true;
-		});
-	}
 
 	return (
 		<div className="space-y-6">
@@ -191,33 +233,65 @@ export const ScanDetails: FC = () => {
 						<table className="min-w-full divide-y divide-gray-200">
 							<thead className="bg-gray-50">
 								<tr>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										CVE ID
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Package
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Version
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Type
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Severity
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Status
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										First Detected / Age
-									</th>
+									<SortableTableHeader
+										label="CVE ID"
+										sortKey="cve_id"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="Package"
+										sortKey="package_name"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="Version"
+										sortKey="package_version"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="Type"
+										sortKey="package_type"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="Severity"
+										sortKey="severity"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="Status"
+										sortKey="status"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="First Detected / Age"
+										sortKey="first_detected_at"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
 										SLA Status
 									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Fix Version
-									</th>
+									<SortableTableHeader
+										label="Fix Version"
+										sortKey="fix_version"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">

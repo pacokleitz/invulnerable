@@ -6,6 +6,7 @@ import { SeverityBadge } from '../ui/SeverityBadge';
 import { StatusBadge } from '../ui/StatusBadge';
 import { PackageCategoryBadge } from '../ui/PackageCategoryBadge';
 import { VulnerabilityHistory } from '../ui/VulnerabilityHistory';
+import { SortableTableHeader, useSortState } from '../ui/SortableTableHeader';
 import { formatDate, daysSince, calculateSLAStatus } from '../../lib/utils/formatters';
 import { categorizePackageType } from '../../lib/utils/packageTypes';
 
@@ -20,6 +21,9 @@ export const VulnerabilitiesList: FC = () => {
 	const [showBulkActionModal, setShowBulkActionModal] = useState(false);
 	const [bulkUpdating, setBulkUpdating] = useState(false);
 	const [historyVulnId, setHistoryVulnId] = useState<number | null>(null);
+
+	// Sorting state
+	const { sortKey, sortDirection, handleSort } = useSortState('first_detected_at', 'desc');
 
 	// Filters from URL
 	const severityFilter = searchParams.get('severity') || '';
@@ -52,13 +56,44 @@ export const VulnerabilitiesList: FC = () => {
 				});
 			}
 
+			// Apply client-side sorting
+			if (sortKey && sortDirection) {
+				data.sort((a, b) => {
+					let aVal: any = a[sortKey as keyof Vulnerability];
+					let bVal: any = b[sortKey as keyof Vulnerability];
+
+					// Handle null/undefined values
+					if (aVal == null && bVal == null) return 0;
+					if (aVal == null) return 1;
+					if (bVal == null) return -1;
+
+					// Handle dates
+					if (sortKey === 'first_detected_at' || sortKey === 'remediation_date') {
+						aVal = new Date(aVal).getTime();
+						bVal = new Date(bVal).getTime();
+					}
+
+					// Handle severity (special ordering)
+					if (sortKey === 'severity') {
+						const severityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1, Negligible: 0, Unknown: -1 };
+						aVal = severityOrder[aVal as keyof typeof severityOrder] || -1;
+						bVal = severityOrder[bVal as keyof typeof severityOrder] || -1;
+					}
+
+					// Compare
+					if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+					if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+					return 0;
+				});
+			}
+
 			setVulnerabilities(data);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : 'Failed to load vulnerabilities');
 		} finally {
 			setLoading(false);
 		}
-	}, [severityFilter, statusFilter, imageFilter, cveFilter, packageCategoryFilter, showUnfixed]);
+	}, [severityFilter, statusFilter, imageFilter, cveFilter, packageCategoryFilter, showUnfixed, sortKey, sortDirection]);
 
 	useEffect(() => {
 		document.title = 'Vulnerabilities - Invulnerable';
@@ -290,36 +325,72 @@ export const VulnerabilitiesList: FC = () => {
 											className="rounded border-gray-300"
 										/>
 									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Image
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										CVE ID
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Package
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Version
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Type
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Severity
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Status
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										First Detected / Age
-									</th>
+									<SortableTableHeader
+										label="Image"
+										sortKey="image_name"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="CVE ID"
+										sortKey="cve_id"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="Package"
+										sortKey="package_name"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="Version"
+										sortKey="package_version"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="Type"
+										sortKey="package_type"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="Severity"
+										sortKey="severity"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="Status"
+										sortKey="status"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="First Detected / Age"
+										sortKey="first_detected_at"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
 										SLA Status
 									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Fix Version
-									</th>
+									<SortableTableHeader
+										label="Fix Version"
+										sortKey="fix_version"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">

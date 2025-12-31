@@ -1,17 +1,50 @@
-import { FC, useEffect, useState } from 'react';
+import { FC, useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useImageHistory } from '../../hooks/useImages';
+import { SortableTableHeader, useSortState } from '../ui/SortableTableHeader';
 import { formatDate } from '../../lib/utils/formatters';
+import type { ScanWithDetails } from '../../lib/api/types';
 
 export const ImageHistory: FC = () => {
 	const { id } = useParams<{ id: string }>();
 	const imageId = parseInt(id || '0', 10);
 	const [showUnfixed, setShowUnfixed] = useState(false);
+	const { sortKey, sortDirection, handleSort } = useSortState('scan_date', 'desc');
 	const { currentImageHistory, loading, error } = useImageHistory(imageId, 50, showUnfixed ? undefined : true);
 
 	useEffect(() => {
 		document.title = 'Image History - Invulnerable';
 	}, []);
+
+	// Apply sorting to scan history
+	const sortedHistory = useMemo(() => {
+		if (!sortKey || !sortDirection) {
+			return currentImageHistory;
+		}
+
+		const sorted = [...currentImageHistory].sort((a, b) => {
+			let aVal: any = a[sortKey as keyof ScanWithDetails];
+			let bVal: any = b[sortKey as keyof ScanWithDetails];
+
+			// Handle null/undefined values
+			if (aVal == null && bVal == null) return 0;
+			if (aVal == null) return 1;
+			if (bVal == null) return -1;
+
+			// Handle dates
+			if (sortKey === 'scan_date') {
+				aVal = new Date(aVal).getTime();
+				bVal = new Date(bVal).getTime();
+			}
+
+			// Compare
+			if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+			if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+			return 0;
+		});
+
+		return sorted;
+	}, [currentImageHistory, sortKey, sortDirection]);
 
 	if (loading) {
 		return (
@@ -38,7 +71,7 @@ export const ImageHistory: FC = () => {
 				</Link>
 			</div>
 
-			{currentImageHistory.length === 0 ? (
+			{sortedHistory.length === 0 ? (
 				<div className="card text-center py-12">
 					<p className="text-gray-500">No scan history found for this image</p>
 				</div>
@@ -48,10 +81,10 @@ export const ImageHistory: FC = () => {
 						<div className="flex justify-between items-center mb-4">
 							<div>
 								<h2 className="text-xl font-semibold text-gray-900">
-									{currentImageHistory[0].image_name}
+									{sortedHistory[0].image_name}
 								</h2>
 								<p className="text-sm text-gray-600 mt-2">
-									Total scans: {currentImageHistory.length}
+									Total scans: {sortedHistory.length}
 								</p>
 							</div>
 							<label className="flex items-center space-x-2 text-sm">
@@ -71,37 +104,69 @@ export const ImageHistory: FC = () => {
 							<table className="min-w-full divide-y divide-gray-200">
 								<thead className="bg-gray-50">
 									<tr>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-											ID
-										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-											Scan Date
-										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-											Image Digest
-										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-											Total Vulns
-										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-											Critical
-										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-											High
-										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-											Medium
-										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-											Low
-										</th>
+										<SortableTableHeader
+											label="ID"
+											sortKey="id"
+											currentSortKey={sortKey}
+											currentSortDirection={sortDirection}
+											onSort={handleSort}
+										/>
+										<SortableTableHeader
+											label="Scan Date"
+											sortKey="scan_date"
+											currentSortKey={sortKey}
+											currentSortDirection={sortDirection}
+											onSort={handleSort}
+										/>
+										<SortableTableHeader
+											label="Image Digest"
+											sortKey="image_digest"
+											currentSortKey={sortKey}
+											currentSortDirection={sortDirection}
+											onSort={handleSort}
+										/>
+										<SortableTableHeader
+											label="Total Vulns"
+											sortKey="vulnerability_count"
+											currentSortKey={sortKey}
+											currentSortDirection={sortDirection}
+											onSort={handleSort}
+										/>
+										<SortableTableHeader
+											label="Critical"
+											sortKey="critical_count"
+											currentSortKey={sortKey}
+											currentSortDirection={sortDirection}
+											onSort={handleSort}
+										/>
+										<SortableTableHeader
+											label="High"
+											sortKey="high_count"
+											currentSortKey={sortKey}
+											currentSortDirection={sortDirection}
+											onSort={handleSort}
+										/>
+										<SortableTableHeader
+											label="Medium"
+											sortKey="medium_count"
+											currentSortKey={sortKey}
+											currentSortDirection={sortDirection}
+											onSort={handleSort}
+										/>
+										<SortableTableHeader
+											label="Low"
+											sortKey="low_count"
+											currentSortKey={sortKey}
+											currentSortDirection={sortDirection}
+											onSort={handleSort}
+										/>
 										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
 											Actions
 										</th>
 									</tr>
 								</thead>
 								<tbody className="bg-white divide-y divide-gray-200">
-									{currentImageHistory.map((scan) => (
+									{sortedHistory.map((scan) => (
 										<tr key={scan.id} className="hover:bg-gray-50">
 											<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
 												{scan.id}

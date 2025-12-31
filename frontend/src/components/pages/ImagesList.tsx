@@ -2,6 +2,7 @@ import { FC, useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../lib/api/client';
 import type { ImageWithStats } from '../../lib/api/types';
+import { SortableTableHeader, useSortState } from '../ui/SortableTableHeader';
 import { formatDate } from '../../lib/utils/formatters';
 
 export const ImagesList: FC = () => {
@@ -9,6 +10,7 @@ export const ImagesList: FC = () => {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [searchParams, setSearchParams] = useSearchParams();
+	const { sortKey, sortDirection, handleSort } = useSortState('last_scan_date', 'desc');
 
 	// Filters from URL
 	const registryFilter = searchParams.get('registry') || '';
@@ -62,7 +64,7 @@ export const ImagesList: FC = () => {
 
 	// Client-side filtering
 	const filteredImages = useMemo(() => {
-		return images.filter((image) => {
+		let filtered = images.filter((image) => {
 			// Filter by registry
 			if (registryFilter && !image.registry.toLowerCase().includes(registryFilter.toLowerCase())) {
 				return false;
@@ -94,7 +96,30 @@ export const ImagesList: FC = () => {
 			}
 			return true;
 		});
-	}, [images, registryFilter, repositoryFilter, tagFilter, minSeverity]);
+
+		// Apply sorting
+		if (sortKey && sortDirection) {
+			filtered.sort((a, b) => {
+				let aVal: any = a[sortKey as keyof typeof a];
+				let bVal: any = b[sortKey as keyof typeof b];
+
+				if (aVal == null && bVal == null) return 0;
+				if (aVal == null) return 1;
+				if (bVal == null) return -1;
+
+				if (sortKey === 'last_scan_date') {
+					aVal = new Date(aVal).getTime();
+					bVal = new Date(bVal).getTime();
+				}
+
+				if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+				if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+				return 0;
+			});
+		}
+
+		return filtered;
+	}, [images, registryFilter, repositoryFilter, tagFilter, minSeverity, sortKey, sortDirection]);
 
 	if (loading) {
 		return (
@@ -217,27 +242,55 @@ export const ImagesList: FC = () => {
 						<table className="min-w-full divide-y divide-gray-200">
 							<thead className="bg-gray-50">
 								<tr>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Image
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Scans
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Last Scan
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Critical
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										High
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Medium
-									</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Low
-									</th>
+									<SortableTableHeader
+										label="Image"
+										sortKey="repository"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="Scans"
+										sortKey="scan_count"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="Last Scan"
+										sortKey="last_scan_date"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="Critical"
+										sortKey="critical_count"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="High"
+										sortKey="high_count"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="Medium"
+										sortKey="medium_count"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortableTableHeader
+										label="Low"
+										sortKey="low_count"
+										currentSortKey={sortKey}
+										currentSortDirection={sortDirection}
+										onSort={handleSort}
+									/>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
 										Actions
 									</th>
