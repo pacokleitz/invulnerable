@@ -9,11 +9,17 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/invulnerable/backend/internal/analyzer"
 	"github.com/invulnerable/backend/internal/api"
+	"github.com/invulnerable/backend/internal/config"
 	"github.com/invulnerable/backend/internal/db"
 	"github.com/invulnerable/backend/internal/metrics"
 	"github.com/invulnerable/backend/internal/notifier"
+	"github.com/invulnerable/backend/internal/storage"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"go.uber.org/zap"
@@ -28,10 +34,25 @@ func main() {
 	defer logger.Sync()
 
 	// Load configuration from environment
-	cfg := loadConfig()
+	cfg, err := config.LoadFromEnv()
+	if err != nil {
+		logger.Fatal("failed to load configuration", zap.Error(err))
+	}
 
 	// Initialize database
-	database, err := db.New(cfg.DB)
+	dbPort, err := strconv.Atoi(cfg.Database.Port)
+	if err != nil {
+		logger.Fatal("invalid database port", zap.String("port", cfg.Database.Port), zap.Error(err))
+	}
+
+	database, err := db.New(db.Config{
+		Host:     cfg.Database.Host,
+		Port:     dbPort,
+		User:     cfg.Database.User,
+		Password: cfg.Database.Password,
+		DBName:   cfg.Database.DBName,
+		SSLMode:  cfg.Database.SSLMode,
+	})
 	if err != nil {
 		logger.Fatal("failed to connect to database", zap.Error(err))
 	}
@@ -39,16 +60,27 @@ func main() {
 
 	logger.Info("connected to database successfully")
 
+	// Initialize S3 client for SBOM storage
+	s3Client, err := createS3Client(cfg.S3)
+	if err != nil {
+		logger.Fatal("failed to create S3 client", zap.Error(err))
+	}
+	s3Storage := storage.NewS3Storage(s3Client, cfg.S3.Bucket)
+	logger.Info("initialized S3 storage",
+		zap.String("endpoint", cfg.S3.Endpoint),
+		zap.String("bucket", cfg.S3.Bucket))
+
 	// Initialize repositories
 	imageRepo := db.NewImageRepository(database)
 	scanRepo := db.NewScanRepository(database)
 	vulnRepo := db.NewVulnerabilityRepository(database)
-	sbomRepo := db.NewSBOMRepository(database)
+	sbomRepo := db.NewSBOMRepository(database, s3Storage)
 
 	// Initialize services
 	analyzerSvc := analyzer.New(scanRepo, vulnRepo)
 	metricsSvc := metrics.New(database)
-	notifierSvc := notifier.New(logger, cfg.FrontendURL)
+	frontendURL := getEnv("FRONTEND_URL", "")
+	notifierSvc := notifier.New(logger, frontendURL)
 
 	// Initialize handlers
 	healthHandler := api.NewHealthHandler(database)
@@ -119,9 +151,10 @@ func main() {
 	api.GET("/user/me", userHandler.GetCurrentUser)
 
 	// Start server
+	port := cfg.Server.Port
 	go func() {
-		logger.Info("starting server", zap.String("port", cfg.Port))
-		if err := e.Start(":" + cfg.Port); err != nil {
+		logger.Info("starting server", zap.String("port", port))
+		if err := e.Start(":" + port); err != nil {
 			logger.Fatal("failed to start server", zap.Error(err))
 		}
 	}()
@@ -143,39 +176,47 @@ func main() {
 	logger.Info("server stopped gracefully")
 }
 
-type Config struct {
-	Port        string
-	FrontendURL string
-	DB          db.Config
-}
-
-func loadConfig() Config {
-	return Config{
-		Port:        getEnv("PORT", "8080"),
-		FrontendURL: getEnv("FRONTEND_URL", ""),
-		DB: db.Config{
-			Host:     getEnv("DB_HOST", "localhost"),
-			Port:     getEnvInt("DB_PORT", 5432),
-			User:     getEnv("DB_USER", "invulnerable"),
-			Password: getEnv("DB_PASSWORD", "invulnerable"),
-			DBName:   getEnv("DB_NAME", "invulnerable"),
-			SSLMode:  getEnv("DB_SSLMODE", "disable"),
+// createS3Client creates an AWS S3 client with custom endpoint support
+func createS3Client(s3Config config.S3Config) (*s3.Client, error) {
+	// Create custom resolver for endpoint
+	customResolver := aws.EndpointResolverWithOptionsFunc(
+		func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+			if service == s3.ServiceID {
+				return aws.Endpoint{
+					URL:               s3Config.Endpoint,
+					HostnameImmutable: true,
+					SigningRegion:     s3Config.Region,
+				}, nil
+			}
+			return aws.Endpoint{}, &aws.EndpointNotFoundError{}
 		},
+	)
+
+	// Load AWS config with custom credentials
+	cfg, err := awsconfig.LoadDefaultConfig(context.Background(),
+		awsconfig.WithRegion(s3Config.Region),
+		awsconfig.WithEndpointResolverWithOptions(customResolver),
+		awsconfig.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(
+				s3Config.AccessKey,
+				s3Config.SecretKey,
+				"",
+			),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
+
+	// Create S3 client with path-style addressing (required for MinIO)
+	return s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.UsePathStyle = true
+	}), nil
 }
 
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
-	}
-	return defaultValue
-}
-
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
-		}
 	}
 	return defaultValue
 }

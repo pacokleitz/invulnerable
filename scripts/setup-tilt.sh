@@ -74,6 +74,7 @@ helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx 2>/dev/nu
 helm repo add jetstack https://charts.jetstack.io 2>/dev/null || echo -e "${GREEN}✓ jetstack repo already added${NC}"
 helm repo add bitnami https://charts.bitnami.com/bitnami 2>/dev/null || echo -e "${GREEN}✓ bitnami repo already added${NC}"
 helm repo add dex https://charts.dexidp.io 2>/dev/null || echo -e "${GREEN}✓ dex repo already added${NC}"
+helm repo add minio https://charts.min.io/ 2>/dev/null || echo -e "${GREEN}✓ minio repo already added${NC}"
 echo "Updating Helm repositories..."
 helm repo update >/dev/null 2>&1
 echo -e "${GREEN}✓ Helm repositories configured${NC}"
@@ -104,7 +105,7 @@ echo -e "${GREEN}========================================${NC}"
 echo
 echo "What was configured:"
 echo "  ✓ kubectl context: docker-desktop"
-echo "  ✓ Helm repositories: ingress-nginx, jetstack, bitnami, dex"
+echo "  ✓ Helm repositories: ingress-nginx, jetstack, bitnami, dex, minio"
 echo "  ✓ /etc/hosts configured (invulnerable.local, dex.invulnerable.local)"
 echo
 echo "Next steps:"
@@ -128,6 +129,7 @@ echo "   - nginx Ingress Controller"
 echo "   - cert-manager (if --enable-https flag used)"
 echo "   - Dex OIDC provider (if --enable-oidc flag used)"
 echo "   - PostgreSQL"
+echo "   - MinIO (S3-compatible storage for SBOMs)"
 echo "   - Invulnerable application (backend, frontend, controller)"
 echo "   - OAuth2 Proxy"
 echo

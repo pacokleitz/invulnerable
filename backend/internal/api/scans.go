@@ -132,13 +132,12 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 
 	// Store SBOM
 	sbom := &models.SBOM{
-		ScanID:   scan.ID,
-		Format:   req.SBOMFormat,
-		Version:  req.SBOMVersion,
-		Document: req.SBOM,
+		ScanID:  scan.ID,
+		Format:  req.SBOMFormat,
+		Version: req.SBOMVersion,
 	}
 
-	if err := h.sbomRepo.Create(ctx, sbom); err != nil {
+	if err := h.sbomRepo.Create(ctx, sbom, []byte(req.SBOM)); err != nil {
 		h.logger.Error("failed to create SBOM", zap.Error(err))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create SBOM")
 	}

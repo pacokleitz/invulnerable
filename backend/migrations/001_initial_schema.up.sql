@@ -29,18 +29,18 @@ CREATE INDEX idx_scans_image_id ON scans(image_id);
 CREATE INDEX idx_scans_scan_date ON scans(scan_date DESC);
 
 -- SBOMs table
+-- SBOMs are stored in S3, only metadata in database
 CREATE TABLE IF NOT EXISTS sboms (
     id SERIAL PRIMARY KEY,
     scan_id INTEGER NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
     format VARCHAR(50) NOT NULL, -- 'cyclonedx' or 'spdx'
     version VARCHAR(20),
-    document JSONB NOT NULL,
+    size_bytes BIGINT, -- Size of SBOM document in bytes
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(scan_id)
 );
 
 CREATE INDEX idx_sboms_scan_id ON sboms(scan_id);
-CREATE INDEX idx_sboms_document ON sboms USING GIN(document);
 
 -- Vulnerabilities table
 CREATE TABLE IF NOT EXISTS vulnerabilities (

@@ -42,6 +42,7 @@ Invulnerable is a Kubernetes-native vulnerability management platform that provi
   - [Authentication](#authentication)
   - [Registry Configuration](#registry-configuration)
   - [Database](#database)
+  - [S3 Storage](#s3-storage)
   - [Webhook Notifications](#webhook-notifications)
   - [SLA Compliance Tracking](#sla-compliance-tracking)
   - [Vulnerability Management & Audit Trail](#vulnerability-management--audit-trail)
@@ -64,20 +65,20 @@ Invulnerable is a Kubernetes-native vulnerability management platform that provi
                         │                    │
                         │                    │ Watches CRDs
                         ▼                    ▼
-                 ┌──────────────┐   ┌───────────────────┐
-                 │  PostgreSQL  │   │  ImageScan CRDs   │
-                 │ (SBOM + Data)│   │  (nginx:latest,   │
-                 └──────┬───────┘   │   app:v1.0.0)     │
-                        ▲           └─────────┬─────────┘
-                        │                     │
-                        │                     │ Creates CronJobs
-                        │                     ▼
-                        │            ┌──────────────────┐
-                        │            │  Scanner Jobs    │
-                        │            │  (Syft + Grype)  │
-                        │            └────────┬─────────┘
-                        │                     │
-                        └─────────────────────┘
+         ┌──────────────┬──────────┐   ┌───────────────────┐
+         │  PostgreSQL  │  MinIO   │   │  ImageScan CRDs   │
+         │  (Metadata)  │  (SBOMs) │   │  (nginx:latest,   │
+         └──────┬───────┴────┬─────┘   │   app:v1.0.0)     │
+                ▲            ▲         └─────────┬─────────┘
+                │            │                   │
+                │            │                   │ Creates CronJobs
+                │            │                   ▼
+                │            │          ┌──────────────────┐
+                │            │          │  Scanner Jobs    │
+                │            │          │  (Syft + Grype)  │
+                │            │          └────────┬─────────┘
+                │            │                   │
+                └────────────┴───────────────────┘
                     Submits results via Backend API
 ```
 
@@ -87,7 +88,8 @@ Invulnerable is a Kubernetes-native vulnerability management platform that provi
 - **Controller**: Kubernetes controller-runtime, kubebuilder patterns
 - **Scanning**: Anchore Syft (SBOM) + Grype (vulnerabilities)
 - **Auth**: OAuth2-Proxy with multi-provider support
-- **Database**: PostgreSQL 15+ with JSONB for SBOM storage
+- **Database**: PostgreSQL 15+ for metadata
+- **Storage**: S3-compatible object storage (MinIO/AWS S3) for SBOM documents
 
 ## 🚀 Quick Start
 
@@ -157,6 +159,15 @@ backend:
   database:
     host: "postgres.production.svc.cluster.local"
     existingSecret: "postgres-credentials"
+
+  s3:
+    endpoint: "https://s3.amazonaws.com"  # or MinIO endpoint
+    bucket: "invulnerable"
+    region: "us-east-1"
+    existingSecret: "s3-credentials"  # Recommended for production
+    accessKeyKey: "access-key"
+    secretKeyKey: "secret-key"
+    useSSL: true
 
   autoscaling:
     enabled: true
@@ -241,6 +252,9 @@ curl http://api/v1/scans?limit=20&offset=0
 
 # Get scan details
 curl http://api/v1/scans/{id}
+
+# Get SBOM document (retrieved from S3)
+curl http://api/v1/scans/{id}/sbom
 
 # Compare with previous scan
 curl http://api/v1/scans/{id}/diff
@@ -381,6 +395,40 @@ backend:
     existingSecret: "db-credentials"
     passwordKey: "password"
 ```
+
+### S3 Storage
+
+S3-compatible object storage is required for storing SBOM documents. You can use AWS S3, MinIO, or any S3-compatible service:
+
+```yaml
+backend:
+  env:
+    - name: SBOM_S3_ENDPOINT
+      value: "https://s3.amazonaws.com"  # or "http://minio:9000" for MinIO
+    - name: SBOM_S3_BUCKET
+      value: "invulnerable"
+    - name: SBOM_S3_REGION
+      value: "us-east-1"
+    - name: SBOM_S3_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: s3-credentials
+          key: access-key
+    - name: SBOM_S3_SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: s3-credentials
+          key: secret-key
+    - name: SBOM_S3_USE_SSL
+      value: "true"  # Set to "false" for local MinIO
+```
+
+**Storage path pattern**: SBOMs are stored at `scans/{scan_id}/sbom.json` in the configured bucket.
+
+**Requirements:**
+- Bucket must be created before deployment
+- Backend needs read/write permissions on the bucket
+- For MinIO: ensure path-style addressing is enabled (automatically configured)
 
 ### Webhook Notifications
 
@@ -547,7 +595,7 @@ Invulnerable provides comprehensive vulnerability lifecycle management with full
 
 The fastest way to get started with local development is using [Tilt](https://tilt.dev/), which provides:
 - One-command setup with Docker Desktop Kubernetes
-- Automatic deployment of nginx-ingress, cert-manager (optional), PostgreSQL
+- Automatic deployment of nginx-ingress, cert-manager (optional), PostgreSQL, and MinIO
 - Live reload for Go and React code
 - Full deployment with ingress + oauth2-proxy
 - Visual dashboard for logs and resources
@@ -586,6 +634,7 @@ See **[Tilt Development Guide](TILT.md)** for complete documentation.
 - Go 1.21+
 - Node.js 18+
 - PostgreSQL 15+
+- MinIO or S3-compatible storage
 - Docker
 - Task (optional but recommended)
 
@@ -599,6 +648,27 @@ docker run -d \
   -e POSTGRES_DB=invulnerable \
   -p 5432:5432 \
   postgres:15
+
+# Start MinIO for SBOM storage
+docker run -d \
+  -e MINIO_ROOT_USER=minio \
+  -e MINIO_ROOT_PASSWORD=minio123 \
+  -p 9090:9000 \
+  -p 9091:9001 \
+  quay.io/minio/minio server /data --console-address ":9001"
+
+# Create MinIO bucket (first time only)
+docker run --rm --network=host \
+  -e MC_HOST_local=http://minio:minio123@localhost:9090 \
+  minio/mc mb local/invulnerable
+
+# Set backend environment variables
+export SBOM_S3_ENDPOINT=http://localhost:9090
+export SBOM_S3_BUCKET=invulnerable
+export SBOM_S3_REGION=us-east-1
+export SBOM_S3_ACCESS_KEY=minio
+export SBOM_S3_SECRET_KEY=minio123
+export SBOM_S3_USE_SSL=false
 
 # Run migrations
 cd backend

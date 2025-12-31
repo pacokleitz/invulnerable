@@ -21,7 +21,8 @@
       "Bash(task lint)",
       "Bash(task test)",
       "Bash(go fmt:*)",
-      "Bash(gofmt:*)"
+      "Bash(gofmt:*)",
+      "Bash(go get:*)"
     ],
     "deny": [],
     "ask": []

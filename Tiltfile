@@ -100,6 +100,20 @@ spec:
         resource_deps=['cert-manager', 'selfsigned-issuer'],
     )
 
+# Create namespace early (before any resources need it)
+print('📦 Creating invulnerable namespace...')
+k8s_yaml(blob('''
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: invulnerable
+'''))
+k8s_resource(
+    objects=['invulnerable:namespace'],
+    new_name='invulnerable-namespace',
+    labels=['infrastructure'],
+)
+
 # Optionally deploy Dex OIDC provider for local testing
 if enable_oidc:
     print('🔐 Deploying Dex OIDC provider for local authentication...')
@@ -114,12 +128,6 @@ if enable_oidc:
         labels=['infrastructure', 'auth'],
         resource_deps=['ingress-nginx'],
     )
-
-# Create namespace (depends on cert-manager if HTTPS enabled)
-if enable_https:
-    namespace_create('invulnerable', allow_duplicates=True)
-else:
-    namespace_create('invulnerable')
 
 # Build Docker images with live updates
 docker_build(
@@ -207,7 +215,21 @@ helm_resource(
     ],
     port_forwards=['5432:5432'],
     labels=['database'],
-    resource_deps=['ingress-nginx'],  # Wait for ingress to be ready
+    resource_deps=['invulnerable-namespace'],  # Wait for namespace to be created
+)
+
+# Deploy MinIO (S3-compatible storage for SBOMs)
+print('📦 Deploying MinIO for SBOM storage...')
+helm_resource(
+    name='minio',
+    chart='minio/minio',
+    namespace='invulnerable',
+    flags=[
+        '--values=./tilt/minio-values.yaml',
+    ],
+    port_forwards=['9000:9000', '9001:9001'],
+    labels=['storage'],
+    resource_deps=['invulnerable-namespace'],  # Wait for namespace to be created
 )
 
 # Deploy Invulnerable with Helm
@@ -222,7 +244,7 @@ else:
     values_file = './tilt/values.yaml'
 
 # Set up dependencies
-helm_deps = ['postgres']
+helm_deps = ['invulnerable-namespace', 'postgres', 'minio']
 if enable_https:
     helm_deps.append('cert-manager')
 if enable_oidc:
@@ -255,8 +277,8 @@ k8s_yaml(yaml)
 # Group resources under 'invulnerable' label
 k8s_resource(
     objects=[
-        'invulnerable:namespace',
         'invulnerable:serviceaccount',
+        'imagescans.invulnerable.io:customresourcedefinition',
     ],
     new_name='invulnerable-setup',
     labels=['app'],
@@ -293,10 +315,6 @@ local_resource(
     serve_cmd='kubectl port-forward -n invulnerable svc/invulnerable-backend 8081:8080',
     resource_deps=['invulnerable-backend'],
     labels=['port-forwards'],
-    readiness_probe=probe(
-        period_secs=10,
-        exec=exec_action(['curl', '-f', 'http://localhost:8081/health']),
-    ),
 )
 
 local_resource(
@@ -310,6 +328,20 @@ local_resource(
     'port-forward-oauth2-proxy',
     serve_cmd='kubectl port-forward -n invulnerable svc/invulnerable-oauth2-proxy 4180:4180',
     resource_deps=['invulnerable-oauth2-proxy'],
+    labels=['port-forwards'],
+)
+
+local_resource(
+    'port-forward-minio-api',
+    serve_cmd='kubectl port-forward -n invulnerable svc/minio 9090:9000',
+    resource_deps=['minio'],
+    labels=['port-forwards'],
+)
+
+local_resource(
+    'port-forward-minio-console',
+    serve_cmd='kubectl port-forward -n invulnerable svc/minio-console 9091:9001',
+    resource_deps=['minio'],
     labels=['port-forwards'],
 )
 
@@ -341,6 +373,7 @@ Infrastructure:
   {cert_status}
   {dex_status}
   ✓ PostgreSQL
+  ✓ MinIO (S3-compatible storage)
 
 Access the application:
   - Main: {url}{note}
@@ -348,6 +381,8 @@ Access the application:
   - Direct Frontend: http://localhost:3000
   - Direct Backend: http://localhost:8081
   - PostgreSQL: localhost:5432
+  - MinIO API: http://localhost:9090
+  - MinIO Console: http://localhost:9091 (minio/minio123)
 
 Make sure to add to /etc/hosts:
   127.0.0.1 invulnerable.local{dex_host}
@@ -378,3 +413,5 @@ watch_file('./tilt/values.yaml')
 watch_file('./tilt/values-https.yaml')
 watch_file('./tilt/values-oidc.yaml')
 watch_file('./tilt/dex-values.yaml')
+watch_file('./tilt/postgres-values.yaml')
+watch_file('./tilt/minio-values.yaml')

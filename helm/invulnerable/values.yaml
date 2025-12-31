@@ -77,6 +77,19 @@ backend:
   # Example: "https://invulnerable.example.com" or "http://localhost:3000"
   frontendURL: ""
 
+  # S3-compatible storage for SBOM documents
+  s3:
+    endpoint: ""  # Required: S3 endpoint (e.g., "https://s3.amazonaws.com" or "http://minio:9000")
+    bucket: "invulnerable"
+    region: "us-east-1"
+    accessKey: ""  # Required: S3 access key
+    secretKey: ""  # Required: S3 secret key
+    useSSL: true
+    # Alternative: use existing secret
+    existingSecret: ""
+    accessKeyKey: "access-key"
+    secretKeyKey: "secret-key"
+
   # Health checks
   livenessProbe:
     httpGet:

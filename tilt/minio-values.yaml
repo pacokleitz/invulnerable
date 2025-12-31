@@ -1,0 +1,72 @@
+# MinIO values for local development with Tilt
+# Uses official MinIO Helm chart from https://helm.min.io/
+
+# Deployment mode - standalone for local dev
+mode: standalone
+
+# Replicas - single instance for local dev
+replicas: 1
+
+# Image configuration (official MinIO images)
+image:
+  repository: quay.io/minio/minio
+  tag: RELEASE.2024-12-18T13-15-44Z
+  pullPolicy: IfNotPresent
+
+mcImage:
+  repository: quay.io/minio/mc
+  tag: RELEASE.2024-11-21T17-21-54Z
+  pullPolicy: IfNotPresent
+
+# Root credentials
+rootUser: "minio"
+rootPassword: "minio123"
+
+# Disable persistence for faster dev cycles
+persistence:
+  enabled: false
+
+# Resources
+resources:
+  requests:
+    memory: 256Mi
+    cpu: 100m
+  limits:
+    memory: 512Mi
+    cpu: 500m
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 9000
+
+consoleService:
+  type: ClusterIP
+  port: 9001
+
+# Create default bucket for SBOMs
+buckets:
+  - name: invulnerable
+    policy: none
+    purge: false
+
+# Disable features not needed for local dev
+ingress:
+  enabled: false
+
+metrics:
+  serviceMonitor:
+    enabled: false
+
+# Security context
+securityContext:
+  enabled: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+podSecurityContext:
+  enabled: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000

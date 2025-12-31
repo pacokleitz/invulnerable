@@ -91,6 +91,32 @@ spec:
           value: {{ .Values.backend.database.sslmode | quote }}
         - name: FRONTEND_URL
           value: {{ .Values.backend.frontendURL | quote }}
+        - name: SBOM_S3_ENDPOINT
+          value: {{ .Values.backend.s3.endpoint | quote }}
+        - name: SBOM_S3_BUCKET
+          value: {{ .Values.backend.s3.bucket | quote }}
+        - name: SBOM_S3_REGION
+          value: {{ .Values.backend.s3.region | quote }}
+        - name: SBOM_S3_ACCESS_KEY
+          {{- if .Values.backend.s3.existingSecret }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backend.s3.existingSecret }}
+              key: {{ .Values.backend.s3.accessKeyKey }}
+          {{- else }}
+          value: {{ .Values.backend.s3.accessKey | quote }}
+          {{- end }}
+        - name: SBOM_S3_SECRET_KEY
+          {{- if .Values.backend.s3.existingSecret }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backend.s3.existingSecret }}
+              key: {{ .Values.backend.s3.secretKeyKey }}
+          {{- else }}
+          value: {{ .Values.backend.s3.secretKey | quote }}
+          {{- end }}
+        - name: SBOM_S3_USE_SSL
+          value: {{ .Values.backend.s3.useSSL | quote }}
         livenessProbe:
           {{- toYaml .Values.backend.livenessProbe | nindent 12 }}
         readinessProbe:

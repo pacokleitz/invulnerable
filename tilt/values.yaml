@@ -20,6 +20,15 @@ backend:
     name: "invulnerable"
     sslmode: "disable"
 
+  # S3 storage for SBOM documents (using MinIO for local dev)
+  s3:
+    endpoint: "http://minio.invulnerable.svc.cluster.local:9000"
+    bucket: "invulnerable"
+    region: "us-east-1"
+    accessKey: "minio"
+    secretKey: "minio123"
+    useSSL: false
+
   autoscaling:
     enabled: false
 
