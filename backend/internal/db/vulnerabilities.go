@@ -439,7 +439,7 @@ func (r *VulnerabilityRepository) GetByUniqueKey(ctx context.Context, cveID, pac
 	query := `SELECT * FROM vulnerabilities WHERE cve_id = $1 AND package_name = $2 AND package_version = $3`
 	if err := r.db.GetContext(ctx, &vuln, query, cveID, packageName, packageVersion); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("vulnerability not found")
+			return nil, nil // Not found is not an error - return nil to indicate it should be created
 		}
 		return nil, err
 	}
