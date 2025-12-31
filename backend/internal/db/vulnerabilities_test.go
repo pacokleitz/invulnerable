@@ -396,6 +396,9 @@ func TestVulnerabilityRepository_GetByUniqueKey_NotFound(t *testing.T) {
 
 	repo := NewVulnerabilityRepository(db)
 
-	_, err := repo.GetByUniqueKey(context.Background(), "CVE-9999-9999", "notfound", "1.0.0")
-	assert.Error(t, err)
+	// When not found, should return (nil, nil) not an error
+	// This allows the caller to distinguish between "not found" and "database error"
+	retrieved, err := repo.GetByUniqueKey(context.Background(), "CVE-9999-9999", "notfound", "1.0.0")
+	require.NoError(t, err, "GetByUniqueKey should not return error when vulnerability doesn't exist")
+	assert.Nil(t, retrieved, "GetByUniqueKey should return nil when vulnerability doesn't exist")
 }

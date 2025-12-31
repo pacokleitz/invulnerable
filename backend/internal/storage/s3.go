@@ -22,9 +22,9 @@ type SBOMStorage interface {
 
 // S3Storage implements SBOMStorage using S3-compatible object storage
 type S3Storage struct {
-	client         *s3.Client
-	presignClient  *s3.PresignClient
-	bucket         string
+	client        *s3.Client
+	presignClient *s3.PresignClient
+	bucket        string
 }
 
 // NewS3Storage creates a new S3-based SBOM storage

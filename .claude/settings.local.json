@@ -22,7 +22,8 @@
       "Bash(task test)",
       "Bash(go fmt:*)",
       "Bash(gofmt:*)",
-      "Bash(go get:*)"
+      "Bash(go get:*)",
+      "Bash(golangci-lint run:*)"
     ],
     "deny": [],
     "ask": []

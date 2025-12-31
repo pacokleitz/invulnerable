@@ -145,3 +145,16 @@ func TestScanHandler_CreateScan_ValidRequest(t *testing.T) {
 	assert.Equal(t, "cyclonedx", parsedReq.SBOMFormat)
 	assert.Len(t, parsedReq.GrypeResult.Matches, 1)
 }
+
+// TODO: Add integration test for scan creation flow
+// This test should verify that vulnerabilities (both with and without fixes) are properly created
+// when a scan is submitted. This would catch bugs like the GetByUniqueKey issue that prevented
+// all vulnerabilities from being stored in the database.
+//
+// The test should:
+// 1. Submit a scan with multiple vulnerabilities (some with fixes, some without)
+// 2. Verify all vulnerabilities are created in the database
+// 3. Verify vulnerabilities are linked to the scan
+// 4. Verify scan summary is correct
+//
+// Currently blocked by need to mock: S3 storage, analyzer, notifier
