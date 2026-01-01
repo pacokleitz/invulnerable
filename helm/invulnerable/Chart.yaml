@@ -1,9 +1,9 @@
 apiVersion: v2
 name: invulnerable
-description: A Helm chart for Invulnerable - Container vulnerability scanner and management
+description: A Helm chart for Invulnerable - Cloud-native container vulnerability management platform
 type: application
 version: 0.1.0
-appVersion: "1.0.0"
+appVersion: "0.1.0"
 keywords:
   - security
   - vulnerability

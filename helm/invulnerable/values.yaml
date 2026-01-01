@@ -16,7 +16,7 @@ fullnameOverride: ""
 #   registry: "gcr.io/my-project"            # Google Container Registry
 #   registry: "123456789012.dkr.ecr.us-east-1.amazonaws.com"  # AWS ECR
 image:
-  registry: ""
+  registry: "ghcr.io/pacokleitz"
 
 # Frontend configuration
 frontend:

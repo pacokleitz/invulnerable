@@ -1,0 +1,206 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_OWNER: ${{ github.repository_owner }}
+
+jobs:
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        component:
+          - name: backend
+            context: ./backend
+            dockerfile: ./backend/Dockerfile
+          - name: frontend
+            context: ./frontend
+            dockerfile: ./frontend/Dockerfile
+          - name: controller
+            context: ./controller
+            dockerfile: ./controller/Dockerfile
+          - name: scanner
+            context: ./scanner
+            dockerfile: ./scanner/Dockerfile
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/invulnerable-${{ matrix.component.name }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix={{branch}}-
+
+      - name: Build and push ${{ matrix.component.name }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.component.context }}
+          file: ${{ matrix.component.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  package-helm-chart:
+    name: Package and Publish Helm Chart
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.16.4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Update Helm chart version and appVersion
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+
+          # Update Chart.yaml
+          sed -i "s/^version:.*/version: ${VERSION}/" helm/invulnerable/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" helm/invulnerable/Chart.yaml
+
+          # Update values.yaml to use public registry and versioned images
+          sed -i "s|registry: \".*\"|registry: \"ghcr.io/${{ env.IMAGE_OWNER }}\"|" helm/invulnerable/values.yaml
+          sed -i "s/tag: \".*\"/tag: \"${VERSION}\"/" helm/invulnerable/values.yaml
+
+      - name: Package Helm chart
+        run: |
+          helm package helm/invulnerable
+
+      - name: Log in to GitHub Container Registry
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ${{ env.REGISTRY }} --username ${{ github.actor }} --password-stdin
+
+      - name: Push Helm chart to OCI registry
+        run: |
+          helm push invulnerable-${{ steps.version.outputs.VERSION }}.tgz oci://${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/charts
+
+  create-github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-and-push, package-helm-chart]
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          cat > release_notes.md << 'EOF'
+          ## Invulnerable ${{ steps.version.outputs.VERSION }}
+
+          ### Docker Images
+
+          All images are available on GitHub Container Registry:
+
+          ```bash
+          docker pull ghcr.io/${{ github.repository_owner }}/invulnerable-backend:${{ steps.version.outputs.VERSION }}
+          docker pull ghcr.io/${{ github.repository_owner }}/invulnerable-frontend:${{ steps.version.outputs.VERSION }}
+          docker pull ghcr.io/${{ github.repository_owner }}/invulnerable-controller:${{ steps.version.outputs.VERSION }}
+          docker pull ghcr.io/${{ github.repository_owner }}/invulnerable-scanner:${{ steps.version.outputs.VERSION }}
+          ```
+
+          ### Helm Installation
+
+          The Helm chart is published as an OCI artifact to GitHub Container Registry:
+
+          ```bash
+          # Install directly from OCI registry (Helm 3.8+)
+          helm install invulnerable \
+            oci://ghcr.io/${{ github.repository_owner }}/charts/invulnerable \
+            --version ${{ steps.version.outputs.VERSION }} \
+            --namespace invulnerable \
+            --create-namespace
+          ```
+
+          **Or with custom values:**
+
+          ```bash
+          helm install invulnerable \
+            oci://ghcr.io/${{ github.repository_owner }}/charts/invulnerable \
+            --version ${{ steps.version.outputs.VERSION }} \
+            --namespace invulnerable \
+            --create-namespace \
+            --values my-values.yaml
+          ```
+
+          ### Quick Start
+
+          ```bash
+          # Port forward to access the UI
+          kubectl port-forward -n invulnerable svc/invulnerable-frontend 8080:80
+
+          # Visit http://localhost:8080
+          ```
+
+          ### Upgrading
+
+          ```bash
+          helm upgrade invulnerable \
+            oci://ghcr.io/${{ github.repository_owner }}/charts/invulnerable \
+            --version ${{ steps.version.outputs.VERSION }} \
+            --namespace invulnerable
+          ```
+
+          See the [documentation](https://github.com/${{ github.repository }}/blob/main/README.md) for complete installation and configuration options.
+          EOF
+
+          echo "NOTES<<EOF" >> $GITHUB_OUTPUT
+          cat release_notes.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body: ${{ steps.notes.outputs.NOTES }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
