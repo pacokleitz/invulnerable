@@ -105,7 +105,7 @@ Invulnerable is a Kubernetes-native vulnerability management platform that provi
 # Install from GitHub Container Registry (GHCR) using OCI
 helm install invulnerable \
   oci://ghcr.io/pacokleitz/charts/invulnerable \
-  --version 1.0.0 \
+  --version 0.1.0 \
   --namespace invulnerable \
   --create-namespace
 
@@ -153,7 +153,7 @@ See the complete [Deployment Guide](docs/DEPLOYMENT.md) for production installat
 cat > production-values.yaml <<EOF
 image:
   registry: "ghcr.io/pacokleitz"
-  tag: "1.0.0"
+  tag: "0.1.0"
 
 backend:
   database:
@@ -207,20 +207,6 @@ helm install invulnerable ./helm/invulnerable \
   -f production-values.yaml \
   --namespace invulnerable \
   --create-namespace
-```
-
-### Using Taskfile (Development)
-
-```bash
-# Install Task: https://taskfile.dev
-brew install go-task/tap/go-task  # macOS
-
-# One-command deploy
-task quickstart
-
-# Or step by step
-task build:all
-task deploy
 ```
 
 ## 🎯 Usage
@@ -607,11 +593,11 @@ The fastest way to get started with local development is using [Tilt](https://ti
 # Start development environment (HTTP mode)
 tilt up
 
-# OR start with HTTPS enabled
-tilt up -- --enable-https=true
-
 # OR start with OIDC (local testing)
 tilt up -- --enable-oidc=true
+
+# OR start with HTTPS enabled
+tilt up -- --enable-https=true
 
 # Access:
 # - Tilt UI: http://localhost:10350
@@ -624,103 +610,9 @@ tilt up -- --enable-oidc=true
 - cert-manager (with `--enable-https` flag)
 - PostgreSQL
 - Backend, Frontend, Controller, Scanner
-- OAuth2 Proxy
+- OAuth2 Proxy + dex IDP
 
 See **[Tilt Development Guide](TILT.md)** for complete documentation.
-
-### Local Development Setup (Without Kubernetes)
-
-**Prerequisites:**
-- Go 1.21+
-- Node.js 18+
-- PostgreSQL 15+
-- MinIO or S3-compatible storage
-- Docker
-- Task (optional but recommended)
-
-**Run locally:**
-
-```bash
-# Start PostgreSQL (or use existing)
-docker run -d \
-  -e POSTGRES_USER=invulnerable \
-  -e POSTGRES_PASSWORD=changeme \
-  -e POSTGRES_DB=invulnerable \
-  -p 5432:5432 \
-  postgres:15
-
-# Start MinIO for SBOM storage
-docker run -d \
-  -e MINIO_ROOT_USER=minio \
-  -e MINIO_ROOT_PASSWORD=minio123 \
-  -p 9090:9000 \
-  -p 9091:9001 \
-  quay.io/minio/minio server /data --console-address ":9001"
-
-# Create MinIO bucket (first time only)
-docker run --rm --network=host \
-  -e MC_HOST_local=http://minio:minio123@localhost:9090 \
-  minio/mc mb local/invulnerable
-
-# Set backend environment variables
-export SBOM_S3_ENDPOINT=http://localhost:9090
-export SBOM_S3_BUCKET=invulnerable
-export SBOM_S3_REGION=us-east-1
-export SBOM_S3_ACCESS_KEY=minio
-export SBOM_S3_SECRET_KEY=minio123
-export SBOM_S3_USE_SSL=false
-
-# Run migrations
-cd backend
-make migrate-up
-
-# Start backend
-task dev:backend
-# Or: cd backend && go run cmd/server/main.go
-
-# Start frontend (in another terminal)
-task dev:frontend
-# Or: cd frontend && npm run dev
-```
-
-### Testing
-
-```bash
-# Run all tests
-task test
-
-# Run with coverage
-task test:coverage
-
-# Run linter
-task lint
-
-# Watch mode
-task test:watch
-```
-
-**Test Coverage:**
-- ✅ Unit tests for models, DB layer, API handlers
-- ✅ Integration tests with database mocking
-- ✅ Scan diff/analyzer logic tests
-- ✅ Test files in `*_test.go`
-
-### Building
-
-```bash
-# Build all images
-task build:all
-
-# Build specific component
-task build:backend
-task build:frontend
-task build:scanner
-task build:controller
-
-# Tag and push to registry
-docker tag invulnerable-backend:latest ghcr.io/yourusername/invulnerable-backend:v1.0.0
-docker push ghcr.io/yourusername/invulnerable-backend:v1.0.0
-```
 
 ### Project Structure
 

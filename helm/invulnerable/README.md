@@ -7,6 +7,7 @@ This Helm chart deploys the Invulnerable container vulnerability scanner and man
 - Kubernetes 1.19+
 - Helm 3.0+
 - External PostgreSQL database (not included in this chart)
+- External S3 compatible bucket (not included in this chart)
 
 ## Installation
 
@@ -55,8 +56,6 @@ oauth2Proxy:
   enabled: false  # DON'T DO THIS!
 ```
 
-See [Authentication Guide](../../AUTHENTICATION.md) for detailed OAuth2 setup.
-
 ### Configuration
 
 The following table lists the configurable parameters and their default values.
@@ -67,7 +66,7 @@ The following table lists the configurable parameters and their default values.
 |-----------|-------------|---------|
 | `nameOverride` | Override chart name | `""` |
 | `fullnameOverride` | Override full name | `""` |
-| `image.registry` | Global image registry (can be overridden per component) | `""` |
+| `image.registry` | Global image registry (can be overridden per component) | `ghcr.io/pacokleitz` |
 
 #### Frontend
 
@@ -81,6 +80,11 @@ The following table lists the configurable parameters and their default values.
 | `frontend.image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `frontend.service.type` | Service type | `ClusterIP` |
 | `frontend.service.port` | Service port | `80` |
+| `frontend.service.targetPort` | Service target port | `8080` |
+| `frontend.resources.requests.memory` | Memory request | `64Mi` |
+| `frontend.resources.requests.cpu` | CPU request | `50m` |
+| `frontend.resources.limits.memory` | Memory limit | `256Mi` |
+| `frontend.resources.limits.cpu` | CPU limit | `200m` |
 
 #### Backend
 
@@ -91,14 +95,37 @@ The following table lists the configurable parameters and their default values.
 | `backend.image.registry` | Backend image registry (overrides global) | `""` |
 | `backend.image.repository` | Backend image repository | `invulnerable-backend` |
 | `backend.image.tag` | Backend image tag | `latest` |
+| `backend.image.pullPolicy` | Image pull policy | `IfNotPresent` |
+| `backend.service.type` | Service type | `ClusterIP` |
+| `backend.service.port` | Service port | `8080` |
+| `backend.service.targetPort` | Service target port | `8080` |
+| `backend.frontendURL` | Frontend URL for webhook notifications | `""` |
 | `backend.database.host` | PostgreSQL host | `postgres.default.svc.cluster.local` |
 | `backend.database.port` | PostgreSQL port | `5432` |
 | `backend.database.user` | Database user | `invulnerable` |
 | `backend.database.password` | Database password | `changeme` |
 | `backend.database.name` | Database name | `invulnerable` |
+| `backend.database.sslmode` | PostgreSQL SSL mode | `disable` |
+| `backend.database.existingSecret` | Use existing secret for database password | `""` |
+| `backend.database.passwordKey` | Key in existing secret for password | `password` |
+| `backend.s3.endpoint` | S3 endpoint URL | `""` |
+| `backend.s3.bucket` | S3 bucket name | `invulnerable` |
+| `backend.s3.region` | S3 region | `us-east-1` |
+| `backend.s3.accessKey` | S3 access key | `""` |
+| `backend.s3.secretKey` | S3 secret key | `""` |
+| `backend.s3.useSSL` | Use SSL for S3 connection | `true` |
+| `backend.s3.existingSecret` | Use existing secret for S3 credentials | `""` |
+| `backend.s3.accessKeyKey` | Key in existing secret for access key | `access-key` |
+| `backend.s3.secretKeyKey` | Key in existing secret for secret key | `secret-key` |
 | `backend.autoscaling.enabled` | Enable HPA | `true` |
 | `backend.autoscaling.minReplicas` | Minimum replicas | `2` |
 | `backend.autoscaling.maxReplicas` | Maximum replicas | `10` |
+| `backend.autoscaling.targetCPUUtilizationPercentage` | Target CPU % | `70` |
+| `backend.autoscaling.targetMemoryUtilizationPercentage` | Target memory % | `80` |
+| `backend.resources.requests.memory` | Memory request | `128Mi` |
+| `backend.resources.requests.cpu` | CPU request | `100m` |
+| `backend.resources.limits.memory` | Memory limit | `512Mi` |
+| `backend.resources.limits.cpu` | CPU limit | `500m` |
 
 #### Controller
 
@@ -109,7 +136,13 @@ The following table lists the configurable parameters and their default values.
 | `controller.image.registry` | Controller image registry (overrides global) | `""` |
 | `controller.image.repository` | Controller image repository | `invulnerable-controller` |
 | `controller.image.tag` | Controller image tag | `latest` |
+| `controller.image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `controller.leaderElection.enabled` | Enable leader election for HA | `true` |
+| `controller.rbac.clusterWide` | Controller watches all namespaces (false = own namespace only) | `false` |
+| `controller.resources.requests.memory` | Memory request | `128Mi` |
+| `controller.resources.requests.cpu` | CPU request | `100m` |
+| `controller.resources.limits.memory` | Memory limit | `512Mi` |
+| `controller.resources.limits.cpu` | CPU limit | `500m` |
 
 #### Scanner
 
@@ -118,20 +151,39 @@ The following table lists the configurable parameters and their default values.
 | `scanner.image.registry` | Scanner image registry (overrides global) | `""` |
 | `scanner.image.repository` | Scanner image repository (used by ImageScan CRDs) | `invulnerable-scanner` |
 | `scanner.image.tag` | Scanner image tag | `latest` |
+| `scanner.image.pullPolicy` | Image pull policy | `IfNotPresent` |
 
 #### OAuth2 Proxy (Authentication)
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `oauth2Proxy.enabled` | Enable OAuth2 authentication | `false` |
+| `oauth2Proxy.replicaCount` | Number of OAuth2 proxy replicas | `2` |
+| `oauth2Proxy.image.tag` | OAuth2 proxy image tag | `v7.13.0` |
+| `oauth2Proxy.image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `oauth2Proxy.clientID` | OAuth client ID | `""` |
 | `oauth2Proxy.clientSecret` | OAuth client secret | `""` |
 | `oauth2Proxy.cookieSecret` | Cookie encryption secret (32 chars) | `""` |
 | `oauth2Proxy.existingSecret` | Use existing secret for credentials | `""` |
 | `oauth2Proxy.config.provider` | OAuth provider (google, github, oidc, etc.) | `"oidc"` |
 | `oauth2Proxy.config.oidcIssuerUrl` | OIDC issuer URL | `""` |
+| `oauth2Proxy.config.loginUrl` | OAuth login URL (for non-OIDC providers) | `""` |
+| `oauth2Proxy.config.redeemUrl` | OAuth redeem URL (for non-OIDC providers) | `""` |
+| `oauth2Proxy.config.validateUrl` | OAuth validate URL (for non-OIDC providers) | `""` |
 | `oauth2Proxy.config.redirectUrl` | OAuth redirect URL | `"https://invulnerable.local/oauth2/callback"` |
 | `oauth2Proxy.config.emailDomains` | Restrict to email domains | `[]` |
+| `oauth2Proxy.config.cookieName` | OAuth2 cookie name | `_oauth2_proxy` |
+| `oauth2Proxy.config.cookieSecure` | Require HTTPS for cookies | `true` |
+| `oauth2Proxy.config.cookieDomains` | Cookie domain restrictions | `[]` |
+| `oauth2Proxy.config.skipProviderButton` | Skip provider selection page | `false` |
+| `oauth2Proxy.config.whitelist` | Whitelist domains for redirects | `[]` |
+| `oauth2Proxy.config.configFile` | Inline OAuth2 config (overrides other settings) | `""` |
+| `oauth2Proxy.config.extraEnv` | Extra environment variables | `[]` |
+| `oauth2Proxy.config.extraArgs` | Extra command line arguments | `[]` |
+| `oauth2Proxy.resources.requests.memory` | Memory request | `64Mi` |
+| `oauth2Proxy.resources.requests.cpu` | CPU request | `50m` |
+| `oauth2Proxy.resources.limits.memory` | Memory limit | `256Mi` |
+| `oauth2Proxy.resources.limits.cpu` | CPU limit | `200m` |
 
 #### Ingress
 
@@ -140,6 +192,25 @@ The following table lists the configurable parameters and their default values.
 | `ingress.enabled` | Enable ingress (⚠️ Enable oauth2Proxy when using ingress!) | `false` |
 | `ingress.className` | Ingress class name | `nginx` |
 | `ingress.hosts[0].host` | Hostname | `invulnerable.local` |
+| `ingress.tls` | TLS configuration | `[]` |
+
+#### Security & Service Account
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `serviceAccount.create` | Create service account | `true` |
+| `serviceAccount.annotations` | Service account annotations | `{}` |
+| `serviceAccount.name` | Service account name (auto-generated if empty) | `""` |
+| `imagePullSecrets` | Image pull secrets for private registries | `[]` |
+| `podSecurityContext.runAsNonRoot` | Run pods as non-root | `true` |
+| `podSecurityContext.runAsUser` | User ID to run pods | `1000` |
+| `podSecurityContext.runAsGroup` | Group ID to run pods | `1000` |
+| `podSecurityContext.fsGroup` | File system group ID | `1000` |
+| `securityContext.allowPrivilegeEscalation` | Allow privilege escalation | `false` |
+| `securityContext.capabilities.drop` | Dropped capabilities | `[ALL]` |
+| `securityContext.readOnlyRootFilesystem` | Read-only root filesystem | `false` |
+| `securityContext.runAsNonRoot` | Run as non-root | `true` |
+| `securityContext.runAsUser` | User ID | `1000` |
 
 ### Example Custom Values
 
@@ -265,7 +336,7 @@ oauth2Proxy:
       - "example.com"
 ```
 
-See [../../AUTHENTICATION.md](../../AUTHENTICATION.md) for detailed setup instructions and all supported providers.
+For more examples, see the [examples/](examples/) directory which includes configurations for Google, GitHub, and Keycloak.
 
 ### Registry Configuration Examples
 
@@ -330,7 +401,7 @@ scanner:
 helm upgrade invulnerable ./helm/invulnerable -f custom-values.yaml
 
 # Upgrade to a new chart version
-helm upgrade invulnerable ./helm/invulnerable --version 0.2.0
+helm upgrade invulnerable ./helm/invulnerable --version 0.1.0
 ```
 
 ## Uninstalling
