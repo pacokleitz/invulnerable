@@ -13,28 +13,43 @@ This Helm chart deploys the Invulnerable container vulnerability scanner and man
 
 ### Quick Start
 
+**⚠️ Important:** Invulnerable requires an Ingress controller to route traffic between frontend and backend services.
+
 ```bash
-# Install with default values (no public access, use port-forward)
+# Install with default values (ingress enabled at invulnerable.local)
 helm install invulnerable ./helm/invulnerable -n invulnerable --create-namespace
 
-# Access via port-forward (safe for development)
-kubectl port-forward -n invulnerable svc/invulnerable-frontend 8080:80
+# Add to /etc/hosts (or C:\Windows\System32\drivers\etc\hosts on Windows)
+echo "127.0.0.1 invulnerable.local" | sudo tee -a /etc/hosts
 
-# For production with public access, see "Production Installation" below
+# Access at http://invulnerable.local
 ```
+
+**For production with public access and authentication, see "Security Considerations" section below.**
 
 ## Security Considerations
 
-**⚠️ IMPORTANT: Default Configuration is Secure by Design**
+**⚠️ IMPORTANT: Security & Access Configuration**
 
-By default, this chart:
-- ✅ **Ingress is DISABLED** - Application is not publicly accessible
-- ✅ **OAuth2 Proxy is DISABLED** - No authentication layer configured
-- ✅ **Access via port-forward only** - Safe for development and testing
+The application requires an Ingress controller to function properly (routes frontend and backend traffic).
+
+**Default Configuration (Development/Testing):**
+- ✅ Ingress is **ENABLED** by default at `invulnerable.local`
+- ⚠️ OAuth2 Proxy is **DISABLED** by default (no authentication)
+- ⚠️ **Not suitable for production or public networks!**
+
+**⚠️ Note on CVE Status Tracking Without Authentication:**
+
+The vulnerability status tracking feature (marking CVEs as fixed, ignored, etc.) works without OAuth2 authentication, but **all changes will be recorded as "unknown" user** in the audit history. For production deployments requiring:
+- **Audit trails** - Know who made each decision
+- **User accountability** - Track status changes to specific users
+- **Compliance requirements** - Non-repudiation of security decisions
+
+You **MUST** enable OAuth2 Proxy to properly capture user identity in the change history.
 
 **For Production with Public Access:**
 
-You **MUST** enable BOTH ingress AND oauth2Proxy together:
+You **MUST** enable oauth2Proxy for authentication:
 
 ```yaml
 # ✅ SECURE: Both ingress and authentication enabled
@@ -55,6 +70,22 @@ ingress:
 oauth2Proxy:
   enabled: false  # DON'T DO THIS!
 ```
+
+## Architecture & Routing
+
+The frontend application makes API calls to `/api/v1/*` as relative paths, meaning it expects the backend to be accessible at the same hostname/IP. The application **requires** proper routing to function:
+
+```
+Browser Request Flow:
+  http://your-domain/          → Frontend Service (serves React SPA)
+  http://your-domain/api/v1/*  → Backend Service (API endpoints)
+```
+
+**Routing is handled by:**
+- **Kubernetes Ingress** - Routes `/api` prefix to backend service, everything else to frontend
+- **OAuth2 Proxy** (when enabled) - Sits in front and handles authentication before routing
+
+**Important:** The frontend Docker image uses Nginx but **does NOT** include proxy configuration to route `/api` requests to the backend. This routing must be provided by the Kubernetes Ingress resource or an external reverse proxy.
 
 ### Configuration
 
@@ -189,7 +220,7 @@ The following table lists the configurable parameters and their default values.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `ingress.enabled` | Enable ingress (⚠️ Enable oauth2Proxy when using ingress!) | `false` |
+| `ingress.enabled` | Enable ingress (⚠️ REQUIRED for app to function) | `true` |
 | `ingress.className` | Ingress class name | `nginx` |
 | `ingress.hosts[0].host` | Hostname | `invulnerable.local` |
 | `ingress.tls` | TLS configuration | `[]` |
@@ -232,8 +263,9 @@ backend:
     existingSecret: postgres-credentials
     passwordKey: password
 
-# Configure ingress for your domain
+# Enable and configure ingress (REQUIRED for the application to function)
 ingress:
+  enabled: true
   hosts:
     - host: invulnerable.example.com
       paths:
@@ -300,7 +332,14 @@ helm install invulnerable ./helm/invulnerable -f custom-values.yaml
 
 ### Authentication with OAuth2
 
-Invulnerable supports OAuth2 authentication for protecting access to the application. See [examples/](examples/) for provider-specific configurations.
+Invulnerable supports OAuth2 authentication for protecting access to the application. OAuth2 provides:
+- **Access control** - Restrict who can access the platform
+- **User identity tracking** - Capture user email/username in vulnerability status change audit logs
+- **Compliance** - Enable proper audit trails for security decisions
+
+Without OAuth2 enabled, all CVE status changes are recorded as "unknown" user in the history.
+
+See [examples/](examples/) for provider-specific configurations.
 
 **Enable with Google:**
 
@@ -308,8 +347,10 @@ Invulnerable supports OAuth2 authentication for protecting access to the applica
 # Generate cookie secret
 COOKIE_SECRET=$(openssl rand -base64 32 | head -c 32)
 
-# Install with Google OAuth
+# Install with Google OAuth and ingress
 helm install invulnerable ./helm/invulnerable \
+  --set ingress.enabled=true \
+  --set ingress.hosts[0].host="invulnerable.example.com" \
   --set oauth2Proxy.enabled=true \
   --set oauth2Proxy.clientID="your-id.apps.googleusercontent.com" \
   --set oauth2Proxy.clientSecret="your-secret" \
@@ -323,6 +364,11 @@ helm install invulnerable ./helm/invulnerable \
 
 ```yaml
 # values-with-auth.yaml
+ingress:
+  enabled: true
+  hosts:
+    - host: invulnerable.example.com
+
 oauth2Proxy:
   enabled: true
   clientID: "your-client-id"

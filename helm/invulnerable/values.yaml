@@ -167,8 +167,9 @@ scanner:
     tag: "latest"
 
 # OAuth2 Proxy configuration for authentication
-# SECURITY: When enabling ingress for public access, you MUST also enable oauth2Proxy
-# to protect the application with authentication. Never expose ingress without auth!
+# SECURITY: For production deployments, you MUST enable oauth2Proxy and configure credentials
+# Default: disabled (development/testing only - enable for production!)
+# Never expose the application publicly without authentication!
 oauth2Proxy:
   enabled: false
   replicaCount: 2
@@ -258,11 +259,11 @@ oauth2Proxy:
   affinity: {}
 
 # Ingress configuration
-# SECURITY: Ingress is disabled by default to prevent unauthorized public access
-# For production: Enable BOTH ingress AND oauth2Proxy for secure public access
-# For development: Use kubectl port-forward instead, or enable ingress on local cluster
+# IMPORTANT: Ingress is REQUIRED for the application to function (routes frontend and backend traffic)
+# SECURITY: For production, you MUST enable oauth2Proxy for authentication
+# Default: enabled with local hostname for development/testing
 ingress:
-  enabled: false
+  enabled: true
   className: "nginx"
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
