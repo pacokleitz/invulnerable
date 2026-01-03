@@ -172,7 +172,6 @@ func (r *VulnerabilityRepository) CountWithImageInfo(ctx context.Context, severi
 	if cveID != nil {
 		query += fmt.Sprintf(" AND v.cve_id = $%d", argCount)
 		args = append(args, *cveID)
-		argCount++
 	}
 
 	var count int

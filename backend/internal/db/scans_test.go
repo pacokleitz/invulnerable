@@ -155,7 +155,7 @@ func TestScanRepository_List(t *testing.T) {
 	}
 
 	// List scans
-	scans, err := repo.List(context.Background(), 10, 0, nil, nil)
+	scans, err := repo.List(context.Background(), 10, 0, nil, nil, nil)
 	require.NoError(t, err)
 	assert.Len(t, scans, 2)
 }
@@ -199,7 +199,7 @@ func TestScanRepository_List_FilterByImage(t *testing.T) {
 	}
 
 	// Filter by image1
-	scans, err := repo.List(context.Background(), 10, 0, &image1.ID, nil)
+	scans, err := repo.List(context.Background(), 10, 0, &image1.ID, nil, nil)
 	require.NoError(t, err)
 	assert.Len(t, scans, 1)
 	assert.Equal(t, image1.ID, scans[0].ImageID)

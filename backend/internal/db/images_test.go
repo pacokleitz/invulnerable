@@ -234,7 +234,7 @@ func TestImageRepository_GetScanHistory(t *testing.T) {
 	}
 
 	// Get scan history
-	scans, err := repo.GetScanHistory(context.Background(), image.ID, 10, nil)
+	scans, err := repo.GetScanHistory(context.Background(), image.ID, 10, 0, nil)
 	require.NoError(t, err)
 	assert.Len(t, scans, 3)
 
@@ -250,7 +250,7 @@ func TestImageRepository_GetScanHistory_EmptyResult(t *testing.T) {
 	repo := NewImageRepository(db)
 
 	// Image doesn't exist
-	scans, err := repo.GetScanHistory(context.Background(), 999, 10, nil)
+	scans, err := repo.GetScanHistory(context.Background(), 999, 10, 0, nil)
 	require.NoError(t, err)
 	assert.Len(t, scans, 0)
 }
