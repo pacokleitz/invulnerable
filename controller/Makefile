@@ -24,6 +24,12 @@ controller-gen: ## Download controller-gen locally if necessary.
 manifests: controller-gen ## Generate CRD manifests
 	$(CONTROLLER_GEN) crd paths="./api/..." output:crd:artifacts:config=config/crd/bases
 
+.PHONY: sync-crds
+sync-crds: manifests ## Sync generated CRDs to Helm chart
+	@echo "Syncing CRDs to Helm chart..."
+	cp config/crd/bases/invulnerable.io_imagescans.yaml ../helm/invulnerable/templates/crds.yaml
+	@echo "CRDs synced successfully!"
+
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./api/..."

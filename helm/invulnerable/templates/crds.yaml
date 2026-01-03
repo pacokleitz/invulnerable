@@ -30,9 +30,6 @@ spec:
     - jsonPath: .status.cronJobName
       name: CronJob
       type: string
-    - jsonPath: .status.lastScheduledTime
-      name: Last Scheduled
-      type: date
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -234,39 +231,115 @@ spec:
                   TimeZone for the CronJob schedule (e.g., "America/New_York", "UTC")
                   If not specified, defaults to the system timezone
                 type: string
-              webhook:
-                description: Webhook configuration for notifications
+              webhooks:
+                description: Webhooks configuration for multiple notification types
                 properties:
-                  enabled:
-                    default: true
-                    description: Enabled allows temporarily disabling webhook notifications
-                    type: boolean
-                  format:
-                    default: slack
-                    description: Format specifies the webhook payload format (slack,
-                      teams)
-                    enum:
-                    - slack
-                    - teams
-                    type: string
-                  minSeverity:
-                    default: High
-                    description: MinSeverity is the minimum severity level to trigger
-                      notifications
-                    enum:
-                    - Critical
-                    - High
-                    - Medium
-                    - Low
-                    - Negligible
-                    type: string
-                  url:
-                    description: URL is the webhook endpoint URL
-                    minLength: 1
-                    pattern: ^https?://.*$
-                    type: string
-                required:
-                - url
+                  scanCompletion:
+                    description: ScanCompletion configures notifications sent after
+                      each scan completes
+                    properties:
+                      enabled:
+                        default: true
+                        description: Enabled allows temporarily disabling scan completion
+                          notifications
+                        type: boolean
+                      format:
+                        default: slack
+                        description: Format specifies the webhook payload format (slack,
+                          teams)
+                        enum:
+                        - slack
+                        - teams
+                        type: string
+                      minSeverity:
+                        default: High
+                        description: MinSeverity is the minimum severity level to
+                          trigger notifications
+                        enum:
+                        - Critical
+                        - High
+                        - Medium
+                        - Low
+                        - Negligible
+                        type: string
+                      onlyFixed:
+                        default: true
+                        description: |-
+                          OnlyFixed specifies whether to only send notifications for vulnerabilities with available fixes.
+                          When true, unfixed vulnerabilities will not trigger scan completion webhooks.
+                          This is independent of the ImageScan's OnlyFixed setting - you can scan all CVEs but only notify for fixed ones.
+                          Default: true (only notify for vulnerabilities with fixes)
+                        type: boolean
+                      url:
+                        description: URL is the webhook endpoint URL for scan completion
+                          notifications
+                        minLength: 1
+                        pattern: ^https?://.*$
+                        type: string
+                    required:
+                    - url
+                    type: object
+                  statusChange:
+                    description: StatusChange configures notifications sent when vulnerability
+                      statuses are changed
+                    properties:
+                      enabled:
+                        default: true
+                        description: Enabled allows enabling/disabling status change
+                          notifications
+                        type: boolean
+                      format:
+                        default: slack
+                        description: Format specifies the webhook payload format (slack,
+                          teams)
+                        enum:
+                        - slack
+                        - teams
+                        type: string
+                      includeNoteChanges:
+                        default: false
+                        description: IncludeNoteChanges determines if note/comment
+                          additions trigger notifications
+                        type: boolean
+                      minSeverity:
+                        default: High
+                        description: |-
+                          MinSeverity is the minimum severity to notify about (Critical, High, Medium, Low, Negligible)
+                          Only vulnerabilities at or above this severity will trigger notifications
+                        enum:
+                        - Critical
+                        - High
+                        - Medium
+                        - Low
+                        - Negligible
+                        type: string
+                      onlyFixed:
+                        default: true
+                        description: |-
+                          OnlyFixed specifies whether to only send notifications for vulnerabilities with available fixes.
+                          When true, unfixed vulnerabilities will not trigger status change webhooks.
+                          This is independent of the ImageScan's OnlyFixed setting - you can scan all CVEs but only notify for fixed ones.
+                          Default: true (only notify for vulnerabilities with fixes)
+                        type: boolean
+                      statusTransitions:
+                        description: |-
+                          StatusTransitions filters which status changes trigger notifications
+                          Format: "old_status→new_status" (e.g., "active→fixed", "active→ignored")
+                          Empty list means notify on all transitions
+                          Example: ["active→fixed", "active→ignored", "in_progress→fixed"]
+                        items:
+                          type: string
+                        type: array
+                      url:
+                        description: |-
+                          URL is the webhook endpoint URL for status change notifications
+                          Can be different from scan completion webhook
+                        minLength: 1
+                        pattern: ^https?://.*$
+                        type: string
+                    required:
+                    - url
+                    type: object
                 type: object
               workspaceSize:
                 default: 10Gi
@@ -343,10 +416,6 @@ spec:
                 type: array
               cronJobName:
                 description: CronJobName is the name of the managed CronJob
-                type: string
-              lastScheduledTime:
-                description: LastScheduledTime is the last time a job was scheduled
-                format: date-time
                 type: string
               lastSuccessfulTime:
                 description: LastSuccessfulTime is the last time a scan completed
