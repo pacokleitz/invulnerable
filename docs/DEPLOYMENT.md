@@ -75,17 +75,6 @@ minikube tunnel
 
 Access at: http://invulnerable.local
 
-**Without Ingress (port-forward):**
-
-```bash
-# Frontend
-kubectl port-forward -n invulnerable svc/invulnerable-frontend 8080:80
-
-# Backend
-kubectl port-forward -n invulnerable svc/invulnerable-backend 8081:8080
-```
-
-Access at: http://localhost:8080
 
 ## Production Installation
 

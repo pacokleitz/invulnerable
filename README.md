@@ -114,10 +114,6 @@ helm install invulnerable ./helm/invulnerable \
   --namespace invulnerable \
   --create-namespace
 
-# Access the application
-kubectl port-forward -n invulnerable svc/invulnerable-frontend 8080:80
-
-# Visit http://localhost:8080
 ```
 
 ### Create Your First Image Scan

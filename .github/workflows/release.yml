@@ -171,15 +171,6 @@ jobs:
             --values my-values.yaml
           ```
 
-          ### Quick Start
-
-          ```bash
-          # Port forward to access the UI
-          kubectl port-forward -n invulnerable svc/invulnerable-frontend 8080:80
-
-          # Visit http://localhost:8080
-          ```
-
           ### Upgrading
 
           ```bash
