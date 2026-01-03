@@ -20,11 +20,11 @@ export const CVEDetails: FC = () => {
 		setError(null);
 		try {
 			// Use the list endpoint with cve_id filter to get image context
-			const data = await api.vulnerabilities.list({
+			const response = await api.vulnerabilities.list({
 				cve_id: cve,
-				limit: 200
+				limit: 100
 			});
-			setVulnerabilities(data);
+			setVulnerabilities(response.data);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : 'Failed to load vulnerability');
 		} finally {

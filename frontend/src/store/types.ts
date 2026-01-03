@@ -15,10 +15,11 @@ export interface MetricsState {
 
 export interface ScansState {
 	scans: ScanWithDetails[];
+	total: number;
 	currentScan: { scan: ScanWithDetails; vulnerabilities: Vulnerability[] } | null;
 	loading: boolean;
 	error: string | null;
-	loadScans: (params?: { limit?: number; offset?: number; image_id?: number; has_fix?: boolean }) => Promise<void>;
+	loadScans: (params?: { limit?: number; offset?: number; image_id?: number; image?: string; has_fix?: boolean }) => Promise<void>;
 	loadScan: (id: number, hasFix?: boolean) => Promise<void>;
 	clearCurrentScan: () => void;
 }
@@ -38,11 +39,13 @@ export interface VulnerabilitiesState {
 
 export interface ImagesState {
 	images: ImageWithStats[];
+	total: number;
 	currentImageHistory: ScanWithDetails[];
+	historyTotal: number;
 	loading: boolean;
 	error: string | null;
-	loadImages: (params?: { limit?: number; offset?: number }) => Promise<void>;
-	loadImageHistory: (id: number, limit?: number, hasFix?: boolean) => Promise<void>;
+	loadImages: (params?: { limit?: number; offset?: number; has_fix?: boolean }) => Promise<void>;
+	loadImageHistory: (id: number, limit?: number, offset?: number, hasFix?: boolean) => Promise<void>;
 	clearImageHistory: () => void;
 }
 

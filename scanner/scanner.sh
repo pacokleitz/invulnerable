@@ -85,10 +85,13 @@ jq -n \
     --arg webhook_url "${WEBHOOK_URL:-}" \
     --arg webhook_format "${WEBHOOK_FORMAT:-}" \
     --arg webhook_min_severity "${WEBHOOK_MIN_SEVERITY:-}" \
+    --arg webhook_only_fixed "${WEBHOOK_ONLY_FIXED:-true}" \
     --arg sla_critical "${SLA_CRITICAL:-7}" \
     --arg sla_high "${SLA_HIGH:-30}" \
     --arg sla_medium "${SLA_MEDIUM:-90}" \
     --arg sla_low "${SLA_LOW:-180}" \
+    --arg imagescan_namespace "${IMAGESCAN_NAMESPACE:-}" \
+    --arg imagescan_name "${IMAGESCAN_NAME:-}" \
     '{
         image: $image,
         sbom_format: $sbom_format,
@@ -98,7 +101,8 @@ jq -n \
             if $webhook_url != "" then {
                 url: $webhook_url,
                 format: $webhook_format,
-                min_severity: $webhook_min_severity
+                min_severity: $webhook_min_severity,
+                only_fixed: ($webhook_only_fixed == "true")
             } else null end
         ),
         sla_config: {
@@ -106,7 +110,13 @@ jq -n \
             high: ($sla_high | tonumber),
             medium: ($sla_medium | tonumber),
             low: ($sla_low | tonumber)
-        }
+        },
+        imagescan_context: (
+            if $imagescan_namespace != "" and $imagescan_name != "" then {
+                namespace: $imagescan_namespace,
+                name: $imagescan_name
+            } else null end
+        )
     }' > "$META_FILE"
 
 # Merge metadata with SBOM and Grype results

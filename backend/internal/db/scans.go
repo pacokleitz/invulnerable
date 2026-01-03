@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/invulnerable/backend/internal/models"
 )
@@ -78,7 +79,32 @@ func (r *ScanRepository) GetWithDetails(ctx context.Context, id int, hasFix *boo
 	return &scan, nil
 }
 
-func (r *ScanRepository) List(ctx context.Context, limit, offset int, imageID *int, hasFix *bool) ([]models.ScanWithDetails, error) {
+func (r *ScanRepository) Count(ctx context.Context, imageID *int, imageName *string) (int, error) {
+	query := `SELECT COUNT(*) FROM scans s`
+	args := []interface{}{}
+
+	if imageID != nil || imageName != nil {
+		query += ` JOIN images i ON i.id = s.image_id WHERE 1=1`
+
+		if imageID != nil {
+			query += ` AND s.image_id = $` + fmt.Sprintf("%d", len(args)+1)
+			args = append(args, *imageID)
+		}
+
+		if imageName != nil {
+			query += ` AND (i.registry || '/' || i.repository || ':' || i.tag) ILIKE $` + fmt.Sprintf("%d", len(args)+1)
+			args = append(args, "%"+*imageName+"%")
+		}
+	}
+
+	var count int
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (r *ScanRepository) List(ctx context.Context, limit, offset int, imageID *int, imageName *string, hasFix *bool) ([]models.ScanWithDetails, error) {
 	// Build fix filter
 	fixFilter := "1=1"
 	if hasFix != nil {
@@ -104,16 +130,26 @@ func (r *ScanRepository) List(ctx context.Context, limit, offset int, imageID *i
 		LEFT JOIN scan_vulnerabilities sv ON sv.scan_id = s.id
 		LEFT JOIN vulnerabilities v ON v.id = sv.vulnerability_id
 	`
+
 	args := []interface{}{}
+	conditions := []string{}
+
 	if imageID != nil {
-		query += ` WHERE s.image_id = $1`
+		conditions = append(conditions, fmt.Sprintf("s.image_id = $%d", len(args)+1))
 		args = append(args, *imageID)
-		query += ` GROUP BY s.id, i.registry, i.repository, i.tag, i.digest ORDER BY s.scan_date DESC LIMIT $2 OFFSET $3`
-		args = append(args, limit, offset)
-	} else {
-		query += ` GROUP BY s.id, i.registry, i.repository, i.tag, i.digest ORDER BY s.scan_date DESC LIMIT $1 OFFSET $2`
-		args = append(args, limit, offset)
 	}
+
+	if imageName != nil {
+		conditions = append(conditions, fmt.Sprintf("(i.registry || '/' || i.repository || ':' || i.tag) ILIKE $%d", len(args)+1))
+		args = append(args, "%"+*imageName+"%")
+	}
+
+	if len(conditions) > 0 {
+		query += ` WHERE ` + strings.Join(conditions, " AND ")
+	}
+
+	query += ` GROUP BY s.id, i.registry, i.repository, i.tag, i.digest ORDER BY s.scan_date DESC LIMIT $` + fmt.Sprintf("%d", len(args)+1) + ` OFFSET $` + fmt.Sprintf("%d", len(args)+2)
+	args = append(args, limit, offset)
 
 	scans := []models.ScanWithDetails{}
 	if err := r.db.SelectContext(ctx, &scans, query, args...); err != nil {

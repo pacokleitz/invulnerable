@@ -4,15 +4,17 @@ import type { AppStore, ImagesState } from '../types';
 
 export const createImagesSlice: StateCreator<AppStore, [], [], ImagesState> = (set) => ({
 	images: [],
+	total: 0,
 	currentImageHistory: [],
+	historyTotal: 0,
 	loading: false,
 	error: null,
 
 	loadImages: async (params) => {
 		set({ loading: true, error: null });
 		try {
-			const images = await api.images.list(params);
-			set({ images, loading: false });
+			const response = await api.images.list(params);
+			set({ images: response.data, total: response.total, loading: false });
 		} catch (error) {
 			set({
 				error: error instanceof Error ? error.message : 'Failed to load images',
@@ -21,11 +23,11 @@ export const createImagesSlice: StateCreator<AppStore, [], [], ImagesState> = (s
 		}
 	},
 
-	loadImageHistory: async (id: number, limit?: number, hasFix?: boolean) => {
+	loadImageHistory: async (id: number, limit?: number, offset?: number, hasFix?: boolean) => {
 		set({ loading: true, error: null });
 		try {
-			const currentImageHistory = await api.images.getHistory(id, limit, hasFix);
-			set({ currentImageHistory, loading: false });
+			const response = await api.images.getHistory(id, limit, offset, hasFix);
+			set({ currentImageHistory: response.data, historyTotal: response.total, loading: false });
 		} catch (error) {
 			set({
 				error: error instanceof Error ? error.message : 'Failed to load image history',
@@ -34,5 +36,5 @@ export const createImagesSlice: StateCreator<AppStore, [], [], ImagesState> = (s
 		}
 	},
 
-	clearImageHistory: () => set({ currentImageHistory: [] })
+	clearImageHistory: () => set({ currentImageHistory: [], historyTotal: 0 })
 });

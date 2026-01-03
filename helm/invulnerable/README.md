@@ -296,6 +296,25 @@ metadata:
 spec:
   image: "myregistry.io/app:latest"
   schedule: "0 2 * * *"  # Daily at 2 AM
+
+  # Webhook notifications (optional)
+  webhooks:
+    scanCompletion:
+      enabled: true
+      url: "https://hooks.slack.com/services/YOUR/SCAN/WEBHOOK"
+      format: "slack"
+      minSeverity: "High"
+      onlyFixed: true  # Only notify for CVEs with fixes (default: true)
+    statusChange:
+      enabled: true
+      url: "https://hooks.slack.com/services/YOUR/STATUS/WEBHOOK"
+      format: "slack"
+      minSeverity: "High"
+      onlyFixed: true  # Only notify for CVEs with fixes (default: true)
+      statusTransitions:
+        - "active→fixed"
+        - "active→ignored"
+
   resources:
     requests:
       memory: "512Mi"

@@ -75,6 +75,7 @@ func main() {
 	scanRepo := db.NewScanRepository(database)
 	vulnRepo := db.NewVulnerabilityRepository(database)
 	sbomRepo := db.NewSBOMRepository(database, s3Storage)
+	webhookConfigRepo := db.NewWebhookConfigRepository(database)
 
 	// Initialize services
 	analyzerSvc := analyzer.New(scanRepo, vulnRepo)
@@ -85,10 +86,11 @@ func main() {
 	// Initialize handlers
 	healthHandler := api.NewHealthHandler(database)
 	scanHandler := api.NewScanHandler(logger, imageRepo, scanRepo, vulnRepo, sbomRepo, analyzerSvc, notifierSvc)
-	vulnHandler := api.NewVulnerabilityHandler(logger, vulnRepo)
+	vulnHandler := api.NewVulnerabilityHandler(logger, vulnRepo, notifierSvc, webhookConfigRepo)
 	imageHandler := api.NewImageHandler(logger, imageRepo)
 	metricsHandler := api.NewMetricsHandler(logger, metricsSvc)
 	userHandler := api.NewUserHandler(logger)
+	webhookConfigHandler := api.NewWebhookConfigHandler(webhookConfigRepo, logger)
 
 	// Initialize Echo
 	e := echo.New()
@@ -149,6 +151,11 @@ func main() {
 
 	// User
 	api.GET("/user/me", userHandler.GetCurrentUser)
+
+	// Webhook Configs
+	api.PUT("/webhook-configs/:namespace/:name", webhookConfigHandler.UpsertWebhookConfig)
+	api.GET("/webhook-configs/:namespace/:name", webhookConfigHandler.GetWebhookConfig)
+	api.DELETE("/webhook-configs/:namespace/:name", webhookConfigHandler.DeleteWebhookConfig)
 
 	// Start server
 	port := cfg.Server.Port

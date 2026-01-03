@@ -1,6 +1,7 @@
 import type {
 	DashboardMetrics,
 	ImageWithStats,
+	PaginatedResponse,
 	ScanDiff,
 	ScanWithDetails,
 	User,
@@ -35,6 +36,7 @@ export const api = {
 			limit?: number;
 			offset?: number;
 			image_id?: number;
+			image?: string;
 			from_date?: string;
 			to_date?: string;
 			has_fix?: boolean;
@@ -43,12 +45,13 @@ export const api = {
 			if (params?.limit) searchParams.set('limit', params.limit.toString());
 			if (params?.offset) searchParams.set('offset', params.offset.toString());
 			if (params?.image_id) searchParams.set('image_id', params.image_id.toString());
+			if (params?.image) searchParams.set('image', params.image);
 			if (params?.from_date) searchParams.set('from_date', params.from_date);
 			if (params?.to_date) searchParams.set('to_date', params.to_date);
 			if (params?.has_fix !== undefined) searchParams.set('has_fix', params.has_fix.toString());
 
 			const query = searchParams.toString();
-			return fetchAPI<ScanWithDetails[]>(`/scans${query ? `?${query}` : ''}`);
+			return fetchAPI<PaginatedResponse<ScanWithDetails>>(`/scans${query ? `?${query}` : ''}`);
 		},
 
 		get: (id: number, has_fix?: boolean) => {
@@ -90,7 +93,7 @@ export const api = {
 			if (params?.has_fix !== undefined) searchParams.set('has_fix', params.has_fix.toString());
 
 			const query = searchParams.toString();
-			return fetchAPI<Vulnerability[]>(`/vulnerabilities${query ? `?${query}` : ''}`);
+			return fetchAPI<PaginatedResponse<Vulnerability>>(`/vulnerabilities${query ? `?${query}` : ''}`);
 		},
 
 		getByCVE: (cve: string) => {
@@ -138,16 +141,17 @@ export const api = {
 			if (params?.has_fix !== undefined) searchParams.set('has_fix', params.has_fix.toString());
 
 			const query = searchParams.toString();
-			return fetchAPI<ImageWithStats[]>(`/images${query ? `?${query}` : ''}`);
+			return fetchAPI<PaginatedResponse<ImageWithStats>>(`/images${query ? `?${query}` : ''}`);
 		},
 
-		getHistory: (id: number, limit?: number, has_fix?: boolean) => {
+		getHistory: (id: number, limit?: number, offset?: number, has_fix?: boolean) => {
 			const searchParams = new URLSearchParams();
 			if (limit) searchParams.set('limit', limit.toString());
+			if (offset) searchParams.set('offset', offset.toString());
 			if (has_fix !== undefined) searchParams.set('has_fix', has_fix.toString());
 
 			const query = searchParams.toString();
-			return fetchAPI<ScanWithDetails[]>(`/images/${id}/history${query ? `?${query}` : ''}`);
+			return fetchAPI<PaginatedResponse<ScanWithDetails>>(`/images/${id}/history${query ? `?${query}` : ''}`);
 		}
 	},
 

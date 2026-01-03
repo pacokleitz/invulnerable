@@ -108,7 +108,7 @@ kubectl get imagescan nginx-scan -n invulnerable -o yaml
 | `workspaceSize` | string | No | "10Gi" | Temporary workspace size for image extraction |
 | `apiEndpoint` | string | No | Auto-detected | Backend API endpoint |
 | `scannerImage` | object | No | - | Scanner container image configuration |
-| `webhook` | object | No | - | Webhook notification configuration |
+| `webhooks` | object | No | - | Webhook notification configuration (scan completion & status changes) |
 | `imagePullSecrets` | []LocalObjectReference | No | - | Secrets for pulling private images |
 | `onlyFixed` | boolean | No | false | Only report vulnerabilities with available fixes |
 | `sla` | object | No | See below | SLA remediation deadlines per severity (days) |
@@ -171,11 +171,27 @@ spec:
     pullPolicy: "IfNotPresent"
 
   # Webhook notifications (optional)
-  webhook:
-    url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
-    format: "slack"  # or "teams"
-    minSeverity: "High"  # Critical, High, Medium, Low, Negligible
-    enabled: true
+  webhooks:
+    # Scan completion notifications
+    scanCompletion:
+      enabled: true
+      url: "https://hooks.slack.com/services/YOUR/SCAN/WEBHOOK"
+      format: "slack"  # or "teams"
+      minSeverity: "High"  # Critical, High, Medium, Low, Negligible
+      onlyFixed: true      # Only notify for CVEs with fixes (default: true)
+
+    # Status change notifications (when CVE status is updated via UI/API)
+    statusChange:
+      enabled: true
+      url: "https://hooks.slack.com/services/YOUR/STATUS/WEBHOOK"  # Can be different!
+      format: "slack"  # or "teams"
+      minSeverity: "High"
+      onlyFixed: true      # Only notify for CVEs with fixes (default: true)
+      statusTransitions:  # Optional: filter by specific transitions
+        - "active→fixed"
+        - "active→ignored"
+        - "in_progress→fixed"
+      includeNoteChanges: false  # Don't notify for note-only updates
 
   # Image pull secrets for private registries (optional)
   imagePullSecrets:

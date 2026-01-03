@@ -3,18 +3,20 @@ package models
 import "time"
 
 type Scan struct {
-	ID           int       `db:"id" json:"id"`
-	ImageID      int       `db:"image_id" json:"image_id"`
-	ScanDate     time.Time `db:"scan_date" json:"scan_date"`
-	SyftVersion  *string   `db:"syft_version" json:"syft_version,omitempty"`
-	GrypeVersion *string   `db:"grype_version" json:"grype_version,omitempty"`
-	Status       string    `db:"status" json:"status"`
-	SLACritical  int       `db:"sla_critical" json:"sla_critical"`
-	SLAHigh      int       `db:"sla_high" json:"sla_high"`
-	SLAMedium    int       `db:"sla_medium" json:"sla_medium"`
-	SLALow       int       `db:"sla_low" json:"sla_low"`
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+	ID                 int       `db:"id" json:"id"`
+	ImageID            int       `db:"image_id" json:"image_id"`
+	ScanDate           time.Time `db:"scan_date" json:"scan_date"`
+	SyftVersion        *string   `db:"syft_version" json:"syft_version,omitempty"`
+	GrypeVersion       *string   `db:"grype_version" json:"grype_version,omitempty"`
+	Status             string    `db:"status" json:"status"`
+	SLACritical        int       `db:"sla_critical" json:"sla_critical"`
+	SLAHigh            int       `db:"sla_high" json:"sla_high"`
+	SLAMedium          int       `db:"sla_medium" json:"sla_medium"`
+	SLALow             int       `db:"sla_low" json:"sla_low"`
+	ImageScanNamespace *string   `db:"imagescan_namespace" json:"imagescan_namespace,omitempty"`
+	ImageScanName      *string   `db:"imagescan_name" json:"imagescan_name,omitempty"`
+	CreatedAt          time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type ScanWithDetails struct {

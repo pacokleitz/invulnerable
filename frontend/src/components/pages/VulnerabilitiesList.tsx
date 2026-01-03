@@ -7,6 +7,7 @@ import { StatusBadge } from '../ui/StatusBadge';
 import { PackageCategoryBadge } from '../ui/PackageCategoryBadge';
 import { VulnerabilityHistory } from '../ui/VulnerabilityHistory';
 import { SortableTableHeader, useSortState } from '../ui/SortableTableHeader';
+import { Pagination } from '../ui/Pagination';
 import { formatDate, daysSince, calculateSLAStatus } from '../../lib/utils/formatters';
 import { categorizePackageType } from '../../lib/utils/packageTypes';
 
@@ -21,6 +22,9 @@ export const VulnerabilitiesList: FC = () => {
 	const [showBulkActionModal, setShowBulkActionModal] = useState(false);
 	const [bulkUpdating, setBulkUpdating] = useState(false);
 	const [historyVulnId, setHistoryVulnId] = useState<number | null>(null);
+	const [currentPage, setCurrentPage] = useState(1);
+	const [total, setTotal] = useState(0);
+	const itemsPerPage = 50;
 
 	// Sorting state
 	const { sortKey, sortDirection, handleSort } = useSortState('first_detected_at', 'desc');
@@ -38,7 +42,10 @@ export const VulnerabilitiesList: FC = () => {
 		setError(null);
 
 		try {
-			const params: { limit: number; severity?: string; status?: string; image_name?: string; cve_id?: string; has_fix?: boolean } = { limit: 200 };
+			const params: { limit: number; offset: number; severity?: string; status?: string; image_name?: string; cve_id?: string; has_fix?: boolean } = {
+				limit: itemsPerPage,
+				offset: (currentPage - 1) * itemsPerPage
+			};
 			if (severityFilter) params.severity = severityFilter;
 			if (statusFilter) params.status = statusFilter;
 			if (imageFilter) params.image_name = imageFilter;
@@ -46,7 +53,9 @@ export const VulnerabilitiesList: FC = () => {
 			// When showUnfixed is false, only show CVEs with fixes (has_fix = true)
 			if (!showUnfixed) params.has_fix = true;
 
-			let data = await api.vulnerabilities.list(params);
+			const response = await api.vulnerabilities.list(params);
+			let data = response.data;
+			setTotal(response.total);
 
 			// Apply client-side package category filter
 			if (packageCategoryFilter) {
@@ -142,7 +151,10 @@ export const VulnerabilitiesList: FC = () => {
 		} finally {
 			setLoading(false);
 		}
-	}, [severityFilter, statusFilter, imageFilter, cveFilter, packageCategoryFilter, showUnfixed, sortKey, sortDirection]);
+	}, [severityFilter, statusFilter, imageFilter, cveFilter, packageCategoryFilter, showUnfixed, sortKey, sortDirection, currentPage, itemsPerPage]);
+
+	// Server-side pagination - vulnerabilities already contains only the current page
+	const paginatedVulnerabilities = vulnerabilities;
 
 	useEffect(() => {
 		document.title = 'Vulnerabilities - Invulnerable';
@@ -166,7 +178,15 @@ export const VulnerabilitiesList: FC = () => {
 
 	const handleClearFilters = useCallback(() => {
 		setSearchParams({});
+		setCurrentPage(1);
 	}, [setSearchParams]);
+
+	// Reset to page 1 when filters change (but not on initial load)
+	useEffect(() => {
+		if (vulnerabilities.length > 0) {
+			setCurrentPage(1);
+		}
+	}, [severityFilter, statusFilter, imageFilter, cveFilter, packageCategoryFilter, showUnfixed]);
 
 	const toggleSelection = (id: number) => {
 		const newSelected = new Set(selectedIds);
@@ -206,14 +226,6 @@ export const VulnerabilitiesList: FC = () => {
 			setBulkUpdating(false);
 		}
 	};
-
-	if (loading) {
-		return (
-			<div className="text-center py-12">
-				<p className="text-gray-500">Loading vulnerabilities...</p>
-			</div>
-		);
-	}
 
 	return (
 		<div className="space-y-6">
@@ -310,7 +322,7 @@ export const VulnerabilitiesList: FC = () => {
 
 				<div className="mt-4 flex justify-between items-center">
 					<div className="flex items-center space-x-4">
-						<p className="text-sm text-gray-600">Showing {vulnerabilities.length} vulnerabilities</p>
+						<p className="text-sm text-gray-600">{total} total vulnerabilities</p>
 						<label className="flex items-center space-x-2 text-sm">
 							<input
 								type="checkbox"
@@ -356,24 +368,34 @@ export const VulnerabilitiesList: FC = () => {
 				</div>
 			)}
 
-			{vulnerabilities.length === 0 ? (
+			{loading ? (
+				<div className="card">
+					<div className="flex items-center justify-center py-32">
+						<div className="flex flex-col items-center gap-3">
+							<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+							<p className="text-gray-500 text-sm">Loading vulnerabilities...</p>
+						</div>
+					</div>
+				</div>
+			) : vulnerabilities.length === 0 ? (
 				<div className="card text-center py-12">
 					<p className="text-gray-500">No vulnerabilities found</p>
 				</div>
 			) : (
-				<div className="card overflow-hidden">
-					<div className="overflow-x-auto">
-						<table className="min-w-full divide-y divide-gray-200">
-							<thead className="bg-gray-50">
-								<tr>
-									<th className="px-6 py-3 text-left">
-										<input
-											type="checkbox"
-											checked={selectedIds.size === vulnerabilities.length && vulnerabilities.length > 0}
-											onChange={toggleSelectAll}
-											className="rounded border-gray-300"
-										/>
-									</th>
+				<>
+					<div className="card overflow-hidden">
+						<div className="overflow-x-auto">
+							<table className="min-w-full divide-y divide-gray-200">
+								<thead className="bg-gray-50">
+									<tr>
+										<th className="px-6 py-3 text-left">
+											<input
+												type="checkbox"
+												checked={selectedIds.size === vulnerabilities.length && vulnerabilities.length > 0}
+												onChange={toggleSelectAll}
+												className="rounded border-gray-300"
+											/>
+										</th>
 									<SortableTableHeader
 										label="Image"
 										sortKey="image_name"
@@ -447,7 +469,7 @@ export const VulnerabilitiesList: FC = () => {
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
-								{vulnerabilities.map((vuln) => {
+								{paginatedVulnerabilities.map((vuln) => {
 									// Calculate SLA status if we have the necessary data
 									const slaStatus = vuln.sla_critical && vuln.sla_high && vuln.sla_medium && vuln.sla_low
 										? calculateSLAStatus(
@@ -557,6 +579,14 @@ export const VulnerabilitiesList: FC = () => {
 						</table>
 					</div>
 				</div>
+
+				<Pagination
+					currentPage={currentPage}
+					totalItems={total}
+					itemsPerPage={itemsPerPage}
+					onPageChange={setCurrentPage}
+				/>
+			</>
 			)}
 
 			{/* Bulk action modal */}

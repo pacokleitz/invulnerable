@@ -43,13 +43,27 @@ func (h *ImageHandler) ListImages(c echo.Context) error {
 		hasFix = &hasFixBool
 	}
 
+	// Get total count
+	total, err := h.imageRepo.Count(c.Request().Context())
+	if err != nil {
+		h.logger.Error("failed to count images", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to count images")
+	}
+
 	images, err := h.imageRepo.List(c.Request().Context(), limit, offset, hasFix)
 	if err != nil {
 		h.logger.Error("failed to list images", zap.Error(err))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list images")
 	}
 
-	return c.JSON(http.StatusOK, images)
+	response := map[string]interface{}{
+		"data":   images,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	}
+
+	return c.JSON(http.StatusOK, response)
 }
 
 // GetImageHistory handles GET /api/v1/images/:id/history
@@ -64,6 +78,11 @@ func (h *ImageHandler) GetImageHistory(c echo.Context) error {
 		limit = 50
 	}
 
+	offset, _ := strconv.Atoi(c.QueryParam("offset"))
+	if offset < 0 {
+		offset = 0
+	}
+
 	// Parse has_fix parameter
 	var hasFix *bool
 	if hasFixStr := c.QueryParam("has_fix"); hasFixStr != "" {
@@ -74,11 +93,25 @@ func (h *ImageHandler) GetImageHistory(c echo.Context) error {
 		hasFix = &hasFixBool
 	}
 
-	scans, err := h.imageRepo.GetScanHistory(c.Request().Context(), id, limit, hasFix)
+	// Get total count
+	total, err := h.imageRepo.CountScanHistory(c.Request().Context(), id)
+	if err != nil {
+		h.logger.Error("failed to count scan history", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to count scan history")
+	}
+
+	scans, err := h.imageRepo.GetScanHistory(c.Request().Context(), id, limit, offset, hasFix)
 	if err != nil {
 		h.logger.Error("failed to get image history", zap.Error(err))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get image history")
 	}
 
-	return c.JSON(http.StatusOK, scans)
+	response := map[string]interface{}{
+		"data":   scans,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	}
+
+	return c.JSON(http.StatusOK, response)
 }

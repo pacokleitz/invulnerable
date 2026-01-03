@@ -1,8 +1,11 @@
 package controller
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -29,7 +32,8 @@ const (
 // ImageScanReconciler reconciles an ImageScan object
 type ImageScanReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme     *runtime.Scheme
+	HTTPClient *http.Client
 }
 
 // +kubebuilder:rbac:groups=invulnerable.io,resources=imagescans,verbs=get;list;watch
@@ -82,6 +86,12 @@ func (r *ImageScanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			logger.Error(statusErr, "Failed to update ImageScan status")
 		}
 		return ctrl.Result{}, err
+	}
+
+	// Sync webhook config to backend (if webhook is configured)
+	if err := r.syncWebhookConfig(ctx, imageScan); err != nil {
+		logger.Error(err, "Failed to sync webhook config to backend (non-fatal)")
+		// Don't fail reconciliation if webhook sync fails
 	}
 
 	// Update status
@@ -315,6 +325,12 @@ func (r *ImageScanReconciler) handleDeletion(ctx context.Context, imageScan *inv
 			return ctrl.Result{}, err
 		}
 
+		// Delete webhook config from backend
+		if err := r.deleteWebhookConfig(ctx, imageScan); err != nil {
+			logger.Error(err, "Failed to delete webhook config from backend (non-fatal)")
+			// Don't fail deletion if webhook config deletion fails
+		}
+
 		// Remove finalizer
 		controllerutil.RemoveFinalizer(imageScan, imageScanFinalizer)
 		if err := r.Update(ctx, imageScan); err != nil {
@@ -362,6 +378,14 @@ func buildEnvVars(imageScan *invulnerablev1alpha1.ImageScan, apiEndpoint, sbomFo
 			Name:  "GRYPE_DB_CACHE_DIR",
 			Value: "/tmp/syft/grype-db",
 		},
+		{
+			Name:  "IMAGESCAN_NAMESPACE",
+			Value: imageScan.Namespace,
+		},
+		{
+			Name:  "IMAGESCAN_NAME",
+			Value: imageScan.Name,
+		},
 	}
 
 	// Set DOCKER_CONFIG for Syft to find registry credentials
@@ -380,22 +404,30 @@ func buildEnvVars(imageScan *invulnerablev1alpha1.ImageScan, apiEndpoint, sbomFo
 		})
 	}
 
-	// Add webhook configuration if present and enabled
-	if imageScan.Spec.Webhook != nil && imageScan.Spec.Webhook.Enabled {
+	// Add scan completion webhook configuration if present and enabled
+	if imageScan.Spec.Webhooks != nil && imageScan.Spec.Webhooks.ScanCompletion != nil && imageScan.Spec.Webhooks.ScanCompletion.Enabled {
 		env = append(env,
 			corev1.EnvVar{
 				Name:  "WEBHOOK_URL",
-				Value: imageScan.Spec.Webhook.URL,
+				Value: imageScan.Spec.Webhooks.ScanCompletion.URL,
 			},
 			corev1.EnvVar{
 				Name:  "WEBHOOK_FORMAT",
-				Value: imageScan.Spec.Webhook.Format,
+				Value: imageScan.Spec.Webhooks.ScanCompletion.Format,
 			},
 			corev1.EnvVar{
 				Name:  "WEBHOOK_MIN_SEVERITY",
-				Value: imageScan.Spec.Webhook.MinSeverity,
+				Value: imageScan.Spec.Webhooks.ScanCompletion.MinSeverity,
 			},
 		)
+
+		// Add WEBHOOK_ONLY_FIXED if enabled
+		if imageScan.Spec.Webhooks.ScanCompletion.OnlyFixed {
+			env = append(env, corev1.EnvVar{
+				Name:  "WEBHOOK_ONLY_FIXED",
+				Value: "true",
+			})
+		}
 	}
 
 	// Add SLA configuration if present
@@ -421,6 +453,156 @@ func buildEnvVars(imageScan *invulnerablev1alpha1.ImageScan, apiEndpoint, sbomFo
 	}
 
 	return env
+}
+
+// syncWebhookConfig syncs webhook configuration to backend API
+func (r *ImageScanReconciler) syncWebhookConfig(ctx context.Context, imageScan *invulnerablev1alpha1.ImageScan) error {
+	logger := log.FromContext(ctx)
+
+	// Skip if no webhooks configured
+	if imageScan.Spec.Webhooks == nil {
+		logger.V(1).Info("No webhooks configured, skipping sync")
+		return nil
+	}
+
+	// Skip if neither webhook type is configured
+	if imageScan.Spec.Webhooks.ScanCompletion == nil && imageScan.Spec.Webhooks.StatusChange == nil {
+		logger.V(1).Info("No webhook types configured, skipping sync")
+		return nil
+	}
+
+	// Determine API endpoint
+	apiEndpoint := imageScan.Spec.APIEndpoint
+	if apiEndpoint == "" {
+		apiEndpoint = fmt.Sprintf("http://invulnerable-backend.%s.svc.cluster.local:8080", imageScan.Namespace)
+	}
+
+	// Build webhook config request
+	webhookReq := map[string]interface{}{}
+
+	// Add scan completion webhook config
+	if imageScan.Spec.Webhooks.ScanCompletion != nil {
+		scanCompletion := imageScan.Spec.Webhooks.ScanCompletion
+		webhookReq["webhook_url"] = scanCompletion.URL
+
+		format := scanCompletion.Format
+		if format == "" {
+			format = "slack"
+		}
+		webhookReq["webhook_format"] = format
+
+		minSeverity := scanCompletion.MinSeverity
+		if minSeverity == "" {
+			minSeverity = "High"
+		}
+		webhookReq["scan_min_severity"] = minSeverity
+		webhookReq["scan_only_fixed"] = scanCompletion.OnlyFixed
+	}
+
+	// Add status change webhook config
+	if imageScan.Spec.Webhooks.StatusChange != nil {
+		statusChange := imageScan.Spec.Webhooks.StatusChange
+		webhookReq["status_change_enabled"] = statusChange.Enabled
+
+		minSeverity := statusChange.MinSeverity
+		if minSeverity == "" {
+			minSeverity = "High"
+		}
+		webhookReq["status_change_min_severity"] = minSeverity
+
+		if statusChange.StatusTransitions != nil {
+			webhookReq["status_change_transitions"] = statusChange.StatusTransitions
+		} else {
+			webhookReq["status_change_transitions"] = []string{}
+		}
+
+		webhookReq["status_change_include_notes"] = statusChange.IncludeNoteChanges
+		webhookReq["status_change_only_fixed"] = statusChange.OnlyFixed
+	} else {
+		// If status change not configured, disable it
+		webhookReq["status_change_enabled"] = false
+		webhookReq["status_change_min_severity"] = "High"
+		webhookReq["status_change_transitions"] = []string{}
+		webhookReq["status_change_include_notes"] = false
+		webhookReq["status_change_only_fixed"] = false
+	}
+
+	// Marshal request
+	reqBody, err := json.Marshal(webhookReq)
+	if err != nil {
+		return fmt.Errorf("failed to marshal webhook config: %w", err)
+	}
+
+	// Send PUT request to backend
+	url := fmt.Sprintf("%s/api/v1/webhook-configs/%s/%s", apiEndpoint, imageScan.Namespace, imageScan.Name)
+	httpReq, err := http.NewRequestWithContext(ctx, "PUT", url, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return fmt.Errorf("failed to create webhook config request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	// Use HTTP client if available, otherwise create default
+	httpClient := r.HTTPClient
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: 10 * time.Second}
+	}
+
+	resp, err := httpClient.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("failed to send webhook config to backend: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("backend returned non-2xx status for webhook config: %d", resp.StatusCode)
+	}
+
+	logger.Info("Webhook config synced to backend",
+		"namespace", imageScan.Namespace,
+		"name", imageScan.Name)
+
+	return nil
+}
+
+// deleteWebhookConfig deletes webhook configuration from backend API
+func (r *ImageScanReconciler) deleteWebhookConfig(ctx context.Context, imageScan *invulnerablev1alpha1.ImageScan) error {
+	logger := log.FromContext(ctx)
+
+	// Determine API endpoint
+	apiEndpoint := imageScan.Spec.APIEndpoint
+	if apiEndpoint == "" {
+		apiEndpoint = fmt.Sprintf("http://invulnerable-backend.%s.svc.cluster.local:8080", imageScan.Namespace)
+	}
+
+	// Send DELETE request to backend
+	url := fmt.Sprintf("%s/api/v1/webhook-configs/%s/%s", apiEndpoint, imageScan.Namespace, imageScan.Name)
+	httpReq, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create delete webhook config request: %w", err)
+	}
+
+	// Use HTTP client if available, otherwise create default
+	httpClient := r.HTTPClient
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: 10 * time.Second}
+	}
+
+	resp, err := httpClient.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("failed to delete webhook config from backend: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Accept 404 as success (config already deleted)
+	if resp.StatusCode != http.StatusNotFound && (resp.StatusCode < 200 || resp.StatusCode >= 300) {
+		return fmt.Errorf("backend returned non-2xx status for webhook config deletion: %d", resp.StatusCode)
+	}
+
+	logger.Info("Webhook config deleted from backend",
+		"namespace", imageScan.Namespace,
+		"name", imageScan.Name)
+
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager

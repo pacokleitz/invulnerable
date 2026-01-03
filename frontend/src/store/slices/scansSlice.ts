@@ -4,6 +4,7 @@ import type { AppStore, ScansState } from '../types';
 
 export const createScansSlice: StateCreator<AppStore, [], [], ScansState> = (set) => ({
 	scans: [],
+	total: 0,
 	currentScan: null,
 	loading: false,
 	error: null,
@@ -11,8 +12,8 @@ export const createScansSlice: StateCreator<AppStore, [], [], ScansState> = (set
 	loadScans: async (params) => {
 		set({ loading: true, error: null });
 		try {
-			const scans = await api.scans.list(params);
-			set({ scans, loading: false });
+			const response = await api.scans.list(params);
+			set({ scans: response.data, total: response.total, loading: false });
 		} catch (error) {
 			set({
 				error: error instanceof Error ? error.message : 'Failed to load scans',

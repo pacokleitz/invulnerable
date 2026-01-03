@@ -79,3 +79,67 @@ func (n *Notifier) getSeverityColor(counts SeverityCounts) string {
 	}
 	return "good" // Green
 }
+
+func (n *Notifier) buildSlackStatusChangePayload(payload StatusChangeNotificationPayload) SlackPayload {
+	// Determine color based on new status
+	color := n.getStatusChangeColor(payload.NewStatus)
+
+	// Build summary text
+	summaryText := fmt.Sprintf("🔔 Vulnerability status changed: `%s` in `%s`",
+		payload.CVEID, payload.ImageName)
+
+	// Build fields
+	fields := []SlackField{
+		{Title: "CVE ID", Value: payload.CVEID, Short: true},
+		{Title: "Severity", Value: payload.Severity, Short: true},
+		{Title: "Package", Value: fmt.Sprintf("%s (%s)", payload.PackageName, payload.PackageVersion), Short: false},
+		{Title: "Status Change", Value: fmt.Sprintf("%s → %s", payload.OldStatus, payload.NewStatus), Short: true},
+		{Title: "Changed By", Value: payload.ChangedBy, Short: true},
+	}
+
+	// Add notes if present
+	if payload.Notes != nil && *payload.Notes != "" {
+		fields = append(fields, SlackField{
+			Title: "Notes",
+			Value: *payload.Notes,
+			Short: false,
+		})
+	}
+
+	// Add vulnerability URL if available
+	if payload.VulnURL != "" {
+		fields = append(fields, SlackField{
+			Title: "View Details",
+			Value: fmt.Sprintf("<%s|View vulnerability details>", payload.VulnURL),
+			Short: false,
+		})
+	}
+
+	return SlackPayload{
+		Text: summaryText,
+		Attachments: []SlackAttachment{
+			{
+				Color:  color,
+				Text:   "Status Change Details",
+				Fields: fields,
+			},
+		},
+	}
+}
+
+func (n *Notifier) getStatusChangeColor(status string) string {
+	switch status {
+	case "fixed":
+		return "good" // Green
+	case "active":
+		return "danger" // Red
+	case "ignored":
+		return "#9E9E9E" // Gray
+	case "in_progress":
+		return "warning" // Orange
+	case "false_positive":
+		return "#2196F3" // Blue
+	default:
+		return "#757575" // Default gray
+	}
+}

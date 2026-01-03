@@ -77,13 +77,26 @@ func runMigrations(connStr string) error {
 	_, filename, _, _ := runtime.Caller(0)
 	migrationsPath := filepath.Join(filepath.Dir(filename), "..", "..", "migrations")
 
-	// Run each migration file
-	migrations := []string{
-		"001_initial_schema.up.sql",
-		"002_add_sla_to_scans.up.sql",
-		"003_add_vulnerability_audit.up.sql",
+	// Discover all .up.sql migration files
+	// This automatically finds all migrations, so new migrations don't require code changes
+	entries, err := os.ReadDir(migrationsPath)
+	if err != nil {
+		return fmt.Errorf("failed to read migrations directory: %w", err)
 	}
 
+	var migrations []string
+	for _, entry := range entries {
+		// Match files ending with .up.sql (e.g., 001_initial_schema.up.sql)
+		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".sql" &&
+			len(entry.Name()) > 7 && entry.Name()[len(entry.Name())-7:] == ".up.sql" {
+			migrations = append(migrations, entry.Name())
+		}
+	}
+
+	// Migrations are already sorted by os.ReadDir (alphabetically)
+	// Since filenames start with numbers (001_, 002_, etc.), they run in order
+
+	// Run each migration file
 	for _, migration := range migrations {
 		migrationPath := filepath.Join(migrationsPath, migration)
 		content, err := os.ReadFile(migrationPath)

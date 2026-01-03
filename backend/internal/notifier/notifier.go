@@ -59,6 +59,7 @@ type VulnerabilityInfo struct {
 	PackageName string
 	Severity    string
 	FixVersion  *string
+	HasFix      bool
 }
 
 // SendNotification sends webhook notification
@@ -161,4 +162,99 @@ func (n *Notifier) sendWebhook(ctx context.Context, url string, payload interfac
 		zap.Int("status_code", resp.StatusCode))
 
 	return nil
+}
+
+// StatusChangeNotificationPayload contains data for status change webhooks
+type StatusChangeNotificationPayload struct {
+	CVEID           string
+	PackageName     string
+	PackageVersion  string
+	Severity        string
+	FixVersion      *string
+	OldStatus       string
+	NewStatus       string
+	ChangedBy       string
+	Notes           *string
+	ImageName       string
+	VulnerabilityID int
+	VulnURL         string
+	Timestamp       time.Time
+}
+
+// StatusChangeWebhookConfig extends webhook config for status changes
+type StatusChangeWebhookConfig struct {
+	URL                string
+	Format             string
+	MinSeverity        string
+	OnlyFixed          bool
+	StatusTransitions  []string
+	IncludeNoteChanges bool
+}
+
+// SendStatusChangeNotification sends webhook for vulnerability status changes
+func (n *Notifier) SendStatusChangeNotification(ctx context.Context, config StatusChangeWebhookConfig, payload StatusChangeNotificationPayload) error {
+	// Check severity threshold
+	if !n.shouldNotifyStatusChange(config.MinSeverity, payload.Severity) {
+		n.logger.Info("vulnerability does not meet severity threshold",
+			zap.String("severity", payload.Severity),
+			zap.String("min_severity", config.MinSeverity))
+		return nil
+	}
+
+	// Check if only fixed CVEs should trigger notifications
+	if config.OnlyFixed && payload.FixVersion == nil {
+		n.logger.Info("vulnerability has no fix available, skipping notification",
+			zap.String("cve_id", payload.CVEID),
+			zap.Bool("only_fixed", config.OnlyFixed))
+		return nil
+	}
+
+	// Check status transition filter
+	if len(config.StatusTransitions) > 0 {
+		transition := fmt.Sprintf("%s→%s", payload.OldStatus, payload.NewStatus)
+		if !contains(config.StatusTransitions, transition) {
+			n.logger.Info("status transition not in filter",
+				zap.String("transition", transition))
+			return nil
+		}
+	}
+
+	// Build URL
+	if n.frontendURL != "" && payload.VulnURL == "" {
+		payload.VulnURL = fmt.Sprintf("%s/vulnerabilities/%d", n.frontendURL, payload.VulnerabilityID)
+	}
+
+	var webhookPayload interface{}
+	switch config.Format {
+	case "teams":
+		webhookPayload = n.buildTeamsStatusChangePayload(payload)
+	default:
+		webhookPayload = n.buildSlackStatusChangePayload(payload)
+	}
+
+	return n.sendWebhook(ctx, config.URL, webhookPayload)
+}
+
+func (n *Notifier) shouldNotifyStatusChange(minSeverity, vulnSeverity string) bool {
+	severityOrder := map[string]int{
+		"Critical":   5,
+		"High":       4,
+		"Medium":     3,
+		"Low":        2,
+		"Negligible": 1,
+	}
+
+	threshold := severityOrder[minSeverity]
+	vulnLevel := severityOrder[vulnSeverity]
+
+	return vulnLevel >= threshold
+}
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }

@@ -67,9 +67,9 @@ type ImageScanSpec struct {
 	// +kubebuilder:validation:Optional
 	ScannerImage *ScannerImageSpec `json:"scannerImage,omitempty"`
 
-	// Webhook configuration for notifications
+	// Webhooks configuration for multiple notification types
 	// +kubebuilder:validation:Optional
-	Webhook *WebhookConfig `json:"webhook,omitempty"`
+	Webhooks *WebhooksConfig `json:"webhooks,omitempty"`
 
 	// ImagePullSecrets is an optional list of references to secrets in the same namespace
 	// to use for pulling the container image from private registries.
@@ -119,9 +119,25 @@ type SLAConfig struct {
 	Low int `json:"low,omitempty"`
 }
 
-// WebhookConfig defines webhook notification settings
-type WebhookConfig struct {
-	// URL is the webhook endpoint URL
+// WebhooksConfig defines configuration for multiple webhook notification types
+type WebhooksConfig struct {
+	// ScanCompletion configures notifications sent after each scan completes
+	// +kubebuilder:validation:Optional
+	ScanCompletion *ScanCompletionWebhookConfig `json:"scanCompletion,omitempty"`
+
+	// StatusChange configures notifications sent when vulnerability statuses are changed
+	// +kubebuilder:validation:Optional
+	StatusChange *StatusChangeWebhookConfig `json:"statusChange,omitempty"`
+}
+
+// ScanCompletionWebhookConfig defines webhook settings for scan completion notifications
+type ScanCompletionWebhookConfig struct {
+	// Enabled allows temporarily disabling scan completion notifications
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=true
+	Enabled bool `json:"enabled,omitempty"`
+
+	// URL is the webhook endpoint URL for scan completion notifications
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:Pattern=`^https?://.*$`
@@ -139,10 +155,61 @@ type WebhookConfig struct {
 	// +kubebuilder:default="High"
 	MinSeverity string `json:"minSeverity,omitempty"`
 
-	// Enabled allows temporarily disabling webhook notifications
+	// OnlyFixed specifies whether to only send notifications for vulnerabilities with available fixes.
+	// When true, unfixed vulnerabilities will not trigger scan completion webhooks.
+	// This is independent of the ImageScan's OnlyFixed setting - you can scan all CVEs but only notify for fixed ones.
+	// Default: true (only notify for vulnerabilities with fixes)
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=true
+	OnlyFixed bool `json:"onlyFixed,omitempty"`
+}
+
+// StatusChangeWebhookConfig defines webhook settings for vulnerability status change notifications
+type StatusChangeWebhookConfig struct {
+	// Enabled allows enabling/disabling status change notifications
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=true
 	Enabled bool `json:"enabled,omitempty"`
+
+	// URL is the webhook endpoint URL for status change notifications
+	// Can be different from scan completion webhook
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:Pattern=`^https?://.*$`
+	URL string `json:"url"`
+
+	// Format specifies the webhook payload format (slack, teams)
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=slack;teams
+	// +kubebuilder:default="slack"
+	Format string `json:"format,omitempty"`
+
+	// MinSeverity is the minimum severity to notify about (Critical, High, Medium, Low, Negligible)
+	// Only vulnerabilities at or above this severity will trigger notifications
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=Critical;High;Medium;Low;Negligible
+	// +kubebuilder:default="High"
+	MinSeverity string `json:"minSeverity,omitempty"`
+
+	// StatusTransitions filters which status changes trigger notifications
+	// Format: "old_status→new_status" (e.g., "active→fixed", "active→ignored")
+	// Empty list means notify on all transitions
+	// Example: ["active→fixed", "active→ignored", "in_progress→fixed"]
+	// +kubebuilder:validation:Optional
+	StatusTransitions []string `json:"statusTransitions,omitempty"`
+
+	// IncludeNoteChanges determines if note/comment additions trigger notifications
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	IncludeNoteChanges bool `json:"includeNoteChanges,omitempty"`
+
+	// OnlyFixed specifies whether to only send notifications for vulnerabilities with available fixes.
+	// When true, unfixed vulnerabilities will not trigger status change webhooks.
+	// This is independent of the ImageScan's OnlyFixed setting - you can scan all CVEs but only notify for fixed ones.
+	// Default: true (only notify for vulnerabilities with fixes)
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=true
+	OnlyFixed bool `json:"onlyFixed,omitempty"`
 }
 
 // ScannerImageSpec defines the scanner container image configuration

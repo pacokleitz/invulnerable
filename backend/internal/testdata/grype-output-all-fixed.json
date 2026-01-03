@@ -1,0 +1,67 @@
+{
+  "matches": [
+    {
+      "vulnerability": {
+        "id": "CVE-2024-FIXED-1",
+        "dataSource": "https://nvd.nist.gov/vuln/detail/CVE-2024-FIXED-1",
+        "namespace": "nvd:cpe",
+        "severity": "Critical",
+        "urls": ["https://nvd.nist.gov/vuln/detail/CVE-2024-FIXED-1"],
+        "description": "Critical with fix",
+        "fix": {
+          "versions": ["2.0.0"],
+          "state": "fixed"
+        }
+      },
+      "relatedVulnerabilities": [],
+      "matchDetails": [
+        {
+          "type": "exact-direct-match",
+          "matcher": "dpkg-matcher"
+        }
+      ],
+      "artifact": {
+        "id": "pkg1",
+        "name": "package1",
+        "version": "1.0.0",
+        "type": "deb",
+        "purl": "pkg:deb/debian/package1@1.0.0"
+      }
+    },
+    {
+      "vulnerability": {
+        "id": "CVE-2024-FIXED-2",
+        "dataSource": "https://nvd.nist.gov/vuln/detail/CVE-2024-FIXED-2",
+        "namespace": "nvd:cpe",
+        "severity": "High",
+        "urls": ["https://nvd.nist.gov/vuln/detail/CVE-2024-FIXED-2"],
+        "description": "High with fix",
+        "fix": {
+          "versions": ["3.1.0"],
+          "state": "fixed"
+        }
+      },
+      "relatedVulnerabilities": [],
+      "matchDetails": [
+        {
+          "type": "exact-direct-match",
+          "matcher": "dpkg-matcher"
+        }
+      ],
+      "artifact": {
+        "id": "pkg2",
+        "name": "package2",
+        "version": "3.0.0",
+        "type": "deb",
+        "purl": "pkg:deb/debian/package2@3.0.0"
+      }
+    }
+  ],
+  "source": {
+    "type": "image",
+    "target": {
+      "userInput": "test:fixed",
+      "imageID": "sha256:fixed123"
+    }
+  }
+}

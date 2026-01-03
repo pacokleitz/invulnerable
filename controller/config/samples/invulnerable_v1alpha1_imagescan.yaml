@@ -17,32 +17,70 @@ spec:
   # SBOM format (cyclonedx or spdx)
   sbomFormat: "cyclonedx"
 
-  # Webhook notifications (optional)
-  # Send scan results to Slack, Microsoft Teams, or other webhook endpoints
+  # ==========================================
+  # WEBHOOK NOTIFICATIONS
+  # ==========================================
+  #
+  # Configure webhook notifications for scan completion and status changes.
+  # Each notification type can have its own URL (e.g., different Slack channels).
   #
   # How to get webhook URLs:
   #   Slack: https://api.slack.com/messaging/webhooks
   #   Teams: https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook
-  #   Test: https://webhook.site (for testing)
+  #   Test: https://webhook.site or https://webhook.cool (for testing)
   #
-  # Notification includes:
-  #   - Vulnerability counts by severity (Critical, High, Medium, Low)
-  #   - Clickable link to view full scan results in the frontend
-  #   - Color-coded by highest severity found
-  webhook:
-    # Webhook endpoint URL (required)
-    url: https://webhook.site/dbc75677-2dbe-4e69-805e-76a0ec5c5644
+  webhooks:
+    # Scan completion notifications
+    # Sent after each scan with vulnerability summary
+    # NOTE: Only counts "actionable" vulnerabilities (excludes ignored/accepted CVEs)
+    # If all detected CVEs are marked as ignored or accepted, no notification is sent
+    scanCompletion:
+      enabled: true
+      url: https://merry-dolphin-15.webhook.cool
+      format: slack  # or "teams"
+      minSeverity: High  # Critical, High, Medium, Low, Negligible
 
-    # Webhook format: "slack" or "teams" (default: slack)
-    format: slack
+      # Only notify for vulnerabilities with fixes available (optional)
+      # When true, only CVEs with fixes will trigger notifications
+      # Note: This is independent of spec.onlyFixed (which controls scanning)
+      # You can scan all CVEs (spec.onlyFixed=false) but only notify for fixed ones
+      # Default: true (only notify for fixed vulnerabilities)
+      # To notify for ALL vulnerabilities including unfixed:
+      # onlyFixed: false
 
-    # Minimum severity to trigger notification (default: High)
-    # Options: Critical, High, Medium, Low, Negligible
-    # Example: "High" notifies only if Critical or High vulnerabilities are found
-    minSeverity: High
+    # Status change notifications
+    # Sent when vulnerability statuses are changed via UI/API
+    statusChange:
+      enabled: true
+      url: https://merry-dolphin-15.webhook.cool  # Can be different!
+      format: slack  # or "teams"
+      minSeverity: High  # Only notify for High+ severity
 
-    # Enable/disable webhook notifications (default: true)
-    enabled: true
+      # Only notify for vulnerabilities with fixes available (optional)
+      # When true, only CVEs with fixes will trigger status change notifications
+      # Note: This is independent of spec.onlyFixed (which controls scanning)
+      # Default: true (only notify for fixed vulnerabilities)
+      # To notify for ALL vulnerabilities including unfixed:
+      # onlyFixed: false
+
+      # Only notify for specific transitions (optional)
+      # Format: "oldStatus→newStatus"
+      # If not specified or empty, notifies on all transitions
+      #
+      # Common use cases:
+      #   - Track fixes: ["active→fixed"]
+      #   - Track triaged items: ["active→in_progress", "in_progress→fixed"]
+      #   - Track all resolutions: ["active→fixed", "active→ignored", "active→accepted"]
+      statusTransitions:
+        - "active→fixed"      # Track when CVEs are patched
+        - "active→ignored"    # Track when CVEs are triaged as non-issues
+        - "in_progress→fixed" # Track remediation completion
+
+      # Include note-only changes (default: false)
+      # When true, notifies when only notes are updated without status change
+      # When false, only notifies when status actually changes
+      includeNoteChanges: false
+  # ==========================================
 
   # Suspend scanning (set to true to pause)
   suspend: false

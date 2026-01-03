@@ -15,8 +15,8 @@ export const createVulnerabilitiesSlice: StateCreator<
 	loadVulnerabilities: async (params) => {
 		set({ loading: true, error: null });
 		try {
-			const vulnerabilities = await api.vulnerabilities.list(params);
-			set({ vulnerabilities, loading: false });
+			const response = await api.vulnerabilities.list(params);
+			set({ vulnerabilities: response.data, loading: false });
 		} catch (error) {
 			set({
 				error: error instanceof Error ? error.message : 'Failed to load vulnerabilities',

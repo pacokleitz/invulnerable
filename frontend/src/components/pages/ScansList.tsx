@@ -1,11 +1,14 @@
-import { FC, useEffect, useCallback, useMemo } from 'react';
+import { FC, useEffect, useCallback, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useScans } from '../../hooks/useScans';
+import { useStore } from '../../store';
 import { SortableTableHeader, useSortState } from '../ui/SortableTableHeader';
+import { Pagination } from '../ui/Pagination';
 import { formatDate } from '../../lib/utils/formatters';
 
 export const ScansList: FC = () => {
 	const [searchParams, setSearchParams] = useSearchParams();
+	const [currentPage, setCurrentPage] = useState(1);
+	const itemsPerPage = 50;
 
 	// Sorting state
 	const { sortKey, sortDirection, handleSort } = useSortState('scan_date', 'desc');
@@ -17,10 +20,23 @@ export const ScansList: FC = () => {
 	const minSeverity = searchParams.get('minSeverity') || '';
 	const showUnfixed = searchParams.get('show_unfixed') === 'true'; // Default to false
 
-	const { scans, loading, error } = useScans({
-		limit: 100,
-		has_fix: showUnfixed ? undefined : true
-	});
+	const { scans, total, loading, error, reload } = useStore((state) => ({
+		scans: state.scans,
+		total: state.total,
+		loading: state.loading,
+		error: state.error,
+		reload: state.loadScans
+	}));
+
+	// Fetch scans when page or filters change
+	useEffect(() => {
+		reload({
+			limit: itemsPerPage,
+			offset: (currentPage - 1) * itemsPerPage,
+			image: imageFilter || undefined,
+			has_fix: showUnfixed ? undefined : true
+		});
+	}, [currentPage, imageFilter, showUnfixed, reload]);
 
 	useEffect(() => {
 		document.title = 'Scans - Invulnerable';
@@ -40,15 +56,18 @@ export const ScansList: FC = () => {
 
 	const handleClearFilters = useCallback(() => {
 		setSearchParams({});
+		setCurrentPage(1);
 	}, [setSearchParams]);
 
-	// Client-side filtering and sorting
+	// Reset to page 1 when filters change
+	useEffect(() => {
+		setCurrentPage(1);
+	}, [imageFilter, fromDate, toDate, minSeverity, showUnfixed]);
+
+	// Apply client-side filters that are not yet supported by backend (date filters and minSeverity)
+	// Image filter is now handled server-side
 	const filteredScans = useMemo(() => {
 		let filtered = scans.filter((scan) => {
-			// Filter by image name
-			if (imageFilter && !scan.image_name.toLowerCase().includes(imageFilter.toLowerCase())) {
-				return false;
-			}
 			// Filter by from date
 			if (fromDate && new Date(scan.scan_date) < new Date(fromDate)) {
 				return false;
@@ -102,23 +121,7 @@ export const ScansList: FC = () => {
 		}
 
 		return filtered;
-	}, [scans, imageFilter, fromDate, toDate, minSeverity, sortKey, sortDirection]);
-
-	if (loading) {
-		return (
-			<div className="text-center py-12">
-				<p className="text-gray-500">Loading scans...</p>
-			</div>
-		);
-	}
-
-	if (error) {
-		return (
-			<div className="card bg-red-50">
-				<p className="text-red-600">{error}</p>
-			</div>
-		);
-	}
+	}, [scans, fromDate, toDate, minSeverity, sortKey, sortDirection]);
 
 	return (
 		<div className="space-y-6">
@@ -192,7 +195,7 @@ export const ScansList: FC = () => {
 				<div className="mt-4 flex justify-between items-center">
 					<div className="flex items-center space-x-4">
 						<p className="text-sm text-gray-600">
-							Showing {filteredScans.length} of {scans.length} scans
+							{total} total scans
 						</p>
 						<label className="flex items-center space-x-2 text-sm">
 							<input
@@ -210,124 +213,148 @@ export const ScansList: FC = () => {
 				</div>
 			</div>
 
-			{filteredScans.length === 0 ? (
+			{error && (
+				<div className="card bg-red-50">
+					<p className="text-red-600">{error}</p>
+				</div>
+			)}
+
+			{loading ? (
+				<div className="card">
+					<div className="flex items-center justify-center py-32">
+						<div className="flex flex-col items-center gap-3">
+							<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+							<p className="text-gray-500 text-sm">Loading scans...</p>
+						</div>
+					</div>
+				</div>
+			) : filteredScans.length === 0 ? (
 				<div className="card text-center py-12">
 					<p className="text-gray-500">No scans found</p>
 				</div>
 			) : (
-				<div className="card overflow-hidden">
-					<div className="overflow-x-auto">
-						<table className="min-w-full divide-y divide-gray-200">
-							<thead className="bg-gray-50">
-								<tr>
-									<SortableTableHeader
-										label="ID"
-										sortKey="id"
-										currentSortKey={sortKey}
-										currentSortDirection={sortDirection}
-										onSort={handleSort}
-									/>
-									<SortableTableHeader
-										label="Image"
-										sortKey="image_name"
-										currentSortKey={sortKey}
-										currentSortDirection={sortDirection}
-										onSort={handleSort}
-									/>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Image Digest
-									</th>
-									<SortableTableHeader
-										label="Scan Date"
-										sortKey="scan_date"
-										currentSortKey={sortKey}
-										currentSortDirection={sortDirection}
-										onSort={handleSort}
-									/>
-									<SortableTableHeader
-										label="Total Vulns"
-										sortKey="vulnerability_count"
-										currentSortKey={sortKey}
-										currentSortDirection={sortDirection}
-										onSort={handleSort}
-									/>
-									<SortableTableHeader
-										label="Critical"
-										sortKey="critical_count"
-										currentSortKey={sortKey}
-										currentSortDirection={sortDirection}
-										onSort={handleSort}
-									/>
-									<SortableTableHeader
-										label="High"
-										sortKey="high_count"
-										currentSortKey={sortKey}
-										currentSortDirection={sortDirection}
-										onSort={handleSort}
-									/>
-									<SortableTableHeader
-										label="Medium"
-										sortKey="medium_count"
-										currentSortKey={sortKey}
-										currentSortDirection={sortDirection}
-										onSort={handleSort}
-									/>
-									<SortableTableHeader
-										label="Low"
-										sortKey="low_count"
-										currentSortKey={sortKey}
-										currentSortDirection={sortDirection}
-										onSort={handleSort}
-									/>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-										Actions
-									</th>
-								</tr>
-							</thead>
-							<tbody className="bg-white divide-y divide-gray-200">
-								{filteredScans.map((scan) => (
-									<tr key={scan.id} className="hover:bg-gray-50">
-										<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-											{scan.id}
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-											{scan.image_name}
-										</td>
-										<td
-											className="px-6 py-4 text-sm text-gray-500 font-mono max-w-xs truncate"
-											title={scan.image_digest || 'N/A'}
-										>
-											{scan.image_digest || 'N/A'}
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-											{formatDate(scan.scan_date)}
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-											{scan.vulnerability_count}
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm">
-											<span className="text-red-600 font-semibold">{scan.critical_count}</span>
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm">
-											<span className="text-orange-600 font-semibold">{scan.high_count}</span>
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm">
-											<span className="text-yellow-600 font-semibold">{scan.medium_count}</span>
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm">
-											<span className="text-blue-600 font-semibold">{scan.low_count}</span>
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm">
-											<Link to={`/scans/${scan.id}`} className="text-blue-600 hover:text-blue-800">
-												View
-											</Link>
-										</td>
+				<>
+					<div className="card overflow-hidden">
+						<div className="overflow-x-auto">
+							<table className="min-w-full divide-y divide-gray-200">
+								<thead className="bg-gray-50">
+									<tr>
+										<SortableTableHeader
+											label="ID"
+											sortKey="id"
+											currentSortKey={sortKey}
+											currentSortDirection={sortDirection}
+											onSort={handleSort}
+										/>
+										<SortableTableHeader
+											label="Image"
+											sortKey="image_name"
+											currentSortKey={sortKey}
+											currentSortDirection={sortDirection}
+											onSort={handleSort}
+										/>
+										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+											Image Digest
+										</th>
+										<SortableTableHeader
+											label="Scan Date"
+											sortKey="scan_date"
+											currentSortKey={sortKey}
+											currentSortDirection={sortDirection}
+											onSort={handleSort}
+										/>
+										<SortableTableHeader
+											label="Total Vulns"
+											sortKey="vulnerability_count"
+											currentSortKey={sortKey}
+											currentSortDirection={sortDirection}
+											onSort={handleSort}
+										/>
+										<SortableTableHeader
+											label="Critical"
+											sortKey="critical_count"
+											currentSortKey={sortKey}
+											currentSortDirection={sortDirection}
+											onSort={handleSort}
+										/>
+										<SortableTableHeader
+											label="High"
+											sortKey="high_count"
+											currentSortKey={sortKey}
+											currentSortDirection={sortDirection}
+											onSort={handleSort}
+										/>
+										<SortableTableHeader
+											label="Medium"
+											sortKey="medium_count"
+											currentSortKey={sortKey}
+											currentSortDirection={sortDirection}
+											onSort={handleSort}
+										/>
+										<SortableTableHeader
+											label="Low"
+											sortKey="low_count"
+											currentSortKey={sortKey}
+											currentSortDirection={sortDirection}
+											onSort={handleSort}
+										/>
+										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+											Actions
+										</th>
 									</tr>
-								))}
-							</tbody>
-						</table>
+								</thead>
+								<tbody className="bg-white divide-y divide-gray-200">
+									{filteredScans.map((scan) => (
+										<tr key={scan.id} className="hover:bg-gray-50">
+											<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+												{scan.id}
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+												{scan.image_name}
+											</td>
+											<td
+												className="px-6 py-4 text-sm text-gray-500 font-mono max-w-xs truncate"
+												title={scan.image_digest || 'N/A'}
+											>
+												{scan.image_digest || 'N/A'}
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+												{formatDate(scan.scan_date)}
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+												{scan.vulnerability_count}
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm">
+												<span className="text-red-600 font-semibold">{scan.critical_count}</span>
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm">
+												<span className="text-orange-600 font-semibold">{scan.high_count}</span>
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm">
+												<span className="text-yellow-600 font-semibold">{scan.medium_count}</span>
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm">
+												<span className="text-blue-600 font-semibold">{scan.low_count}</span>
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm">
+												<Link to={`/scans/${scan.id}`} className="text-blue-600 hover:text-blue-800">
+													View
+												</Link>
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
 					</div>
-				</div>
+
+					<Pagination
+						currentPage={currentPage}
+						totalItems={total}
+						itemsPerPage={itemsPerPage}
+						onPageChange={setCurrentPage}
+					/>
+				</>
 			)}
 		</div>
 	);

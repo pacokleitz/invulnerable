@@ -32,9 +32,11 @@ func (r *VulnerabilityRepository) Upsert(ctx context.Context, vuln *models.Vulne
 		INSERT INTO vulnerabilities (
 			cve_id, package_name, package_version, package_type,
 			severity, fix_version, url, description, status,
-			first_detected_at, last_seen_at, created_at, updated_at
+			first_detected_at, last_seen_at,
+			imagescan_namespace, imagescan_name,
+			created_at, updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
 		ON CONFLICT (cve_id, package_name, package_version)
 		DO UPDATE SET
 			last_seen_at = EXCLUDED.last_seen_at,
@@ -43,13 +45,15 @@ func (r *VulnerabilityRepository) Upsert(ctx context.Context, vuln *models.Vulne
 			url = EXCLUDED.url,
 			description = EXCLUDED.description,
 			updated_at = NOW()
-		RETURNING id, created_at, updated_at
+			-- Note: NOT updating imagescan_namespace/name - keep original discoverer
+		RETURNING id, created_at, updated_at, imagescan_namespace, imagescan_name
 	`
 	return r.db.QueryRowContext(ctx, query,
 		vuln.CVEID, vuln.PackageName, vuln.PackageVersion, vuln.PackageType,
 		vuln.Severity, vuln.FixVersion, vuln.URL, vuln.Description, vuln.Status,
 		vuln.FirstDetectedAt, vuln.LastSeenAt,
-	).Scan(&vuln.ID, &vuln.CreatedAt, &vuln.UpdatedAt)
+		vuln.ImageScanNamespace, vuln.ImageScanName,
+	).Scan(&vuln.ID, &vuln.CreatedAt, &vuln.UpdatedAt, &vuln.ImageScanNamespace, &vuln.ImageScanName)
 }
 
 func (r *VulnerabilityRepository) GetByID(ctx context.Context, id int) (*models.Vulnerability, error) {
@@ -117,6 +121,65 @@ func (r *VulnerabilityRepository) List(ctx context.Context, limit, offset int, s
 		return nil, err
 	}
 	return vulns, nil
+}
+
+// CountWithImageInfo returns the total count of vulnerability+image combinations matching filters
+func (r *VulnerabilityRepository) CountWithImageInfo(ctx context.Context, severity, status *string, hasFix *bool, imageID *int, imageName, cveID *string) (int, error) {
+	query := `
+		SELECT COUNT(DISTINCT (v.id, i.id))
+		FROM vulnerabilities v
+		JOIN scan_vulnerabilities sv ON sv.vulnerability_id = v.id
+		JOIN scans s ON s.id = sv.scan_id
+		JOIN images i ON i.id = s.image_id
+		WHERE 1=1
+	`
+
+	args := []interface{}{}
+	argCount := 1
+
+	if severity != nil {
+		query += fmt.Sprintf(" AND v.severity = $%d", argCount)
+		args = append(args, *severity)
+		argCount++
+	}
+
+	if status != nil {
+		query += fmt.Sprintf(" AND v.status = $%d", argCount)
+		args = append(args, *status)
+		argCount++
+	}
+
+	if hasFix != nil {
+		if *hasFix {
+			query += " AND v.fix_version IS NOT NULL"
+		} else {
+			query += " AND v.fix_version IS NULL"
+		}
+	}
+
+	if imageID != nil {
+		query += fmt.Sprintf(" AND i.id = $%d", argCount)
+		args = append(args, *imageID)
+		argCount++
+	}
+
+	if imageName != nil {
+		query += fmt.Sprintf(" AND (i.registry || '/' || i.repository || ':' || i.tag) ILIKE $%d", argCount)
+		args = append(args, "%"+*imageName+"%")
+		argCount++
+	}
+
+	if cveID != nil {
+		query += fmt.Sprintf(" AND v.cve_id = $%d", argCount)
+		args = append(args, *cveID)
+		argCount++
+	}
+
+	var count int
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 // ListWithImageInfo returns vulnerabilities with image context for compliance tracking
@@ -476,4 +539,46 @@ func (r *VulnerabilityRepository) GetHistory(ctx context.Context, vulnerabilityI
 		history = []models.VulnerabilityHistory{}
 	}
 	return history, nil
+}
+
+// GetImageScanInfoForWebhook retrieves ImageScan context for webhook notification
+func (r *VulnerabilityRepository) GetImageScanInfoForWebhook(ctx context.Context, vulnID int) (*models.ImageScanContext, error) {
+	var namespace, name sql.NullString
+	query := `
+		SELECT imagescan_namespace, imagescan_name
+		FROM vulnerabilities
+		WHERE id = $1
+	`
+	err := r.db.QueryRowContext(ctx, query, vulnID).Scan(&namespace, &name)
+	if err != nil {
+		return nil, err
+	}
+
+	if !namespace.Valid || !name.Valid {
+		return nil, nil // No ImageScan context
+	}
+
+	return &models.ImageScanContext{
+		Namespace: namespace.String,
+		Name:      name.String,
+	}, nil
+}
+
+// GetImageNameForVulnerability retrieves a representative image name for a vulnerability
+func (r *VulnerabilityRepository) GetImageNameForVulnerability(ctx context.Context, vulnID int) (string, error) {
+	var imageName string
+	query := `
+		SELECT CONCAT(i.registry, '/', i.repository, ':', i.tag) as name
+		FROM scans s
+		JOIN images i ON s.image_id = i.id
+		JOIN scan_vulnerabilities sv ON sv.scan_id = s.id
+		WHERE sv.vulnerability_id = $1
+		ORDER BY s.created_at DESC
+		LIMIT 1
+	`
+	err := r.db.QueryRowContext(ctx, query, vulnID).Scan(&imageName)
+	if err != nil {
+		return "", err
+	}
+	return imageName, nil
 }

@@ -23,7 +23,8 @@
       "Bash(go fmt:*)",
       "Bash(gofmt:*)",
       "Bash(go get:*)",
-      "Bash(golangci-lint run:*)"
+      "Bash(golangci-lint run:*)",
+      "Bash(go build:*)"
     ],
     "deny": [],
     "ask": []

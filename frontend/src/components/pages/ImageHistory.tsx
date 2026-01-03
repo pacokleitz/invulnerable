@@ -1,20 +1,40 @@
 import { FC, useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useImageHistory } from '../../hooks/useImages';
+import { useStore } from '../../store';
 import { SortableTableHeader, useSortState } from '../ui/SortableTableHeader';
+import { Pagination } from '../ui/Pagination';
 import { formatDate } from '../../lib/utils/formatters';
 import type { ScanWithDetails } from '../../lib/api/types';
 
 export const ImageHistory: FC = () => {
 	const { id } = useParams<{ id: string }>();
 	const imageId = parseInt(id || '0', 10);
+	const [currentPage, setCurrentPage] = useState(1);
+	const itemsPerPage = 50;
 	const [showUnfixed, setShowUnfixed] = useState(false);
 	const { sortKey, sortDirection, handleSort } = useSortState('scan_date', 'desc');
-	const { currentImageHistory, loading, error } = useImageHistory(imageId, 50, showUnfixed ? undefined : true);
+
+	const { currentImageHistory, historyTotal, loading, error, reload } = useStore((state) => ({
+		currentImageHistory: state.currentImageHistory,
+		historyTotal: state.historyTotal,
+		loading: state.loading,
+		error: state.error,
+		reload: state.loadImageHistory
+	}));
+
+	// Fetch scans when page or filters change
+	useEffect(() => {
+		reload(imageId, itemsPerPage, (currentPage - 1) * itemsPerPage, showUnfixed ? undefined : true);
+	}, [imageId, currentPage, showUnfixed, reload]);
 
 	useEffect(() => {
 		document.title = 'Image History - Invulnerable';
 	}, []);
+
+	// Reset to page 1 when filters change
+	useEffect(() => {
+		setCurrentPage(1);
+	}, [showUnfixed]);
 
 	// Apply sorting to scan history
 	const sortedHistory = useMemo(() => {
@@ -46,22 +66,6 @@ export const ImageHistory: FC = () => {
 		return sorted;
 	}, [currentImageHistory, sortKey, sortDirection]);
 
-	if (loading) {
-		return (
-			<div className="text-center py-12">
-				<p className="text-gray-500">Loading scan history...</p>
-			</div>
-		);
-	}
-
-	if (error) {
-		return (
-			<div className="card bg-red-50">
-				<p className="text-red-600">{error}</p>
-			</div>
-		);
-	}
-
 	return (
 		<div className="space-y-6">
 			<div className="flex justify-between items-center">
@@ -71,7 +75,22 @@ export const ImageHistory: FC = () => {
 				</Link>
 			</div>
 
-			{sortedHistory.length === 0 ? (
+			{error && (
+				<div className="card bg-red-50">
+					<p className="text-red-600">{error}</p>
+				</div>
+			)}
+
+			{loading ? (
+				<div className="card">
+					<div className="flex items-center justify-center py-32">
+						<div className="flex flex-col items-center gap-3">
+							<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+							<p className="text-gray-500 text-sm">Loading scan history...</p>
+						</div>
+					</div>
+				</div>
+			) : sortedHistory.length === 0 ? (
 				<div className="card text-center py-12">
 					<p className="text-gray-500">No scan history found for this image</p>
 				</div>
@@ -81,10 +100,10 @@ export const ImageHistory: FC = () => {
 						<div className="flex justify-between items-center mb-4">
 							<div>
 								<h2 className="text-xl font-semibold text-gray-900">
-									{sortedHistory[0].image_name}
+									{sortedHistory[0]?.image_name || 'Unknown'}
 								</h2>
 								<p className="text-sm text-gray-600 mt-2">
-									Total scans: {sortedHistory.length}
+									Total scans: {historyTotal}
 								</p>
 							</div>
 							<label className="flex items-center space-x-2 text-sm">
@@ -213,6 +232,13 @@ export const ImageHistory: FC = () => {
 							</table>
 						</div>
 					</div>
+
+					<Pagination
+						currentPage={currentPage}
+						totalItems={historyTotal}
+						itemsPerPage={itemsPerPage}
+						onPageChange={setCurrentPage}
+					/>
 				</>
 			)}
 		</div>

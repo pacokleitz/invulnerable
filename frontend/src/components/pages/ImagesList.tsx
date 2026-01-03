@@ -1,15 +1,14 @@
 import { FC, useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { api } from '../../lib/api/client';
-import type { ImageWithStats } from '../../lib/api/types';
+import { useStore } from '../../store';
 import { SortableTableHeader, useSortState } from '../ui/SortableTableHeader';
+import { Pagination } from '../ui/Pagination';
 import { formatDate } from '../../lib/utils/formatters';
 
 export const ImagesList: FC = () => {
-	const [images, setImages] = useState<ImageWithStats[]>([]);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
 	const [searchParams, setSearchParams] = useSearchParams();
+	const [currentPage, setCurrentPage] = useState(1);
+	const itemsPerPage = 50;
 	const { sortKey, sortDirection, handleSort } = useSortState('last_scan_date', 'desc');
 
 	// Filters from URL
@@ -19,32 +18,26 @@ export const ImagesList: FC = () => {
 	const minSeverity = searchParams.get('minSeverity') || '';
 	const showUnfixed = searchParams.get('show_unfixed') === 'true'; // Default to false
 
-	const loadImages = useCallback(
-		async (filters?: { registry?: string; repository?: string; tag?: string }) => {
-			setLoading(true);
-			setError(null);
-			try {
-				const params: { limit: number; registry?: string; repository?: string; tag?: string; has_fix?: boolean } = { limit: 200 };
-				if (filters?.registry) params.registry = filters.registry;
-				if (filters?.repository) params.repository = filters.repository;
-				if (filters?.tag) params.tag = filters.tag;
-				if (!showUnfixed) params.has_fix = true;
+	const { images, total, loading, error, reload } = useStore((state) => ({
+		images: state.images,
+		total: state.total,
+		loading: state.loading,
+		error: state.error,
+		reload: state.loadImages
+	}));
 
-				const data = await api.images.list(params);
-				setImages(data);
-			} catch (e) {
-				setError(e instanceof Error ? e.message : 'Failed to load images');
-			} finally {
-				setLoading(false);
-			}
-		},
-		[showUnfixed]
-	);
+	// Fetch images when page or filters change
+	useEffect(() => {
+		reload({
+			limit: itemsPerPage,
+			offset: (currentPage - 1) * itemsPerPage,
+			has_fix: showUnfixed ? undefined : true
+		});
+	}, [currentPage, showUnfixed, reload]);
 
 	useEffect(() => {
 		document.title = 'Images - Invulnerable';
-		loadImages();
-	}, [loadImages]);
+	}, []);
 
 	const updateFilter = useCallback((key: string, value: string) => {
 		setSearchParams(prev => {
@@ -60,7 +53,13 @@ export const ImagesList: FC = () => {
 
 	const handleClearFilters = useCallback(() => {
 		setSearchParams({});
+		setCurrentPage(1);
 	}, [setSearchParams]);
+
+	// Reset to page 1 when filters change
+	useEffect(() => {
+		setCurrentPage(1);
+	}, [registryFilter, repositoryFilter, tagFilter, minSeverity, showUnfixed]);
 
 	// Client-side filtering
 	const filteredImages = useMemo(() => {
@@ -121,21 +120,8 @@ export const ImagesList: FC = () => {
 		return filtered;
 	}, [images, registryFilter, repositoryFilter, tagFilter, minSeverity, sortKey, sortDirection]);
 
-	if (loading) {
-		return (
-			<div className="text-center py-12">
-				<p className="text-gray-500">Loading images...</p>
-			</div>
-		);
-	}
-
-	if (error) {
-		return (
-			<div className="card bg-red-50">
-				<p className="text-red-600">{error}</p>
-			</div>
-		);
-	}
+	// Server-side pagination - images already contains only the current page
+	const paginatedImages = filteredImages;
 
 	return (
 		<div className="space-y-6">
@@ -214,7 +200,7 @@ export const ImagesList: FC = () => {
 				<div className="mt-4 flex justify-between items-center">
 					<div className="flex items-center space-x-4">
 						<p className="text-sm text-gray-600">
-							Showing {filteredImages.length} of {images.length} images
+							{total} total images
 						</p>
 						<label className="flex items-center space-x-2 text-sm">
 							<input
@@ -232,23 +218,39 @@ export const ImagesList: FC = () => {
 				</div>
 			</div>
 
-			{filteredImages.length === 0 ? (
+			{error && (
+				<div className="card bg-red-50">
+					<p className="text-red-600">{error}</p>
+				</div>
+			)}
+
+			{loading ? (
+				<div className="card">
+					<div className="flex items-center justify-center py-32">
+						<div className="flex flex-col items-center gap-3">
+							<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+							<p className="text-gray-500 text-sm">Loading images...</p>
+						</div>
+					</div>
+				</div>
+			) : filteredImages.length === 0 ? (
 				<div className="card text-center py-12">
 					<p className="text-gray-500">No images found</p>
 				</div>
 			) : (
-				<div className="card overflow-hidden">
-					<div className="overflow-x-auto">
-						<table className="min-w-full divide-y divide-gray-200">
-							<thead className="bg-gray-50">
-								<tr>
-									<SortableTableHeader
-										label="Image"
-										sortKey="repository"
-										currentSortKey={sortKey}
-										currentSortDirection={sortDirection}
-										onSort={handleSort}
-									/>
+				<>
+					<div className="card overflow-hidden">
+						<div className="overflow-x-auto">
+							<table className="min-w-full divide-y divide-gray-200">
+								<thead className="bg-gray-50">
+									<tr>
+										<SortableTableHeader
+											label="Image"
+											sortKey="repository"
+											currentSortKey={sortKey}
+											currentSortDirection={sortDirection}
+											onSort={handleSort}
+										/>
 									<SortableTableHeader
 										label="Scans"
 										sortKey="scan_count"
@@ -297,7 +299,7 @@ export const ImagesList: FC = () => {
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
-								{filteredImages.map((image) => (
+								{paginatedImages.map((image) => (
 									<tr key={image.id} className="hover:bg-gray-50">
 										<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
 											{image.registry}/{image.repository}:{image.tag}
@@ -334,6 +336,14 @@ export const ImagesList: FC = () => {
 						</table>
 					</div>
 				</div>
+
+				<Pagination
+					currentPage={currentPage}
+					totalItems={total}
+					itemsPerPage={itemsPerPage}
+					onPageChange={setCurrentPage}
+				/>
+			</>
 			)}
 		</div>
 	);

@@ -53,6 +53,15 @@ func (r *ImageRepository) GetByName(ctx context.Context, registry, repository, t
 	return &img, nil
 }
 
+func (r *ImageRepository) Count(ctx context.Context) (int, error) {
+	query := `SELECT COUNT(*) FROM images`
+	var count int
+	if err := r.db.QueryRowContext(ctx, query).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *ImageRepository) List(ctx context.Context, limit, offset int, hasFix *bool) ([]models.ImageWithStats, error) {
 	// Build fix filter
 	fixFilter := "1=1"
@@ -88,7 +97,16 @@ func (r *ImageRepository) List(ctx context.Context, limit, offset int, hasFix *b
 	return images, nil
 }
 
-func (r *ImageRepository) GetScanHistory(ctx context.Context, imageID int, limit int, hasFix *bool) ([]models.ScanWithDetails, error) {
+func (r *ImageRepository) CountScanHistory(ctx context.Context, imageID int) (int, error) {
+	query := `SELECT COUNT(*) FROM scans WHERE image_id = $1`
+	var count int
+	if err := r.db.QueryRowContext(ctx, query, imageID).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (r *ImageRepository) GetScanHistory(ctx context.Context, imageID int, limit int, offset int, hasFix *bool) ([]models.ScanWithDetails, error) {
 	// Build fix filter
 	fixFilter := "1=1"
 	if hasFix != nil {
@@ -116,10 +134,10 @@ func (r *ImageRepository) GetScanHistory(ctx context.Context, imageID int, limit
 		WHERE s.image_id = $1
 		GROUP BY s.id, i.registry, i.repository, i.tag, i.digest
 		ORDER BY s.scan_date DESC
-		LIMIT $2
+		LIMIT $2 OFFSET $3
 	`
 	scans := []models.ScanWithDetails{}
-	if err := r.db.SelectContext(ctx, &scans, query, imageID, limit); err != nil {
+	if err := r.db.SelectContext(ctx, &scans, query, imageID, limit, offset); err != nil {
 		return nil, err
 	}
 	return scans, nil

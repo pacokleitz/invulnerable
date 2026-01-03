@@ -307,12 +307,27 @@ spec:
     low: 180       # Low severity within 180 days
 
   # Webhook notifications (optional)
-  webhook:
-    url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
-    format: "slack"  # or "teams"
-    minSeverity: "High"  # Critical, High, Medium, Low, or Negligible
-    onlyFixed: false  # If true, only notify about vulnerabilities with available fixes
-    enabled: true
+  webhooks:
+    # Scan completion notifications
+    scanCompletion:
+      enabled: true
+      url: "https://hooks.slack.com/services/YOUR/SCAN/WEBHOOK"
+      format: "slack"  # or "teams"
+      minSeverity: "High"  # Critical, High, Medium, Low, or Negligible
+      onlyFixed: true     # Only notify for CVEs with fixes (default: true)
+
+    # Status change notifications (when CVE status is updated via UI/API)
+    statusChange:
+      enabled: true
+      url: "https://hooks.slack.com/services/YOUR/STATUS/WEBHOOK"  # Can be different!
+      format: "slack"  # or "teams"
+      minSeverity: "High"
+      onlyFixed: true     # Only notify for CVEs with fixes (default: true)
+      statusTransitions:  # Optional: filter by specific transitions
+        - "active→fixed"
+        - "active→ignored"
+        - "in_progress→fixed"
+      includeNoteChanges: false  # Don't notify for note-only updates
 
   # Resource limits for scanner jobs
   resources:
@@ -418,30 +433,39 @@ backend:
 
 ### Webhook Notifications
 
-Configure webhook notifications to receive scan alerts and status change notifications in Slack or Microsoft Teams:
+Configure webhook notifications to receive scan alerts and status change notifications in Slack or Microsoft Teams. Each notification type can have its own URL (e.g., different Slack channels):
 
 ```yaml
 # Per-ImageScan configuration
 apiVersion: invulnerable.io/v1alpha1
 kind: ImageScan
 spec:
-  webhook:
-    # Webhook URL (get from Slack/Teams settings)
-    url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+  webhooks:
+    # Scan completion notifications
+    # Sent after each scan with vulnerability summary
+    scanCompletion:
+      enabled: true
+      url: "https://hooks.slack.com/services/YOUR/SCAN/WEBHOOK"
+      format: "slack"  # or "teams"
+      minSeverity: "High"  # Critical, High, Medium, Low, Negligible
+      onlyFixed: true        # Only notify for CVEs with fixes (default: true)
 
-    # Format: "slack" or "teams"
-    format: "slack"
+    # Status change notifications
+    # Sent when vulnerability statuses are changed via UI/API
+    statusChange:
+      enabled: true
+      url: "https://hooks.slack.com/services/YOUR/STATUS/WEBHOOK"  # Can be different!
+      format: "slack"  # or "teams"
+      minSeverity: "High"  # Only notify for High+ severity
+      onlyFixed: true        # Only notify for CVEs with fixes (default: true)
 
-    # Minimum severity to trigger notification
-    # Options: Critical, High, Medium, Low, Negligible
-    minSeverity: "High"
+      # Only notify for specific transitions (optional)
+      statusTransitions:
+        - "active→fixed"      # Track when CVEs are patched
+        - "active→ignored"    # Track when CVEs are triaged as non-issues
+        - "in_progress→fixed" # Track remediation completion
 
-    # Only notify about vulnerabilities with available fixes (optional)
-    # Useful to reduce noise from unfixable vulnerabilities
-    onlyFixed: false
-
-    # Enable/disable notifications
-    enabled: true
+      includeNoteChanges: false  # Don't notify for note-only updates
 ```
 
 **Setting up webhooks:**
@@ -454,6 +478,9 @@ spec:
 
 1. **Scan Completion Notifications**:
    - Vulnerability counts by severity (Critical, High, Medium, Low)
+   - **Only counts actionable vulnerabilities** (excludes ignored/accepted CVEs)
+   - **By default, only notifies for CVEs with fixes** (`onlyFixed: true`) - set to `false` to include unfixed vulnerabilities
+   - If all detected CVEs are marked as ignored or accepted, no notification is sent
    - Color-coded message based on highest severity found
    - Clickable link to view full scan results in the web interface
    - Image name and digest
@@ -461,10 +488,12 @@ spec:
 
 2. **Status Change Notifications** (sent when CVE status is updated):
    - CVE ID and affected package
-   - Old and new status (e.g., active → accepted)
+   - Old and new status (e.g., active → fixed)
    - User who made the change (from OAuth2)
    - Justification notes if provided
    - Link to CVE details page
+   - **By default, only notifies for CVEs with fixes** (`onlyFixed: true`) - set to `false` to include unfixed vulnerabilities
+   - Respects `minSeverity`, `onlyFixed`, `statusTransitions`, and `includeNoteChanges` filters
 
 **Configure frontend URL** (required for notification links):
 

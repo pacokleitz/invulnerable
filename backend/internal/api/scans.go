@@ -48,14 +48,15 @@ func NewScanHandler(
 }
 
 type ScanRequest struct {
-	Image         string             `json:"image"`
-	ImageDigest   *string            `json:"image_digest,omitempty"`
-	GrypeResult   models.GrypeResult `json:"grype_result"`
-	SBOM          json.RawMessage    `json:"sbom"`
-	SBOMFormat    string             `json:"sbom_format"`
-	SBOMVersion   *string            `json:"sbom_version,omitempty"`
-	WebhookConfig *WebhookConfig     `json:"webhook_config,omitempty"`
-	SLAConfig     *SLAConfig         `json:"sla_config,omitempty"`
+	Image            string                   `json:"image"`
+	ImageDigest      *string                  `json:"image_digest,omitempty"`
+	GrypeResult      models.GrypeResult       `json:"grype_result"`
+	SBOM             json.RawMessage          `json:"sbom"`
+	SBOMFormat       string                   `json:"sbom_format"`
+	SBOMVersion      *string                  `json:"sbom_version,omitempty"`
+	WebhookConfig    *WebhookConfig           `json:"webhook_config,omitempty"`
+	SLAConfig        *SLAConfig               `json:"sla_config,omitempty"`
+	ImageScanContext *models.ImageScanContext `json:"imagescan_context,omitempty"`
 }
 
 type WebhookConfig struct {
@@ -125,6 +126,12 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 		SLALow:       slaLow,
 	}
 
+	// Add ImageScan context if provided
+	if req.ImageScanContext != nil {
+		scan.ImageScanNamespace = &req.ImageScanContext.Namespace
+		scan.ImageScanName = &req.ImageScanContext.Name
+	}
+
 	if err := h.scanRepo.Create(ctx, scan); err != nil {
 		h.logger.Error("failed to create scan", zap.Error(err))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create scan")
@@ -172,6 +179,12 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 			Status:          "active",
 			FirstDetectedAt: time.Now(),
 			LastSeenAt:      time.Now(),
+		}
+
+		// Add ImageScan context if provided (only set on first discovery)
+		if req.ImageScanContext != nil {
+			vuln.ImageScanNamespace = &req.ImageScanContext.Namespace
+			vuln.ImageScanName = &req.ImageScanContext.Name
 		}
 
 		// Check if vulnerability already exists
@@ -248,19 +261,43 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 	// Send webhook notification if configured
 	if req.WebhookConfig != nil && req.WebhookConfig.URL != "" {
 		go func() {
-			// Filter matches based on onlyFixed setting
-			matchesToNotify := req.GrypeResult.Matches
-			if req.WebhookConfig.OnlyFixed {
-				filtered := []models.GrypeMatch{}
-				for _, match := range req.GrypeResult.Matches {
-					if len(match.Vulnerability.Fix.Versions) > 0 {
-						filtered = append(filtered, match)
-					}
-				}
-				matchesToNotify = filtered
+			// Get all vulnerabilities for this scan with their current status from the database
+			// This allows us to filter out ignored/accepted CVEs
+			vulnsFromDB, err := h.scanRepo.GetVulnerabilities(context.Background(), scan.ID)
+			if err != nil {
+				h.logger.Error("failed to get vulnerabilities for webhook notification",
+					zap.Error(err),
+					zap.Int("scan_id", scan.ID))
+				return
 			}
 
-			// Calculate severity counts for notification (only for filtered matches)
+			// Create a map of CVE+Package to status for quick lookup
+			vulnStatusMap := make(map[string]string)
+			for _, v := range vulnsFromDB {
+				key := fmt.Sprintf("%s|%s|%s", v.CVEID, v.PackageName, v.PackageVersion)
+				vulnStatusMap[key] = v.Status
+			}
+
+			// Filter matches to exclude ignored/accepted CVEs
+			matchesToNotify := []models.GrypeMatch{}
+			for _, match := range req.GrypeResult.Matches {
+				key := fmt.Sprintf("%s|%s|%s", match.Vulnerability.ID, match.Artifact.Name, match.Artifact.Version)
+				status, exists := vulnStatusMap[key]
+
+				// Skip if CVE is ignored or accepted (triaged as not actionable)
+				if exists && (status == models.StatusIgnored || status == models.StatusAccepted) {
+					continue
+				}
+
+				// Apply onlyFixed filter if configured
+				if req.WebhookConfig.OnlyFixed && len(match.Vulnerability.Fix.Versions) == 0 {
+					continue
+				}
+
+				matchesToNotify = append(matchesToNotify, match)
+			}
+
+			// Calculate severity counts for notification (only for actionable vulnerabilities)
 			severityCounts := notifier.SeverityCounts{}
 			for _, match := range matchesToNotify {
 				switch match.Vulnerability.Severity {
@@ -297,6 +334,11 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 					zap.Error(err),
 					zap.String("webhook_url", req.WebhookConfig.URL),
 					zap.Int("scan_id", scan.ID))
+			} else if len(matchesToNotify) == 0 {
+				h.logger.Info("no actionable vulnerabilities to notify about (all ignored/accepted)",
+					zap.Int("scan_id", scan.ID),
+					zap.Int("total_detected", len(req.GrypeResult.Matches)),
+					zap.Int("actionable", 0))
 			}
 		}()
 	}
@@ -329,6 +371,11 @@ func (h *ScanHandler) ListScans(c echo.Context) error {
 		}
 	}
 
+	var imageName *string
+	if imageNameStr := c.QueryParam("image"); imageNameStr != "" {
+		imageName = &imageNameStr
+	}
+
 	// Parse has_fix parameter
 	var hasFix *bool
 	if hasFixStr := c.QueryParam("has_fix"); hasFixStr != "" {
@@ -339,13 +386,27 @@ func (h *ScanHandler) ListScans(c echo.Context) error {
 		hasFix = &hasFixBool
 	}
 
-	scans, err := h.scanRepo.List(c.Request().Context(), limit, offset, imageID, hasFix)
+	// Get total count
+	total, err := h.scanRepo.Count(c.Request().Context(), imageID, imageName)
+	if err != nil {
+		h.logger.Error("failed to count scans", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to count scans")
+	}
+
+	scans, err := h.scanRepo.List(c.Request().Context(), limit, offset, imageID, imageName, hasFix)
 	if err != nil {
 		h.logger.Error("failed to list scans", zap.Error(err))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list scans")
 	}
 
-	return c.JSON(http.StatusOK, scans)
+	response := map[string]interface{}{
+		"data":   scans,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	}
+
+	return c.JSON(http.StatusOK, response)
 }
 
 // GetScan handles GET /api/v1/scans/:id

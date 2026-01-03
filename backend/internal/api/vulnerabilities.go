@@ -1,24 +1,37 @@
 package api
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/invulnerable/backend/internal/db"
 	"github.com/invulnerable/backend/internal/models"
+	"github.com/invulnerable/backend/internal/notifier"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
 
 type VulnerabilityHandler struct {
-	logger   *zap.Logger
-	vulnRepo *db.VulnerabilityRepository
+	logger            *zap.Logger
+	vulnRepo          *db.VulnerabilityRepository
+	notifier          *notifier.Notifier
+	webhookConfigRepo *db.WebhookConfigRepository
 }
 
-func NewVulnerabilityHandler(logger *zap.Logger, vulnRepo *db.VulnerabilityRepository) *VulnerabilityHandler {
+func NewVulnerabilityHandler(
+	logger *zap.Logger,
+	vulnRepo *db.VulnerabilityRepository,
+	notifier *notifier.Notifier,
+	webhookConfigRepo *db.WebhookConfigRepository,
+) *VulnerabilityHandler {
 	return &VulnerabilityHandler{
-		logger:   logger,
-		vulnRepo: vulnRepo,
+		logger:            logger,
+		vulnRepo:          vulnRepo,
+		notifier:          notifier,
+		webhookConfigRepo: webhookConfigRepo,
 	}
 }
 
@@ -87,6 +100,13 @@ func (h *VulnerabilityHandler) ListVulnerabilities(c echo.Context) error {
 		cveID = &cveIDStr
 	}
 
+	// Get total count
+	total, err := h.vulnRepo.CountWithImageInfo(c.Request().Context(), severity, status, hasFix, imageID, imageName, cveID)
+	if err != nil {
+		h.logger.Error("failed to count vulnerabilities", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to count vulnerabilities")
+	}
+
 	// Use ListWithImageInfo to get vulnerability+image combinations for compliance
 	vulns, err := h.vulnRepo.ListWithImageInfo(c.Request().Context(), limit, offset, severity, status, hasFix, imageID, imageName, cveID)
 	if err != nil {
@@ -94,7 +114,14 @@ func (h *VulnerabilityHandler) ListVulnerabilities(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list vulnerabilities")
 	}
 
-	return c.JSON(http.StatusOK, vulns)
+	response := map[string]interface{}{
+		"data":   vulns,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	}
+
+	return c.JSON(http.StatusOK, response)
 }
 
 // GetVulnerabilityByCVE handles GET /api/v1/vulnerabilities/:cve
@@ -149,6 +176,9 @@ func (h *VulnerabilityHandler) UpdateVulnerability(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get vulnerability")
 	}
 
+	// Send status change webhook notification in background (if applicable)
+	go h.sendStatusChangeWebhook(context.Background(), id, updatedBy)
+
 	return c.JSON(http.StatusOK, vuln)
 }
 
@@ -182,6 +212,11 @@ func (h *VulnerabilityHandler) BulkUpdateVulnerabilities(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to update vulnerabilities")
 	}
 
+	// Send status change webhook notifications for each vulnerability in background
+	for _, vulnID := range req.VulnerabilityIDs {
+		go h.sendStatusChangeWebhook(context.Background(), vulnID, updatedBy)
+	}
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"updated_count": len(req.VulnerabilityIDs),
 		"status":        req.Status,
@@ -202,4 +237,136 @@ func (h *VulnerabilityHandler) GetVulnerabilityHistory(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, history)
+}
+
+// sendStatusChangeWebhook sends webhook notification for vulnerability status changes
+// This runs in a background goroutine and logs errors without failing the request
+func (h *VulnerabilityHandler) sendStatusChangeWebhook(ctx context.Context, vulnID int, changedBy string) {
+	// Get ImageScan context for this vulnerability
+	imageScanCtx, err := h.vulnRepo.GetImageScanInfoForWebhook(ctx, vulnID)
+	if err != nil {
+		h.logger.Error("failed to get ImageScan info for webhook",
+			zap.Error(err),
+			zap.Int("vulnerability_id", vulnID))
+		return
+	}
+
+	// If no ImageScan context, skip webhook (vulnerability wasn't discovered by an ImageScan)
+	if imageScanCtx == nil {
+		h.logger.Debug("no ImageScan context for vulnerability, skipping webhook",
+			zap.Int("vulnerability_id", vulnID))
+		return
+	}
+
+	// Get webhook config from database
+	webhookConfig, err := h.webhookConfigRepo.Get(ctx, imageScanCtx.Namespace, imageScanCtx.Name)
+	if err != nil {
+		h.logger.Error("failed to get webhook config",
+			zap.Error(err),
+			zap.String("namespace", imageScanCtx.Namespace),
+			zap.String("name", imageScanCtx.Name))
+		return
+	}
+
+	// If no config or status change webhooks not enabled, skip
+	if webhookConfig == nil || !webhookConfig.StatusChangeEnabled {
+		h.logger.Debug("status change webhooks not enabled, skipping",
+			zap.String("namespace", imageScanCtx.Namespace),
+			zap.String("name", imageScanCtx.Name))
+		return
+	}
+
+	// Get vulnerability details
+	vuln, err := h.vulnRepo.GetByID(ctx, vulnID)
+	if err != nil {
+		h.logger.Error("failed to get vulnerability for webhook",
+			zap.Error(err),
+			zap.Int("vulnerability_id", vulnID))
+		return
+	}
+
+	// Get history to find old status
+	history, err := h.vulnRepo.GetHistory(ctx, vulnID)
+	if err != nil {
+		h.logger.Error("failed to get vulnerability history for webhook",
+			zap.Error(err),
+			zap.Int("vulnerability_id", vulnID))
+		return
+	}
+
+	// Find previous status from history
+	var oldStatus string
+	if len(history) >= 2 {
+		// Most recent entry is the current status, second most recent is old status
+		if history[1].NewValue != nil {
+			oldStatus = *history[1].NewValue
+		} else {
+			oldStatus = "active" // Default if no value
+		}
+	} else {
+		// If only one history entry, it was the initial status
+		oldStatus = "active" // Default initial status
+	}
+
+	// Get a representative image name for this vulnerability
+	imageName, err := h.vulnRepo.GetImageNameForVulnerability(ctx, vulnID)
+	if err != nil {
+		// If no image found, use a placeholder
+		imageName = "unknown"
+		h.logger.Warn("could not find image for vulnerability",
+			zap.Int("vulnerability_id", vulnID),
+			zap.Error(err))
+	}
+
+	// Build notification payload
+	payload := notifier.StatusChangeNotificationPayload{
+		CVEID:           vuln.CVEID,
+		PackageName:     vuln.PackageName,
+		PackageVersion:  vuln.PackageVersion,
+		Severity:        vuln.Severity,
+		FixVersion:      vuln.FixVersion,
+		OldStatus:       oldStatus,
+		NewStatus:       vuln.Status,
+		ChangedBy:       changedBy,
+		Notes:           vuln.Notes,
+		ImageName:       imageName,
+		VulnerabilityID: vulnID,
+		VulnURL:         "", // Will be constructed by notifier if frontend URL is configured
+		Timestamp:       time.Now(),
+	}
+
+	// Build webhook config for notifier
+	notifierConfig := notifier.StatusChangeWebhookConfig{
+		URL:                webhookConfig.WebhookURL,
+		Format:             webhookConfig.WebhookFormat,
+		MinSeverity:        webhookConfig.StatusChangeMinSeverity,
+		OnlyFixed:          webhookConfig.StatusChangeOnlyFixed,
+		StatusTransitions:  webhookConfig.StatusChangeTransitions,
+		IncludeNoteChanges: webhookConfig.StatusChangeIncludeNotes,
+	}
+
+	// Log what we're about to send
+	h.logger.Info("attempting to send status change webhook",
+		zap.Int("vulnerability_id", vulnID),
+		zap.String("cve_id", vuln.CVEID),
+		zap.String("old_status", oldStatus),
+		zap.String("new_status", vuln.Status),
+		zap.String("severity", vuln.Severity),
+		zap.String("transition", fmt.Sprintf("%s→%s", oldStatus, vuln.Status)),
+		zap.String("webhook_url", webhookConfig.WebhookURL))
+
+	// Send notification (filtering happens in notifier)
+	if err := h.notifier.SendStatusChangeNotification(ctx, notifierConfig, payload); err != nil {
+		h.logger.Error("failed to send status change webhook",
+			zap.Error(err),
+			zap.Int("vulnerability_id", vulnID),
+			zap.String("webhook_url", webhookConfig.WebhookURL))
+		return
+	}
+
+	h.logger.Info("status change webhook sent successfully",
+		zap.Int("vulnerability_id", vulnID),
+		zap.String("cve_id", vuln.CVEID),
+		zap.String("old_status", oldStatus),
+		zap.String("new_status", vuln.Status))
 }
