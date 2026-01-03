@@ -7,6 +7,7 @@ import { StatusBadge } from '../ui/StatusBadge';
 import { PackageCategoryBadge } from '../ui/PackageCategoryBadge';
 import { VulnerabilityHistory } from '../ui/VulnerabilityHistory';
 import { SortableTableHeader, useSortState } from '../ui/SortableTableHeader';
+import { Pagination } from '../ui/Pagination';
 import { formatDate, daysSince, calculateSLAStatus } from '../../lib/utils/formatters';
 
 export const ScanDiff: FC = () => {
@@ -18,6 +19,12 @@ export const ScanDiff: FC = () => {
 	const [error, setError] = useState<string | null>(null);
 	const [showUnfixed, setShowUnfixed] = useState(false);
 	const [historyVulnId, setHistoryVulnId] = useState<number | null>(null);
+
+	// Pagination states for each table
+	const [newVulnsPage, setNewVulnsPage] = useState(1);
+	const [fixedVulnsPage, setFixedVulnsPage] = useState(1);
+	const [persistentVulnsPage, setPersistentVulnsPage] = useState(1);
+	const itemsPerPage = 50;
 
 	// Separate sort states for each table
 	const newVulnsSort = useSortState('severity', 'desc');
@@ -44,6 +51,13 @@ export const ScanDiff: FC = () => {
 
 		fetchData();
 	}, [scanId]);
+
+	// Reset to page 1 when filters change
+	useEffect(() => {
+		setNewVulnsPage(1);
+		setFixedVulnsPage(1);
+		setPersistentVulnsPage(1);
+	}, [showUnfixed]);
 
 	// Helper function to sort vulnerabilities
 	const sortVulnerabilities = (vulns: Vulnerability[], sortKey: string | null, sortDirection: 'asc' | 'desc' | null, slaConfig: any) => {
@@ -141,6 +155,25 @@ export const ScanDiff: FC = () => {
 			low: scan.sla_low,
 		}) : filtered;
 	}, [diff, showUnfixed, persistentVulnsSort.sortKey, persistentVulnsSort.sortDirection, scan]);
+
+	// Paginate each table
+	const paginatedNewVulns = useMemo(() => {
+		const startIndex = (newVulnsPage - 1) * itemsPerPage;
+		const endIndex = startIndex + itemsPerPage;
+		return filteredNewVulns.slice(startIndex, endIndex);
+	}, [filteredNewVulns, newVulnsPage, itemsPerPage]);
+
+	const paginatedFixedVulns = useMemo(() => {
+		const startIndex = (fixedVulnsPage - 1) * itemsPerPage;
+		const endIndex = startIndex + itemsPerPage;
+		return filteredFixedVulns.slice(startIndex, endIndex);
+	}, [filteredFixedVulns, fixedVulnsPage, itemsPerPage]);
+
+	const paginatedPersistentVulns = useMemo(() => {
+		const startIndex = (persistentVulnsPage - 1) * itemsPerPage;
+		const endIndex = startIndex + itemsPerPage;
+		return filteredPersistentVulns.slice(startIndex, endIndex);
+	}, [filteredPersistentVulns, persistentVulnsPage, itemsPerPage]);
 
 	if (loading) {
 		return (
@@ -285,7 +318,7 @@ export const ScanDiff: FC = () => {
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
-								{filteredNewVulns.map((vuln) => {
+								{paginatedNewVulns.map((vuln) => {
 									const slaStatus = calculateSLAStatus(
 										vuln.first_detected_at,
 										vuln.severity,
@@ -364,6 +397,16 @@ export const ScanDiff: FC = () => {
 							</tbody>
 						</table>
 					</div>
+
+					{/* Pagination for New Vulnerabilities */}
+					{filteredNewVulns.length > 0 && (
+						<Pagination
+							currentPage={newVulnsPage}
+							totalItems={filteredNewVulns.length}
+							itemsPerPage={itemsPerPage}
+							onPageChange={setNewVulnsPage}
+						/>
+					)}
 				</div>
 			)}
 
@@ -443,7 +486,7 @@ export const ScanDiff: FC = () => {
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
-								{filteredFixedVulns.map((vuln) => {
+								{paginatedFixedVulns.map((vuln) => {
 									const slaStatus = calculateSLAStatus(
 										vuln.first_detected_at,
 										vuln.severity,
@@ -522,6 +565,16 @@ export const ScanDiff: FC = () => {
 							</tbody>
 						</table>
 					</div>
+
+					{/* Pagination for Fixed Vulnerabilities */}
+					{filteredFixedVulns.length > 0 && (
+						<Pagination
+							currentPage={fixedVulnsPage}
+							totalItems={filteredFixedVulns.length}
+							itemsPerPage={itemsPerPage}
+							onPageChange={setFixedVulnsPage}
+						/>
+					)}
 				</div>
 			)}
 
@@ -601,7 +654,7 @@ export const ScanDiff: FC = () => {
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
-								{filteredPersistentVulns.map((vuln) => {
+								{paginatedPersistentVulns.map((vuln) => {
 									const slaStatus = calculateSLAStatus(
 										vuln.first_detected_at,
 										vuln.severity,
@@ -680,6 +733,16 @@ export const ScanDiff: FC = () => {
 							</tbody>
 						</table>
 					</div>
+
+					{/* Pagination for Persistent Vulnerabilities */}
+					{filteredPersistentVulns.length > 0 && (
+						<Pagination
+							currentPage={persistentVulnsPage}
+							totalItems={filteredPersistentVulns.length}
+							itemsPerPage={itemsPerPage}
+							onPageChange={setPersistentVulnsPage}
+						/>
+					)}
 				</div>
 			)}
 
