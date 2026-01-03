@@ -175,26 +175,6 @@ export const ScanDiff: FC = () => {
 		return filteredPersistentVulns.slice(startIndex, endIndex);
 	}, [filteredPersistentVulns, persistentVulnsPage, itemsPerPage]);
 
-	if (loading) {
-		return (
-			<div className="text-center py-12">
-				<p className="text-gray-500">Loading scan comparison...</p>
-			</div>
-		);
-	}
-
-	if (error) {
-		return (
-			<div className="card bg-red-50">
-				<p className="text-red-600">{error}</p>
-			</div>
-		);
-	}
-
-	if (!diff || !scan) {
-		return null;
-	}
-
 	return (
 		<div className="space-y-6">
 			<div className="flex justify-between items-center">
@@ -215,35 +195,61 @@ export const ScanDiff: FC = () => {
 				</div>
 			</div>
 
-			{/* Summary Cards */}
-			<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-				<div className="card bg-green-50">
-					<h3 className="text-sm font-medium text-green-800">Fixed Vulnerabilities</h3>
-					<p className="mt-2 text-3xl font-bold text-green-900">{diff.summary.fixed_count}</p>
-					<p className="mt-1 text-xs text-green-700">Resolved since previous scan</p>
-				</div>
-
+			{error && (
 				<div className="card bg-red-50">
-					<h3 className="text-sm font-medium text-red-800">New Vulnerabilities</h3>
-					<p className="mt-2 text-3xl font-bold text-red-900">{diff.summary.new_count}</p>
-					<p className="mt-1 text-xs text-red-700">Introduced since previous scan</p>
+					<p className="text-red-600">{error}</p>
 				</div>
+			)}
 
-				<div className="card bg-gray-50">
-					<h3 className="text-sm font-medium text-gray-800">Persistent Vulnerabilities</h3>
-					<p className="mt-2 text-3xl font-bold text-gray-900">{diff.summary.persistent_count}</p>
-					<p className="mt-1 text-xs text-gray-700">Still present from previous scan</p>
-				</div>
-			</div>
+			{/* Summary Cards */}
+			{diff && (
+				<>
+					<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+						<div className="card bg-green-50">
+							<h3 className="text-sm font-medium text-green-800">Fixed Vulnerabilities</h3>
+							<p className="mt-2 text-3xl font-bold text-green-900">{diff.summary.fixed_count}</p>
+							<p className="mt-1 text-xs text-green-700">Resolved since previous scan</p>
+						</div>
 
-			<div className="card">
-				<p className="text-sm text-gray-600">
-					Comparing Scan #{diff.scan_id} with Scan #{diff.previous_scan_id}
-				</p>
-			</div>
+						<div className="card bg-red-50">
+							<h3 className="text-sm font-medium text-red-800">New Vulnerabilities</h3>
+							<p className="mt-2 text-3xl font-bold text-red-900">{diff.summary.new_count}</p>
+							<p className="mt-1 text-xs text-red-700">Introduced since previous scan</p>
+						</div>
+
+						<div className="card bg-gray-50">
+							<h3 className="text-sm font-medium text-gray-800">Persistent Vulnerabilities</h3>
+							<p className="mt-2 text-3xl font-bold text-gray-900">{diff.summary.persistent_count}</p>
+							<p className="mt-1 text-xs text-gray-700">Still present from previous scan</p>
+						</div>
+					</div>
+
+					<div className="card">
+						<p className="text-sm text-gray-600">
+							Comparing{' '}
+							<Link to={`/scans/${diff.scan_id}`} className="text-blue-600 hover:text-blue-800 hover:underline">
+								Scan #{diff.scan_id}
+							</Link>
+							{' '}with{' '}
+							<Link to={`/scans/${diff.previous_scan_id}`} className="text-blue-600 hover:text-blue-800 hover:underline">
+								Scan #{diff.previous_scan_id}
+							</Link>
+						</p>
+					</div>
+				</>
+			)}
 
 			{/* New Vulnerabilities */}
-			{filteredNewVulns.length > 0 && (
+			{loading ? (
+				<div className="card">
+					<div className="flex items-center justify-center py-32">
+						<div className="flex flex-col items-center gap-3">
+							<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+							<p className="text-gray-500 text-sm">Loading scan comparison...</p>
+						</div>
+					</div>
+				</div>
+			) : filteredNewVulns.length > 0 && scan ? (
 				<div className="card">
 					<h2 className="text-xl font-bold text-red-900 mb-4">
 						New Vulnerabilities ({filteredNewVulns.length})
@@ -408,10 +414,10 @@ export const ScanDiff: FC = () => {
 						/>
 					)}
 				</div>
-			)}
+			) : null}
 
 			{/* Fixed Vulnerabilities */}
-			{filteredFixedVulns.length > 0 && (
+			{!loading && filteredFixedVulns.length > 0 && scan && (
 				<div className="card">
 					<h2 className="text-xl font-bold text-green-900 mb-4">
 						Fixed Vulnerabilities ({filteredFixedVulns.length})
@@ -579,7 +585,7 @@ export const ScanDiff: FC = () => {
 			)}
 
 			{/* Persistent Vulnerabilities */}
-			{filteredPersistentVulns.length > 0 && (
+			{!loading && filteredPersistentVulns.length > 0 && scan && (
 				<div className="card">
 					<h2 className="text-xl font-bold text-gray-900 mb-4">
 						Persistent Vulnerabilities ({filteredPersistentVulns.length})

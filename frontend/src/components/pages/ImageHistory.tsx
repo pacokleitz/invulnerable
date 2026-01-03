@@ -75,6 +75,29 @@ export const ImageHistory: FC = () => {
 				</Link>
 			</div>
 
+			{/* Info Card - Always visible */}
+			<div className="card">
+				<div className="flex justify-between items-center mb-4">
+					<div>
+						<h2 className="text-xl font-semibold text-gray-900">
+							{sortedHistory[0]?.image_name || 'Unknown'}
+						</h2>
+						<p className="text-sm text-gray-600 mt-2">
+							Total scans: {historyTotal}
+						</p>
+					</div>
+					<label className="flex items-center space-x-2 text-sm">
+						<input
+							type="checkbox"
+							checked={showUnfixed}
+							onChange={(e) => setShowUnfixed(e.target.checked)}
+							className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+						/>
+						<span className="text-gray-700">Show unfixed CVEs</span>
+					</label>
+				</div>
+			</div>
+
 			{error && (
 				<div className="card bg-red-50">
 					<p className="text-red-600">{error}</p>
@@ -96,27 +119,6 @@ export const ImageHistory: FC = () => {
 				</div>
 			) : (
 				<>
-					<div className="card">
-						<div className="flex justify-between items-center mb-4">
-							<div>
-								<h2 className="text-xl font-semibold text-gray-900">
-									{sortedHistory[0]?.image_name || 'Unknown'}
-								</h2>
-								<p className="text-sm text-gray-600 mt-2">
-									Total scans: {historyTotal}
-								</p>
-							</div>
-							<label className="flex items-center space-x-2 text-sm">
-								<input
-									type="checkbox"
-									checked={showUnfixed}
-									onChange={(e) => setShowUnfixed(e.target.checked)}
-									className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-								/>
-								<span className="text-gray-700">Show unfixed CVEs</span>
-							</label>
-						</div>
-					</div>
 
 					<div className="card overflow-hidden">
 						<div className="overflow-x-auto">

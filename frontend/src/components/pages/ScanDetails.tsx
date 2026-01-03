@@ -204,101 +204,85 @@ export const ScanDetails: FC = () => {
 		return filteredVulnerabilities.slice(startIndex, endIndex);
 	}, [filteredVulnerabilities, currentPage, itemsPerPage]);
 
-	if (loading) {
-		return (
-			<div className="text-center py-12">
-				<p className="text-gray-500">Loading scan...</p>
-			</div>
-		);
-	}
-
-	if (error) {
-		return (
-			<div className="card bg-red-50">
-				<p className="text-red-600">{error}</p>
-			</div>
-		);
-	}
-
-	if (!currentScan) {
-		return null;
-	}
-
-	const { scan, vulnerabilities } = currentScan;
+	const { scan, vulnerabilities } = currentScan || { scan: null, vulnerabilities: [] };
 
 	return (
 		<div className="space-y-6">
 			<div className="flex justify-between items-center">
-				<h1 className="text-3xl font-bold text-gray-900">Scan #{scan.id}</h1>
+				<h1 className="text-3xl font-bold text-gray-900">Scan #{scan?.id || scanId}</h1>
 				<div className="space-x-2">
-					<button onClick={viewSBOM} className="btn btn-secondary">
+					<button onClick={viewSBOM} className="btn btn-secondary" disabled={!scan}>
 						View SBOM
 					</button>
-					<button onClick={viewDiff} className="btn btn-primary">
+					<button onClick={viewDiff} className="btn btn-primary" disabled={!scan}>
 						View Diff
 					</button>
 				</div>
 			</div>
 
 			{/* Scan Details */}
-			<div className="card">
-				<h2 className="text-xl font-bold text-gray-900 mb-4">Scan Details</h2>
-				<dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-					<div>
-						<dt className="text-sm font-medium text-gray-500">Image</dt>
-						<dd className="mt-1 text-sm text-gray-900">{scan.image_name}</dd>
+			{scan && (
+				<>
+					<div className="card">
+						<h2 className="text-xl font-bold text-gray-900 mb-4">Scan Details</h2>
+						<dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
+							<div>
+								<dt className="text-sm font-medium text-gray-500">Image</dt>
+								<dd className="mt-1 text-sm text-gray-900">{scan.image_name}</dd>
+							</div>
+							<div>
+								<dt className="text-sm font-medium text-gray-500">Image Digest</dt>
+								<dd className="mt-1 text-sm text-gray-900 font-mono break-all">
+									{scan.image_digest || 'N/A'}
+								</dd>
+							</div>
+							<div>
+								<dt className="text-sm font-medium text-gray-500">Scan Date</dt>
+								<dd className="mt-1 text-sm text-gray-900">{formatDate(scan.scan_date)}</dd>
+							</div>
+							<div>
+								<dt className="text-sm font-medium text-gray-500">Grype Version</dt>
+								<dd className="mt-1 text-sm text-gray-900">{scan.grype_version || 'N/A'}</dd>
+							</div>
+							<div>
+								<dt className="text-sm font-medium text-gray-500">Total Vulnerabilities</dt>
+								<dd className="mt-1 text-sm text-gray-900">{scan.vulnerability_count}</dd>
+							</div>
+						</dl>
 					</div>
-					<div>
-						<dt className="text-sm font-medium text-gray-500">Image Digest</dt>
-						<dd className="mt-1 text-sm text-gray-900 font-mono break-all">
-							{scan.image_digest || 'N/A'}
-						</dd>
-					</div>
-					<div>
-						<dt className="text-sm font-medium text-gray-500">Scan Date</dt>
-						<dd className="mt-1 text-sm text-gray-900">{formatDate(scan.scan_date)}</dd>
-					</div>
-					<div>
-						<dt className="text-sm font-medium text-gray-500">Grype Version</dt>
-						<dd className="mt-1 text-sm text-gray-900">{scan.grype_version || 'N/A'}</dd>
-					</div>
-					<div>
-						<dt className="text-sm font-medium text-gray-500">Total Vulnerabilities</dt>
-						<dd className="mt-1 text-sm text-gray-900">{scan.vulnerability_count}</dd>
-					</div>
-				</dl>
-			</div>
 
-			{/* Severity Summary */}
-			<div className="card">
-				<h2 className="text-xl font-bold text-gray-900 mb-4">Severity Summary</h2>
-				<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-					<div className="flex items-center justify-between p-4 bg-red-50 rounded-lg">
-						<div>
-							<p className="text-sm font-medium text-red-800">Critical ({scan.sla_critical} days SLA)</p>
-							<p className="text-2xl font-bold text-red-900">{scan.critical_count}</p>
+					{/* Severity Summary */}
+					<div className="card">
+						<h2 className="text-xl font-bold text-gray-900 mb-4">Severity Summary</h2>
+						<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+							<div className="flex items-center justify-between p-4 bg-red-50 rounded-lg">
+								<div>
+									<p className="text-sm font-medium text-red-800">Critical ({scan.sla_critical} days SLA)</p>
+									<p className="text-2xl font-bold text-red-900">{scan.critical_count}</p>
+								</div>
+							</div>
+							<div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg">
+								<div>
+									<p className="text-sm font-medium text-orange-800">High ({scan.sla_high} days SLA)</p>
+									<p className="text-2xl font-bold text-orange-900">{scan.high_count}</p>
+								</div>
+							</div>
+							<div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg">
+								<div>
+									<p className="text-sm font-medium text-yellow-800">Medium ({scan.sla_medium} days SLA)</p>
+									<p className="text-2xl font-bold text-yellow-900">{scan.medium_count}</p>
+								</div>
+							</div>
+							<div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+								<div>
+									<p className="text-sm font-medium text-blue-800">Low ({scan.sla_low} days SLA)</p>
+									<p className="text-2xl font-bold text-blue-900">{scan.low_count}</p>
+								</div>
+							</div>
 						</div>
 					</div>
-					<div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg">
-						<div>
-							<p className="text-sm font-medium text-orange-800">High ({scan.sla_high} days SLA)</p>
-							<p className="text-2xl font-bold text-orange-900">{scan.high_count}</p>
-						</div>
-					</div>
-					<div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg">
-						<div>
-							<p className="text-sm font-medium text-yellow-800">Medium ({scan.sla_medium} days SLA)</p>
-							<p className="text-2xl font-bold text-yellow-900">{scan.medium_count}</p>
-						</div>
-					</div>
-					<div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
-						<div>
-							<p className="text-sm font-medium text-blue-800">Low ({scan.sla_low} days SLA)</p>
-							<p className="text-2xl font-bold text-blue-900">{scan.low_count}</p>
-						</div>
-					</div>
-				</div>
-			</div>
+				</>
+			)}
 
 			{/* Bulk action bar */}
 			{selectedIds.size > 0 && (
@@ -351,12 +335,29 @@ export const ScanDetails: FC = () => {
 						</div>
 					</div>
 				</div>
-				<p className="text-sm text-gray-600 mb-4">
-					Showing {filteredVulnerabilities.length} of {vulnerabilities.length} vulnerabilities
-				</p>
-				{filteredVulnerabilities.length === 0 ? (
+
+				{error && (
+					<div className="bg-red-50 p-4 rounded mb-4">
+						<p className="text-red-600">{error}</p>
+					</div>
+				)}
+
+				{!loading && (
+					<p className="text-sm text-gray-600 mb-4">
+						Showing {filteredVulnerabilities.length} of {vulnerabilities.length} vulnerabilities
+					</p>
+				)}
+
+				{loading ? (
+					<div className="flex items-center justify-center py-32">
+						<div className="flex flex-col items-center gap-3">
+							<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+							<p className="text-gray-500 text-sm">Loading vulnerabilities...</p>
+						</div>
+					</div>
+				) : filteredVulnerabilities.length === 0 ? (
 					<p className="text-gray-500">No vulnerabilities found</p>
-				) : (
+				) : scan ? (
 					<div className="overflow-x-auto">
 						<table className="min-w-full divide-y divide-gray-200">
 							<thead className="bg-gray-50">
@@ -525,7 +526,7 @@ export const ScanDetails: FC = () => {
 							</tbody>
 						</table>
 					</div>
-				)}
+				) : null}
 
 				{/* Pagination */}
 				{filteredVulnerabilities.length > 0 && (
