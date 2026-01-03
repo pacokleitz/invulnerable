@@ -47,5 +47,8 @@ Thumbs.db
 # Task
 .task
 
+# Claude
+.claude
+
 # TMP
 k8s/
