@@ -310,7 +310,7 @@ spec:
       url: "https://hooks.slack.com/services/YOUR/SCAN/WEBHOOK"
       format: "slack"  # or "teams"
       minSeverity: "High"  # Critical, High, Medium, Low, or Negligible
-      onlyFixed: true     # Only notify for CVEs with fixes (default: true)
+      onlyFixable: true     # Only notify for CVEs with fixes (default: true)
 
     # Status change notifications (when CVE status is updated via UI/API)
     statusChange:
@@ -318,7 +318,7 @@ spec:
       url: "https://hooks.slack.com/services/YOUR/STATUS/WEBHOOK"  # Can be different!
       format: "slack"  # or "teams"
       minSeverity: "High"
-      onlyFixed: true     # Only notify for CVEs with fixes (default: true)
+      onlyFixable: true     # Only notify for CVEs with fixes (default: true)
       statusTransitions:  # Optional: filter by specific transitions
         - "active→fixed"
         - "active→ignored"
@@ -444,7 +444,7 @@ spec:
       url: "https://hooks.slack.com/services/YOUR/SCAN/WEBHOOK"
       format: "slack"  # or "teams"
       minSeverity: "High"  # Critical, High, Medium, Low, Negligible
-      onlyFixed: true        # Only notify for CVEs with fixes (default: true)
+      onlyFixable: true        # Only notify for CVEs with fixes (default: true)
 
     # Status change notifications
     # Sent when vulnerability statuses are changed via UI/API
@@ -453,7 +453,7 @@ spec:
       url: "https://hooks.slack.com/services/YOUR/STATUS/WEBHOOK"  # Can be different!
       format: "slack"  # or "teams"
       minSeverity: "High"  # Only notify for High+ severity
-      onlyFixed: true        # Only notify for CVEs with fixes (default: true)
+      onlyFixable: true        # Only notify for CVEs with fixes (default: true)
 
       # Only notify for specific transitions (optional)
       statusTransitions:
@@ -475,12 +475,12 @@ spec:
 1. **Scan Completion Notifications**:
    - Vulnerability counts by severity (Critical, High, Medium, Low)
    - **Only counts actionable vulnerabilities** (excludes ignored/accepted CVEs)
-   - **By default, only notifies for CVEs with fixes** (`onlyFixed: true`) - set to `false` to include unfixed vulnerabilities
+   - **By default, only notifies for CVEs with fixes** (`onlyFixable: true`) - set to `false` to include unfixed vulnerabilities
    - If all detected CVEs are marked as ignored or accepted, no notification is sent
    - Color-coded message based on highest severity found
    - Clickable link to view full scan results in the web interface
    - Image name and digest
-   - Respects `minSeverity` and `onlyFixed` filters
+   - Respects `minSeverity` and `onlyFixable` filters
 
 2. **Status Change Notifications** (sent when CVE status is updated):
    - CVE ID and affected package
@@ -488,8 +488,8 @@ spec:
    - User who made the change (from OAuth2)
    - Justification notes if provided
    - Link to CVE details page
-   - **By default, only notifies for CVEs with fixes** (`onlyFixed: true`) - set to `false` to include unfixed vulnerabilities
-   - Respects `minSeverity`, `onlyFixed`, `statusTransitions`, and `includeNoteChanges` filters
+   - **By default, only notifies for CVEs with fixes** (`onlyFixable: true`) - set to `false` to include unfixed vulnerabilities
+   - Respects `minSeverity`, `onlyFixable`, `statusTransitions`, and `includeNoteChanges` filters
 
 **Configure frontend URL** (required for notification links):
 
@@ -712,7 +712,7 @@ Found a bug or have a feature request? Please open an issue on GitHub with:
 - ✅ Image-centric CVE view for compliance
 - ✅ Severity-based filtering across all pages
 - ✅ Webhook notifications for status changes
-- ✅ Smart notification filtering (onlyFixed mode)
+- ✅ Smart notification filtering (onlyFixable mode)
 
 **Coming Soon:**
 - [ ] Prometheus metrics exporter

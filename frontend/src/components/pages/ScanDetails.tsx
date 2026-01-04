@@ -96,7 +96,7 @@ export const ScanDetails: FC = () => {
 	const scanId = parseInt(id || '0', 10);
 	const [currentPage, setCurrentPage] = useState(1);
 	const itemsPerPage = 50;
-	const [showUnfixed, setShowUnfixed] = useState(false);
+	const [showUnfixable, setShowUnfixable] = useState(false);
 	const [slaFilter, setSlaFilter] = useState<'all' | 'exceeded' | 'warning'>('all');
 	const [historyVulnId, setHistoryVulnId] = useState<number | null>(null);
 	const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -105,7 +105,7 @@ export const ScanDetails: FC = () => {
 	const [showBulkActionModal, setShowBulkActionModal] = useState(false);
 	const [bulkUpdating, setBulkUpdating] = useState(false);
 	const { sortKey, sortDirection, handleSort } = useSortState('severity', 'desc');
-	const { currentScan, loading, error, reload } = useScan(scanId, showUnfixed ? undefined : true);
+	const { currentScan, loading, error, reload } = useScan(scanId, showUnfixable ? undefined : true);
 
 	useEffect(() => {
 		document.title = `Scan ${scanId} - Invulnerable`;
@@ -114,7 +114,7 @@ export const ScanDetails: FC = () => {
 	// Reset to page 1 when filters change
 	useEffect(() => {
 		setCurrentPage(1);
-	}, [showUnfixed, slaFilter]);
+	}, [showUnfixable, slaFilter]);
 
 	const viewDiff = useCallback(() => {
 		navigate(`/scans/${scanId}/diff`);
@@ -168,8 +168,8 @@ export const ScanDetails: FC = () => {
 		if (!currentScan) return [];
 
 		const { scan, vulnerabilities } = currentScan;
-		// Filter based on showUnfixed checkbox
-		let filtered = showUnfixed
+		// Filter based on showUnfixable checkbox
+		let filtered = showUnfixable
 			? vulnerabilities
 			: vulnerabilities.filter(vuln => vuln.fix_version !== null && vuln.fix_version !== undefined);
 
@@ -274,7 +274,7 @@ export const ScanDetails: FC = () => {
 		}
 
 		return filtered;
-	}, [currentScan, showUnfixed, slaFilter, sortKey, sortDirection]);
+	}, [currentScan, showUnfixable, slaFilter, sortKey, sortDirection]);
 
 	// Paginate the filtered vulnerabilities
 	const paginatedVulnerabilities = useMemo(() => {
@@ -402,11 +402,11 @@ export const ScanDetails: FC = () => {
 						<label className="flex items-center space-x-2 text-sm">
 							<input
 								type="checkbox"
-								checked={showUnfixed}
-								onChange={(e) => setShowUnfixed(e.target.checked)}
+								checked={showUnfixable}
+								onChange={(e) => setShowUnfixable(e.target.checked)}
 								className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 							/>
-							<span className="text-gray-700">Show unfixed CVEs</span>
+							<span className="text-gray-700">Show unfixable CVEs</span>
 						</label>
 						<div className="flex items-center space-x-2 text-sm">
 							<label className="text-gray-700">SLA Filter:</label>

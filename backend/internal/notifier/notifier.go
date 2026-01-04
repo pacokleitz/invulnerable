@@ -32,7 +32,7 @@ type WebhookConfig struct {
 	URL         string `json:"url"`
 	Format      string `json:"format"`
 	MinSeverity string `json:"min_severity"`
-	OnlyFixed   bool   `json:"only_fixed"`
+	OnlyFixable bool   `json:"only_fixable"`
 }
 
 // NotificationPayload contains data for webhook notification
@@ -64,10 +64,10 @@ type VulnerabilityInfo struct {
 
 // SendNotification sends webhook notification
 func (n *Notifier) SendNotification(ctx context.Context, config WebhookConfig, payload NotificationPayload) error {
-	// Check if there are any vulnerabilities to notify about (e.g., when onlyFixed filters everything out)
+	// Check if there are any vulnerabilities to notify about (e.g., when onlyFixable filters everything out)
 	if payload.TotalVulns == 0 {
 		n.logger.Info("no vulnerabilities to notify about, skipping notification",
-			zap.Bool("only_fixed", config.OnlyFixed),
+			zap.Bool("only_fixable", config.OnlyFixable),
 			zap.Int("scan_id", payload.ScanID))
 		return nil
 	}
@@ -186,7 +186,7 @@ type StatusChangeWebhookConfig struct {
 	URL                string
 	Format             string
 	MinSeverity        string
-	OnlyFixed          bool
+	OnlyFixable        bool
 	StatusTransitions  []string
 	IncludeNoteChanges bool
 }
@@ -201,11 +201,11 @@ func (n *Notifier) SendStatusChangeNotification(ctx context.Context, config Stat
 		return nil
 	}
 
-	// Check if only fixed CVEs should trigger notifications
-	if config.OnlyFixed && payload.FixVersion == nil {
+	// Check if only fixable CVEs should trigger notifications
+	if config.OnlyFixable && payload.FixVersion == nil {
 		n.logger.Info("vulnerability has no fix available, skipping notification",
 			zap.String("cve_id", payload.CVEID),
-			zap.Bool("only_fixed", config.OnlyFixed))
+			zap.Bool("only_fixable", config.OnlyFixable))
 		return nil
 	}
 

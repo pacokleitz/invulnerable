@@ -304,13 +304,13 @@ spec:
       url: "https://hooks.slack.com/services/YOUR/SCAN/WEBHOOK"
       format: "slack"
       minSeverity: "High"
-      onlyFixed: true  # Only notify for CVEs with fixes (default: true)
+      onlyFixable: true  # Only notify for CVEs with fixes (default: true)
     statusChange:
       enabled: true
       url: "https://hooks.slack.com/services/YOUR/STATUS/WEBHOOK"
       format: "slack"
       minSeverity: "High"
-      onlyFixed: true  # Only notify for CVEs with fixes (default: true)
+      onlyFixable: true  # Only notify for CVEs with fixes (default: true)
       statusTransitions:
         - "active→fixed"
         - "active→ignored"

@@ -63,7 +63,7 @@ type WebhookConfig struct {
 	URL         string `json:"url"`
 	Format      string `json:"format"`
 	MinSeverity string `json:"min_severity"`
-	OnlyFixed   bool   `json:"only_fixed"`
+	OnlyFixable bool   `json:"only_fixable"`
 }
 
 type SLAConfig struct {
@@ -289,8 +289,8 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 					continue
 				}
 
-				// Apply onlyFixed filter if configured
-				if req.WebhookConfig.OnlyFixed && len(match.Vulnerability.Fix.Versions) == 0 {
+				// Apply onlyFixable filter if configured
+				if req.WebhookConfig.OnlyFixable && len(match.Vulnerability.Fix.Versions) == 0 {
 					continue
 				}
 
@@ -318,7 +318,7 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 				URL:         req.WebhookConfig.URL,
 				Format:      req.WebhookConfig.Format,
 				MinSeverity: req.WebhookConfig.MinSeverity,
-				OnlyFixed:   req.WebhookConfig.OnlyFixed,
+				OnlyFixable: req.WebhookConfig.OnlyFixable,
 			}
 
 			notificationPayload := notifier.NotificationPayload{

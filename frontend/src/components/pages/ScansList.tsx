@@ -18,7 +18,7 @@ export const ScansList: FC = () => {
 	const fromDate = searchParams.get('from') || '';
 	const toDate = searchParams.get('to') || '';
 	const minSeverity = searchParams.get('minSeverity') || '';
-	const showUnfixed = searchParams.get('show_unfixed') === 'true'; // Default to false
+	const showUnfixable = searchParams.get('show_unfixable') === 'true'; // Default to false
 
 	const { scans, total, loading, error, reload } = useStore((state) => ({
 		scans: state.scans,
@@ -34,9 +34,9 @@ export const ScansList: FC = () => {
 			limit: itemsPerPage,
 			offset: (currentPage - 1) * itemsPerPage,
 			image: imageFilter || undefined,
-			has_fix: showUnfixed ? undefined : true
+			has_fix: showUnfixable ? undefined : true
 		});
-	}, [currentPage, imageFilter, showUnfixed, reload]);
+	}, [currentPage, imageFilter, showUnfixable, reload]);
 
 	useEffect(() => {
 		document.title = 'Scans - Invulnerable';
@@ -62,7 +62,7 @@ export const ScansList: FC = () => {
 	// Reset to page 1 when filters change
 	useEffect(() => {
 		setCurrentPage(1);
-	}, [imageFilter, fromDate, toDate, minSeverity, showUnfixed]);
+	}, [imageFilter, fromDate, toDate, minSeverity, showUnfixable]);
 
 	// Apply client-side filters that are not yet supported by backend (date filters and minSeverity)
 	// Image filter is now handled server-side
@@ -200,11 +200,11 @@ export const ScansList: FC = () => {
 						<label className="flex items-center space-x-2 text-sm">
 							<input
 								type="checkbox"
-								checked={showUnfixed}
-								onChange={(e) => updateFilter('show_unfixed', e.target.checked ? 'true' : 'false')}
+								checked={showUnfixable}
+								onChange={(e) => updateFilter('show_unfixable', e.target.checked ? 'true' : 'false')}
 								className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 							/>
-							<span className="text-gray-700">Show unfixed CVEs</span>
+							<span className="text-gray-700">Show unfixable CVEs</span>
 						</label>
 					</div>
 					<button onClick={handleClearFilters} className="btn btn-secondary text-sm">

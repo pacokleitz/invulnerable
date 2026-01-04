@@ -17,7 +17,7 @@ export const ScanDiff: FC = () => {
 	const [scan, setScan] = useState<Scan | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [showUnfixed, setShowUnfixed] = useState(false);
+	const [showUnfixable, setShowUnfixed] = useState(false);
 	const [historyVulnId, setHistoryVulnId] = useState<number | null>(null);
 
 	// Pagination states for each table
@@ -57,7 +57,7 @@ export const ScanDiff: FC = () => {
 		setNewVulnsPage(1);
 		setFixedVulnsPage(1);
 		setPersistentVulnsPage(1);
-	}, [showUnfixed]);
+	}, [showUnfixable]);
 
 	// Helper function to sort vulnerabilities
 	const sortVulnerabilities = (vulns: Vulnerability[], sortKey: string | null, sortDirection: 'asc' | 'desc' | null, slaConfig: any) => {
@@ -118,7 +118,7 @@ export const ScanDiff: FC = () => {
 
 	// Filter and sort vulnerabilities
 	const filteredNewVulns = useMemo(() => {
-		const filtered = showUnfixed
+		const filtered = showUnfixable
 			? diff?.new_vulnerabilities || []
 			: (diff?.new_vulnerabilities || []).filter(v => v.fix_version !== null && v.fix_version !== undefined);
 
@@ -128,10 +128,10 @@ export const ScanDiff: FC = () => {
 			medium: scan.sla_medium,
 			low: scan.sla_low,
 		}) : filtered;
-	}, [diff, showUnfixed, newVulnsSort.sortKey, newVulnsSort.sortDirection, scan]);
+	}, [diff, showUnfixable, newVulnsSort.sortKey, newVulnsSort.sortDirection, scan]);
 
 	const filteredFixedVulns = useMemo(() => {
-		const filtered = showUnfixed
+		const filtered = showUnfixable
 			? diff?.fixed_vulnerabilities || []
 			: (diff?.fixed_vulnerabilities || []).filter(v => v.fix_version !== null && v.fix_version !== undefined);
 
@@ -141,10 +141,10 @@ export const ScanDiff: FC = () => {
 			medium: scan.sla_medium,
 			low: scan.sla_low,
 		}) : filtered;
-	}, [diff, showUnfixed, fixedVulnsSort.sortKey, fixedVulnsSort.sortDirection, scan]);
+	}, [diff, showUnfixable, fixedVulnsSort.sortKey, fixedVulnsSort.sortDirection, scan]);
 
 	const filteredPersistentVulns = useMemo(() => {
-		const filtered = showUnfixed
+		const filtered = showUnfixable
 			? diff?.persistent_vulnerabilities || []
 			: (diff?.persistent_vulnerabilities || []).filter(v => v.fix_version !== null && v.fix_version !== undefined);
 
@@ -154,7 +154,7 @@ export const ScanDiff: FC = () => {
 			medium: scan.sla_medium,
 			low: scan.sla_low,
 		}) : filtered;
-	}, [diff, showUnfixed, persistentVulnsSort.sortKey, persistentVulnsSort.sortDirection, scan]);
+	}, [diff, showUnfixable, persistentVulnsSort.sortKey, persistentVulnsSort.sortDirection, scan]);
 
 	// Paginate each table
 	const paginatedNewVulns = useMemo(() => {
@@ -183,11 +183,11 @@ export const ScanDiff: FC = () => {
 					<label className="flex items-center space-x-2 text-sm">
 						<input
 							type="checkbox"
-							checked={showUnfixed}
+							checked={showUnfixable}
 							onChange={(e) => setShowUnfixed(e.target.checked)}
 							className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 						/>
-						<span className="text-gray-700">Show unfixed CVEs</span>
+						<span className="text-gray-700">Show unfixable CVEs</span>
 					</label>
 					<Link to={`/scans/${scanId}`} className="text-blue-600 hover:text-blue-800">
 						← Back to Scan

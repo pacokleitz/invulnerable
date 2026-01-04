@@ -14,19 +14,19 @@ We use **fixture files** instead of running real scans during tests to ensure:
 ### Scan Processing Tests (`internal/api/scans_fixture_test.go`)
 
 Tests the core vulnerability filtering logic:
-- ✅ `TestFilterVulnerabilitiesByOnlyFixed_Mixed` - Filter fixed/unfixed from mixed set
-- ✅ `TestFilterVulnerabilitiesByOnlyFixed_AllFixed` - Handle all-fixed scenario
-- ✅ `TestFilterVulnerabilitiesByOnlyFixed_AllUnfixed` - Handle all-unfixed scenario
-- ✅ `TestFilterVulnerabilitiesByOnlyFixed_Disabled` - Test with filtering disabled
+- ✅ `TestFilterVulnerabilitiesByOnlyFixable_Mixed` - Filter fixed/unfixed from mixed set
+- ✅ `TestFilterVulnerabilitiesByOnlyFixable_AllFixed` - Handle all-fixed scenario
+- ✅ `TestFilterVulnerabilitiesByOnlyFixable_AllUnfixed` - Handle all-unfixed scenario
+- ✅ `TestFilterVulnerabilitiesByOnlyFixable_Disabled` - Test with filtering disabled
 - ✅ `TestSeverityCounts_WithFixtures` - Verify severity counting with/without filtering
 
 ### Webhook Notification Tests (`internal/notifier/notifier_fixture_test.go`)
 
 Tests webhook notification behavior with fixtures:
-- ✅ `TestWebhookNotification_OnlyFixed_Mixed` - Webhook with mixed CVEs (onlyFixed=true)
-- ✅ `TestWebhookNotification_OnlyFixed_AllUnfixed` - Webhook skipped when no fixed CVEs
-- ✅ `TestWebhookNotification_OnlyFixed_Disabled` - Webhook includes unfixed when disabled
-- ✅ `TestStatusChangeNotification_OnlyFixed` - Status change notifications respect onlyFixed
+- ✅ `TestWebhookNotification_OnlyFixable_Mixed` - Webhook with mixed CVEs (onlyFixable=true)
+- ✅ `TestWebhookNotification_OnlyFixable_AllUnfixed` - Webhook skipped when no fixed CVEs
+- ✅ `TestWebhookNotification_OnlyFixable_Disabled` - Webhook includes unfixed when disabled
+- ✅ `TestStatusChangeNotification_OnlyFixable` - Status change notifications respect onlyFixable
 
 ## Available Fixtures
 
@@ -38,7 +38,7 @@ Tests webhook notification behavior with fixtures:
 - 1 Medium with fix
 - 1 Low without fix
 
-**Expected behavior when `onlyFixed=true`**:
+**Expected behavior when `onlyFixable=true`**:
 - Only 2 CVEs pass filter (Critical + Medium)
 - Webhook sends notification for 2 vulnerabilities
 
@@ -48,7 +48,7 @@ Tests webhook notification behavior with fixtures:
 - 1 Critical with fix
 - 1 High with fix
 
-**Expected behavior when `onlyFixed=true`**:
+**Expected behavior when `onlyFixable=true`**:
 - All 2 CVEs pass filter
 - Webhook sends notification for 2 vulnerabilities
 
@@ -58,7 +58,7 @@ Tests webhook notification behavior with fixtures:
 - 1 Critical without fix
 - 1 High without fix
 
-**Expected behavior when `onlyFixed=true`**:
+**Expected behavior when `onlyFixable=true`**:
 - 0 CVEs pass filter
 - Webhook is **NOT** triggered (TotalVulns=0)
 

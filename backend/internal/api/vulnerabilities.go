@@ -340,7 +340,7 @@ func (h *VulnerabilityHandler) sendStatusChangeWebhook(ctx context.Context, vuln
 		URL:                webhookConfig.WebhookURL,
 		Format:             webhookConfig.WebhookFormat,
 		MinSeverity:        webhookConfig.StatusChangeMinSeverity,
-		OnlyFixed:          webhookConfig.StatusChangeOnlyFixed,
+		OnlyFixable:        webhookConfig.StatusChangeOnlyFixable,
 		StatusTransitions:  webhookConfig.StatusChangeTransitions,
 		IncludeNoteChanges: webhookConfig.StatusChangeIncludeNotes,
 	}

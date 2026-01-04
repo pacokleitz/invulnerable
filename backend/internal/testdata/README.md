@@ -15,7 +15,7 @@ Contains a mix of vulnerabilities with different severities and fix states:
 
 Use this fixture to test:
 - Severity filtering
-- OnlyFixed filtering (should filter out 2 unfixed CVEs)
+- OnlyFixable filtering (should filter out 2 unfixed CVEs)
 - Webhook notifications with different configurations
 
 ### grype-output-all-fixed.json
@@ -24,7 +24,7 @@ Contains only vulnerabilities with fixes available:
 - CVE-2024-FIXED-2: High severity, with fix
 
 Use this fixture to test:
-- OnlyFixed filtering (all should pass)
+- OnlyFixable filtering (all should pass)
 - Webhook notifications when all CVEs are fixable
 
 ### grype-output-all-unfixed.json
@@ -33,8 +33,8 @@ Contains only vulnerabilities without fixes:
 - CVE-2024-UNFIXED-2: High severity, no fix
 
 Use this fixture to test:
-- OnlyFixed filtering (all should be filtered out)
-- Webhook notifications when onlyFixed=true (should not trigger)
+- OnlyFixable filtering (all should be filtered out)
+- Webhook notifications when onlyFixable=true (should not trigger)
 
 ## Usage
 

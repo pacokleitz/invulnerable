@@ -94,10 +94,10 @@ spec:
                   type: object
                   x-kubernetes-map-type: atomic
                 type: array
-              onlyFixed:
+              onlyFixable:
                 default: false
                 description: |-
-                  OnlyFixed specifies whether to only report vulnerabilities with available fixes.
+                  OnlyFixable specifies whether to only report vulnerabilities with available fixes.
                   When true, Grype will skip vulnerabilities that have no fix available.
                   Default: false (report all vulnerabilities)
                 type: boolean
@@ -263,12 +263,12 @@ spec:
                         - Low
                         - Negligible
                         type: string
-                      onlyFixed:
+                      onlyFixable:
                         default: true
                         description: |-
-                          OnlyFixed specifies whether to only send notifications for vulnerabilities with available fixes.
-                          When true, unfixed vulnerabilities will not trigger scan completion webhooks.
-                          This is independent of the ImageScan's OnlyFixed setting - you can scan all CVEs but only notify for fixed ones.
+                          OnlyFixable specifies whether to only send notifications for vulnerabilities with available fixes.
+                          When true, unfixable vulnerabilities will not trigger scan completion webhooks.
+                          This is independent of the ImageScan's OnlyFixable setting - you can scan all CVEs but only notify for fixable ones.
                           Default: true (only notify for vulnerabilities with fixes)
                         type: boolean
                     type: object
@@ -321,12 +321,12 @@ spec:
                         - Low
                         - Negligible
                         type: string
-                      onlyFixed:
+                      onlyFixable:
                         default: true
                         description: |-
-                          OnlyFixed specifies whether to only send notifications for vulnerabilities with available fixes.
-                          When true, unfixed vulnerabilities will not trigger status change webhooks.
-                          This is independent of the ImageScan's OnlyFixed setting - you can scan all CVEs but only notify for fixed ones.
+                          OnlyFixable specifies whether to only send notifications for vulnerabilities with available fixes.
+                          When true, unfixable vulnerabilities will not trigger status change webhooks.
+                          This is independent of the ImageScan's OnlyFixable setting - you can scan all CVEs but only notify for fixable ones.
                           Default: true (only notify for vulnerabilities with fixes)
                         type: boolean
                       statusTransitions:

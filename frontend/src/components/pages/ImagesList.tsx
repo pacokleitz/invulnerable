@@ -16,7 +16,7 @@ export const ImagesList: FC = () => {
 	const repositoryFilter = searchParams.get('repository') || '';
 	const tagFilter = searchParams.get('tag') || '';
 	const minSeverity = searchParams.get('minSeverity') || '';
-	const showUnfixed = searchParams.get('show_unfixed') === 'true'; // Default to false
+	const showUnfixable = searchParams.get('show_unfixable') === 'true'; // Default to false
 
 	const { images, total, loading, error, reload } = useStore((state) => ({
 		images: state.images,
@@ -31,9 +31,9 @@ export const ImagesList: FC = () => {
 		reload({
 			limit: itemsPerPage,
 			offset: (currentPage - 1) * itemsPerPage,
-			has_fix: showUnfixed ? undefined : true
+			has_fix: showUnfixable ? undefined : true
 		});
-	}, [currentPage, showUnfixed, reload]);
+	}, [currentPage, showUnfixable, reload]);
 
 	useEffect(() => {
 		document.title = 'Images - Invulnerable';
@@ -59,7 +59,7 @@ export const ImagesList: FC = () => {
 	// Reset to page 1 when filters change
 	useEffect(() => {
 		setCurrentPage(1);
-	}, [registryFilter, repositoryFilter, tagFilter, minSeverity, showUnfixed]);
+	}, [registryFilter, repositoryFilter, tagFilter, minSeverity, showUnfixable]);
 
 	// Client-side filtering
 	const filteredImages = useMemo(() => {
@@ -205,11 +205,11 @@ export const ImagesList: FC = () => {
 						<label className="flex items-center space-x-2 text-sm">
 							<input
 								type="checkbox"
-								checked={showUnfixed}
-								onChange={(e) => updateFilter('show_unfixed', e.target.checked ? 'true' : 'false')}
+								checked={showUnfixable}
+								onChange={(e) => updateFilter('show_unfixable', e.target.checked ? 'true' : 'false')}
 								className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 							/>
-							<span className="text-gray-700">Show unfixed CVEs</span>
+							<span className="text-gray-700">Show unfixable CVEs</span>
 						</label>
 					</div>
 					<button onClick={handleClearFilters} className="btn btn-secondary text-sm">

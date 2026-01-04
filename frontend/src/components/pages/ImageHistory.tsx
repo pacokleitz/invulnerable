@@ -11,7 +11,7 @@ export const ImageHistory: FC = () => {
 	const imageId = parseInt(id || '0', 10);
 	const [currentPage, setCurrentPage] = useState(1);
 	const itemsPerPage = 50;
-	const [showUnfixed, setShowUnfixed] = useState(false);
+	const [showUnfixable, setShowUnfixed] = useState(false);
 	const { sortKey, sortDirection, handleSort } = useSortState('scan_date', 'desc');
 
 	const { currentImageHistory, historyTotal, loading, error, reload } = useStore((state) => ({
@@ -24,8 +24,8 @@ export const ImageHistory: FC = () => {
 
 	// Fetch scans when page or filters change
 	useEffect(() => {
-		reload(imageId, itemsPerPage, (currentPage - 1) * itemsPerPage, showUnfixed ? undefined : true);
-	}, [imageId, currentPage, showUnfixed, reload]);
+		reload(imageId, itemsPerPage, (currentPage - 1) * itemsPerPage, showUnfixable ? undefined : true);
+	}, [imageId, currentPage, showUnfixable, reload]);
 
 	useEffect(() => {
 		document.title = 'Image History - Invulnerable';
@@ -34,7 +34,7 @@ export const ImageHistory: FC = () => {
 	// Reset to page 1 when filters change
 	useEffect(() => {
 		setCurrentPage(1);
-	}, [showUnfixed]);
+	}, [showUnfixable]);
 
 	// Apply sorting to scan history
 	const sortedHistory = useMemo(() => {
@@ -89,11 +89,11 @@ export const ImageHistory: FC = () => {
 					<label className="flex items-center space-x-2 text-sm">
 						<input
 							type="checkbox"
-							checked={showUnfixed}
+							checked={showUnfixable}
 							onChange={(e) => setShowUnfixed(e.target.checked)}
 							className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 						/>
-						<span className="text-gray-700">Show unfixed CVEs</span>
+						<span className="text-gray-700">Show unfixable CVEs</span>
 					</label>
 				</div>
 			</div>

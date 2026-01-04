@@ -25,8 +25,8 @@ func (r *WebhookConfigRepository) Upsert(ctx context.Context, namespace, name st
 		INSERT INTO imagescan_webhook_configs (
 			namespace, name,
 			webhook_url, webhook_format,
-			scan_min_severity, scan_only_fixed,
-			status_change_enabled, status_change_min_severity, status_change_only_fixed,
+			scan_min_severity, scan_only_fixable,
+			status_change_enabled, status_change_min_severity, status_change_only_fixable,
 			status_change_transitions, status_change_include_notes,
 			created_at, updated_at
 		)
@@ -36,10 +36,10 @@ func (r *WebhookConfigRepository) Upsert(ctx context.Context, namespace, name st
 			webhook_url = EXCLUDED.webhook_url,
 			webhook_format = EXCLUDED.webhook_format,
 			scan_min_severity = EXCLUDED.scan_min_severity,
-			scan_only_fixed = EXCLUDED.scan_only_fixed,
+			scan_only_fixable = EXCLUDED.scan_only_fixable,
 			status_change_enabled = EXCLUDED.status_change_enabled,
 			status_change_min_severity = EXCLUDED.status_change_min_severity,
-			status_change_only_fixed = EXCLUDED.status_change_only_fixed,
+			status_change_only_fixable = EXCLUDED.status_change_only_fixable,
 			status_change_transitions = EXCLUDED.status_change_transitions,
 			status_change_include_notes = EXCLUDED.status_change_include_notes,
 			updated_at = NOW()
@@ -48,8 +48,8 @@ func (r *WebhookConfigRepository) Upsert(ctx context.Context, namespace, name st
 	_, err := r.db.ExecContext(ctx, query,
 		namespace, name,
 		req.WebhookURL, req.WebhookFormat,
-		req.ScanMinSeverity, req.ScanOnlyFixed,
-		req.StatusChangeEnabled, req.StatusChangeMinSeverity, req.StatusChangeOnlyFixed,
+		req.ScanMinSeverity, req.ScanOnlyFixable,
+		req.StatusChangeEnabled, req.StatusChangeMinSeverity, req.StatusChangeOnlyFixable,
 		pq.Array(req.StatusChangeTransitions), req.StatusChangeIncludeNotes,
 	)
 
@@ -61,8 +61,8 @@ func (r *WebhookConfigRepository) Get(ctx context.Context, namespace, name strin
 	query := `
 		SELECT id, namespace, name,
 			webhook_url, webhook_format,
-			scan_min_severity, scan_only_fixed,
-			status_change_enabled, status_change_min_severity, status_change_only_fixed,
+			scan_min_severity, scan_only_fixable,
+			status_change_enabled, status_change_min_severity, status_change_only_fixable,
 			status_change_transitions, status_change_include_notes,
 			created_at, updated_at
 		FROM imagescan_webhook_configs
@@ -73,8 +73,8 @@ func (r *WebhookConfigRepository) Get(ctx context.Context, namespace, name strin
 	err := r.db.QueryRowContext(ctx, query, namespace, name).Scan(
 		&config.ID, &config.Namespace, &config.Name,
 		&config.WebhookURL, &config.WebhookFormat,
-		&config.ScanMinSeverity, &config.ScanOnlyFixed,
-		&config.StatusChangeEnabled, &config.StatusChangeMinSeverity, &config.StatusChangeOnlyFixed,
+		&config.ScanMinSeverity, &config.ScanOnlyFixable,
+		&config.StatusChangeEnabled, &config.StatusChangeMinSeverity, &config.StatusChangeOnlyFixable,
 		pq.Array(&config.StatusChangeTransitions), &config.StatusChangeIncludeNotes,
 		&config.CreatedAt, &config.UpdatedAt,
 	)

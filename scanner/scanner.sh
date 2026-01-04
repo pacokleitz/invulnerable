@@ -48,7 +48,7 @@ echo "Step 2: Scanning SBOM with Grype..."
 
 # Build Grype flags
 GRYPE_FLAGS="-o json"
-if [ "${ONLY_FIXED_VULNS:-false}" = "true" ]; then
+if [ "${ONLY_FIXABLE_VULNS:-false}" = "true" ]; then
     echo "Filtering to only show vulnerabilities with available fixes"
     GRYPE_FLAGS="$GRYPE_FLAGS --only-fixed"
 fi
@@ -85,7 +85,7 @@ jq -n \
     --arg webhook_url "${WEBHOOK_URL:-}" \
     --arg webhook_format "${WEBHOOK_FORMAT:-}" \
     --arg webhook_min_severity "${WEBHOOK_MIN_SEVERITY:-}" \
-    --arg webhook_only_fixed "${WEBHOOK_ONLY_FIXED:-true}" \
+    --arg webhook_only_fixable "${WEBHOOK_ONLY_FIXABLE:-true}" \
     --arg sla_critical "${SLA_CRITICAL:-7}" \
     --arg sla_high "${SLA_HIGH:-30}" \
     --arg sla_medium "${SLA_MEDIUM:-90}" \
@@ -102,7 +102,7 @@ jq -n \
                 url: $webhook_url,
                 format: $webhook_format,
                 min_severity: $webhook_min_severity,
-                only_fixed: ($webhook_only_fixed == "true")
+                only_fixable: ($webhook_only_fixable == "true")
             } else null end
         ),
         sla_config: {

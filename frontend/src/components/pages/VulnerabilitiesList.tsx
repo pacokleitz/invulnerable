@@ -35,7 +35,7 @@ export const VulnerabilitiesList: FC = () => {
 	const imageFilter = searchParams.get('image') || '';
 	const cveFilter = searchParams.get('cve') || '';
 	const packageCategoryFilter = searchParams.get('package_category') || '';
-	const showUnfixed = searchParams.get('show_unfixed') === 'true'; // Default to false
+	const showUnfixable = searchParams.get('show_unfixable') === 'true'; // Default to false
 
 	const loadVulnerabilities = useCallback(async () => {
 		setLoading(true);
@@ -50,8 +50,8 @@ export const VulnerabilitiesList: FC = () => {
 			if (statusFilter) params.status = statusFilter;
 			if (imageFilter) params.image_name = imageFilter;
 			if (cveFilter) params.cve_id = cveFilter;
-			// When showUnfixed is false, only show CVEs with fixes (has_fix = true)
-			if (!showUnfixed) params.has_fix = true;
+			// When showUnfixable is false, only show CVEs with fixes (has_fix = true)
+			if (!showUnfixable) params.has_fix = true;
 
 			const response = await api.vulnerabilities.list(params);
 			let data = response.data;
@@ -151,7 +151,7 @@ export const VulnerabilitiesList: FC = () => {
 		} finally {
 			setLoading(false);
 		}
-	}, [severityFilter, statusFilter, imageFilter, cveFilter, packageCategoryFilter, showUnfixed, sortKey, sortDirection, currentPage, itemsPerPage]);
+	}, [severityFilter, statusFilter, imageFilter, cveFilter, packageCategoryFilter, showUnfixable, sortKey, sortDirection, currentPage, itemsPerPage]);
 
 	// Server-side pagination - vulnerabilities already contains only the current page
 	const paginatedVulnerabilities = vulnerabilities;
@@ -186,7 +186,7 @@ export const VulnerabilitiesList: FC = () => {
 		if (vulnerabilities.length > 0) {
 			setCurrentPage(1);
 		}
-	}, [severityFilter, statusFilter, imageFilter, cveFilter, packageCategoryFilter, showUnfixed]);
+	}, [severityFilter, statusFilter, imageFilter, cveFilter, packageCategoryFilter, showUnfixable]);
 
 	const toggleSelection = (id: number) => {
 		const newSelected = new Set(selectedIds);
@@ -326,11 +326,11 @@ export const VulnerabilitiesList: FC = () => {
 						<label className="flex items-center space-x-2 text-sm">
 							<input
 								type="checkbox"
-								checked={showUnfixed}
-								onChange={(e) => updateFilter('show_unfixed', e.target.checked ? 'true' : 'false')}
+								checked={showUnfixable}
+								onChange={(e) => updateFilter('show_unfixable', e.target.checked ? 'true' : 'false')}
 								className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 							/>
-							<span className="text-gray-700">Show unfixed CVEs</span>
+							<span className="text-gray-700">Show unfixable CVEs</span>
 						</label>
 					</div>
 					<button onClick={handleClearFilters} className="btn btn-secondary text-sm">

@@ -3,7 +3,7 @@ import { useStore } from '../../store';
 import { SeverityBadge } from '../ui/SeverityBadge';
 
 export const Dashboard: FC = () => {
-	const [showUnfixed, setShowUnfixed] = useState(false);
+	const [showUnfixable, setShowUnfixed] = useState(false);
 	const { data: metrics, loading, loadMetrics } = useStore((state) => ({
 		data: state.data,
 		loading: state.loading,
@@ -15,8 +15,8 @@ export const Dashboard: FC = () => {
 	}, []);
 
 	useEffect(() => {
-		loadMetrics(showUnfixed ? undefined : true);
-	}, [loadMetrics, showUnfixed]);
+		loadMetrics(showUnfixable ? undefined : true);
+	}, [loadMetrics, showUnfixable]);
 
 	if (loading) {
 		return (
@@ -41,11 +41,11 @@ export const Dashboard: FC = () => {
 				<label className="flex items-center space-x-2 text-sm">
 					<input
 						type="checkbox"
-						checked={showUnfixed}
+						checked={showUnfixable}
 						onChange={(e) => setShowUnfixed(e.target.checked)}
 						className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 					/>
-					<span className="text-gray-700">Show unfixed CVEs</span>
+					<span className="text-gray-700">Show unfixable CVEs</span>
 				</label>
 			</div>
 

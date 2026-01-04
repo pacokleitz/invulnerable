@@ -30,7 +30,7 @@ func loadGrypeFixture(t *testing.T, filename string) models.GrypeResult {
 	return result
 }
 
-func TestWebhookNotification_OnlyFixed_Mixed(t *testing.T) {
+func TestWebhookNotification_OnlyFixable_Mixed(t *testing.T) {
 	grypeResult := loadGrypeFixture(t, "grype-output-mixed.json")
 
 	// Mock webhook server
@@ -46,16 +46,16 @@ func TestWebhookNotification_OnlyFixed_Mixed(t *testing.T) {
 	logger := zap.NewNop()
 	notifier := New(logger, "http://example.com")
 
-	// Test with onlyFixed=true
+	// Test with onlyFixable=true
 	config := WebhookConfig{
 		URL:         server.URL,
 		Format:      "slack",
 		MinSeverity: "Low", // Include all severities
-		OnlyFixed:   true,  // Only notify for fixed CVEs
+		OnlyFixable: true,  // Only notify for fixed CVEs
 	}
 
 	// Filter matches like the scan handler does
-	filteredMatches := filterByOnlyFixed(grypeResult.Matches, config.OnlyFixed)
+	filteredMatches := filterByOnlyFixable(grypeResult.Matches, config.OnlyFixable)
 
 	// Build payload with filtered matches
 	severityCounts := SeverityCounts{}
@@ -93,7 +93,7 @@ func TestWebhookNotification_OnlyFixed_Mixed(t *testing.T) {
 	assert.Equal(t, 0, payload.SeverityCounts.Low, "should have 0 Low (unfixed)")
 }
 
-func TestWebhookNotification_OnlyFixed_AllUnfixed(t *testing.T) {
+func TestWebhookNotification_OnlyFixable_AllUnfixed(t *testing.T) {
 	grypeResult := loadGrypeFixture(t, "grype-output-all-unfixed.json")
 
 	// Mock webhook server
@@ -107,16 +107,16 @@ func TestWebhookNotification_OnlyFixed_AllUnfixed(t *testing.T) {
 	logger := zap.NewNop()
 	notifier := New(logger, "http://example.com")
 
-	// Test with onlyFixed=true
+	// Test with onlyFixable=true
 	config := WebhookConfig{
 		URL:         server.URL,
 		Format:      "slack",
 		MinSeverity: "Low",
-		OnlyFixed:   true, // Only notify for fixed CVEs
+		OnlyFixable: true, // Only notify for fixed CVEs
 	}
 
 	// Filter matches
-	filteredMatches := filterByOnlyFixed(grypeResult.Matches, config.OnlyFixed)
+	filteredMatches := filterByOnlyFixable(grypeResult.Matches, config.OnlyFixable)
 
 	payload := NotificationPayload{
 		Image:      "test:unfixed",
@@ -133,7 +133,7 @@ func TestWebhookNotification_OnlyFixed_AllUnfixed(t *testing.T) {
 	assert.Equal(t, 0, payload.TotalVulns, "should have 0 vulnerabilities (all unfixed)")
 }
 
-func TestWebhookNotification_OnlyFixed_Disabled(t *testing.T) {
+func TestWebhookNotification_OnlyFixable_Disabled(t *testing.T) {
 	grypeResult := loadGrypeFixture(t, "grype-output-all-unfixed.json")
 
 	// Mock webhook server
@@ -147,16 +147,16 @@ func TestWebhookNotification_OnlyFixed_Disabled(t *testing.T) {
 	logger := zap.NewNop()
 	notifier := New(logger, "http://example.com")
 
-	// Test with onlyFixed=false (disabled)
+	// Test with onlyFixable=false (disabled)
 	config := WebhookConfig{
 		URL:         server.URL,
 		Format:      "slack",
 		MinSeverity: "Low",
-		OnlyFixed:   false, // Include all CVEs
+		OnlyFixable: false, // Include all CVEs
 	}
 
 	// Don't filter matches
-	filteredMatches := filterByOnlyFixed(grypeResult.Matches, config.OnlyFixed)
+	filteredMatches := filterByOnlyFixable(grypeResult.Matches, config.OnlyFixable)
 
 	// Count severities
 	severityCounts := SeverityCounts{}
@@ -180,11 +180,11 @@ func TestWebhookNotification_OnlyFixed_Disabled(t *testing.T) {
 	err := notifier.SendNotification(context.Background(), config, payload)
 	require.NoError(t, err)
 
-	assert.True(t, webhookCalled, "webhook should be called when onlyFixed=false")
+	assert.True(t, webhookCalled, "webhook should be called when onlyFixable=false")
 	assert.Equal(t, 2, payload.TotalVulns, "should include all CVEs (even unfixed)")
 }
 
-func TestStatusChangeNotification_OnlyFixed(t *testing.T) {
+func TestStatusChangeNotification_OnlyFixable(t *testing.T) {
 	logger := zap.NewNop()
 	notifier := New(logger, "http://example.com")
 
@@ -198,25 +198,25 @@ func TestStatusChangeNotification_OnlyFixed(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		onlyFixed     bool
+		onlyFixable   bool
 		hasFixVersion bool
 		expectWebhook bool
 	}{
 		{
-			name:          "OnlyFixed=true with fix - should notify",
-			onlyFixed:     true,
+			name:          "OnlyFixable=true with fix - should notify",
+			onlyFixable:   true,
 			hasFixVersion: true,
 			expectWebhook: true,
 		},
 		{
-			name:          "OnlyFixed=true without fix - should not notify",
-			onlyFixed:     true,
+			name:          "OnlyFixable=true without fix - should not notify",
+			onlyFixable:   true,
 			hasFixVersion: false,
 			expectWebhook: false,
 		},
 		{
-			name:          "OnlyFixed=false without fix - should notify",
-			onlyFixed:     false,
+			name:          "OnlyFixable=false without fix - should notify",
+			onlyFixable:   false,
 			hasFixVersion: false,
 			expectWebhook: true,
 		},
@@ -230,7 +230,7 @@ func TestStatusChangeNotification_OnlyFixed(t *testing.T) {
 				URL:         server.URL,
 				Format:      "slack",
 				MinSeverity: "Low",
-				OnlyFixed:   tt.onlyFixed,
+				OnlyFixable: tt.onlyFixable,
 			}
 
 			var fixVersion *string
@@ -265,8 +265,8 @@ func TestStatusChangeNotification_OnlyFixed(t *testing.T) {
 }
 
 // Helper function
-func filterByOnlyFixed(matches []models.GrypeMatch, onlyFixed bool) []models.GrypeMatch {
-	if !onlyFixed {
+func filterByOnlyFixable(matches []models.GrypeMatch, onlyFixable bool) []models.GrypeMatch {
+	if !onlyFixable {
 		return matches
 	}
 

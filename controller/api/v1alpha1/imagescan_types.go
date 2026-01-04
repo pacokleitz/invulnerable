@@ -78,12 +78,12 @@ type ImageScanSpec struct {
 	// +kubebuilder:validation:Optional
 	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 
-	// OnlyFixed specifies whether to only report vulnerabilities with available fixes.
+	// OnlyFixable specifies whether to only report vulnerabilities with available fixes.
 	// When true, Grype will skip vulnerabilities that have no fix available.
 	// Default: false (report all vulnerabilities)
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
-	OnlyFixed bool `json:"onlyFixed,omitempty"`
+	OnlyFixable bool `json:"onlyFixable,omitempty"`
 
 	// SLA defines Service Level Agreement for vulnerability remediation in days per severity.
 	// This configuration is stored with each scan for compliance tracking.
@@ -164,13 +164,13 @@ type ScanCompletionWebhookConfig struct {
 	// +kubebuilder:default="High"
 	MinSeverity string `json:"minSeverity,omitempty"`
 
-	// OnlyFixed specifies whether to only send notifications for vulnerabilities with available fixes.
-	// When true, unfixed vulnerabilities will not trigger scan completion webhooks.
-	// This is independent of the ImageScan's OnlyFixed setting - you can scan all CVEs but only notify for fixed ones.
+	// OnlyFixable specifies whether to only send notifications for vulnerabilities with available fixes.
+	// When true, unfixable vulnerabilities will not trigger scan completion webhooks.
+	// This is independent of the ImageScan's OnlyFixable setting - you can scan all CVEs but only notify for fixable ones.
 	// Default: true (only notify for vulnerabilities with fixes)
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=true
-	OnlyFixed bool `json:"onlyFixed,omitempty"`
+	OnlyFixable bool `json:"onlyFixable,omitempty"`
 }
 
 // StatusChangeWebhookConfig defines webhook settings for vulnerability status change notifications
@@ -199,13 +199,13 @@ type StatusChangeWebhookConfig struct {
 	// +kubebuilder:default=false
 	IncludeNoteChanges bool `json:"includeNoteChanges,omitempty"`
 
-	// OnlyFixed specifies whether to only send notifications for vulnerabilities with available fixes.
-	// When true, unfixed vulnerabilities will not trigger status change webhooks.
-	// This is independent of the ImageScan's OnlyFixed setting - you can scan all CVEs but only notify for fixed ones.
+	// OnlyFixable specifies whether to only send notifications for vulnerabilities with available fixes.
+	// When true, unfixable vulnerabilities will not trigger status change webhooks.
+	// This is independent of the ImageScan's OnlyFixable setting - you can scan all CVEs but only notify for fixable ones.
 	// Default: true (only notify for vulnerabilities with fixes)
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=true
-	OnlyFixed bool `json:"onlyFixed,omitempty"`
+	OnlyFixable bool `json:"onlyFixable,omitempty"`
 }
 
 // ScannerImageSpec defines the scanner container image configuration

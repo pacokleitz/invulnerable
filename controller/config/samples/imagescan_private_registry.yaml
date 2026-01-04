@@ -55,7 +55,7 @@ spec:
   schedule: "0 2 * * *"
 
   # Only report vulnerabilities with available fixes
-  onlyFixed: true
+  onlyFixable: true
 
   resources:
     requests:

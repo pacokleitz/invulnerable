@@ -58,11 +58,11 @@ spec:
 
       # Only notify for vulnerabilities with fixes available (optional)
       # When true, only CVEs with fixes will trigger notifications
-      # Note: This is independent of spec.onlyFixed (which controls scanning)
-      # You can scan all CVEs (spec.onlyFixed=false) but only notify for fixed ones
+      # Note: This is independent of spec.onlyFixable (which controls scanning)
+      # You can scan all CVEs (spec.onlyFixable=false) but only notify for fixed ones
       # Default: true (only notify for fixed vulnerabilities)
       # To notify for ALL vulnerabilities including unfixed:
-      # onlyFixed: false
+      # onlyFixable: false
 
     # Status change notifications
     # Sent when vulnerability statuses are changed via UI/API
@@ -72,10 +72,10 @@ spec:
 
       # Only notify for vulnerabilities with fixes available (optional)
       # When true, only CVEs with fixes will trigger status change notifications
-      # Note: This is independent of spec.onlyFixed (which controls scanning)
+      # Note: This is independent of spec.onlyFixable (which controls scanning)
       # Default: true (only notify for fixed vulnerabilities)
       # To notify for ALL vulnerabilities including unfixed:
-      # onlyFixed: false
+      # onlyFixable: false
 
       # Only notify for specific transitions (optional)
       # Format: "oldStatus→newStatus"
@@ -160,4 +160,4 @@ spec:
   # When enabled, Grype will skip CVEs with no known fix.
   #
   # Default: false (report all vulnerabilities)
-  # onlyFixed: true
+  # onlyFixable: true

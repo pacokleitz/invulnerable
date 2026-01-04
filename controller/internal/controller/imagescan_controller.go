@@ -459,10 +459,10 @@ func buildEnvVars(imageScan *invulnerablev1alpha1.ImageScan, apiEndpoint, sbomFo
 		})
 	}
 
-	// Set ONLY_FIXED_VULNS for Grype filtering
-	if imageScan.Spec.OnlyFixed {
+	// Set ONLY_FIXABLE_VULNS for Grype filtering
+	if imageScan.Spec.OnlyFixable {
 		env = append(env, corev1.EnvVar{
-			Name:  "ONLY_FIXED_VULNS",
+			Name:  "ONLY_FIXABLE_VULNS",
 			Value: "true",
 		})
 	}
@@ -490,10 +490,10 @@ func buildEnvVars(imageScan *invulnerablev1alpha1.ImageScan, apiEndpoint, sbomFo
 			},
 		)
 
-		// Add WEBHOOK_ONLY_FIXED if enabled
-		if imageScan.Spec.Webhooks.ScanCompletion.OnlyFixed {
+		// Add WEBHOOK_ONLY_FIXABLE if enabled
+		if imageScan.Spec.Webhooks.ScanCompletion.OnlyFixable {
 			env = append(env, corev1.EnvVar{
-				Name:  "WEBHOOK_ONLY_FIXED",
+				Name:  "WEBHOOK_ONLY_FIXABLE",
 				Value: "true",
 			})
 		}
@@ -577,7 +577,7 @@ func (r *ImageScanReconciler) syncWebhookConfig(ctx context.Context, imageScan *
 			minSeverity = "High"
 		}
 		webhookReq["scan_min_severity"] = minSeverity
-		webhookReq["scan_only_fixed"] = scanCompletion.OnlyFixed
+		webhookReq["scan_only_fixable"] = scanCompletion.OnlyFixable
 	}
 
 	// Add status change webhook config
@@ -598,14 +598,14 @@ func (r *ImageScanReconciler) syncWebhookConfig(ctx context.Context, imageScan *
 		}
 
 		webhookReq["status_change_include_notes"] = statusChange.IncludeNoteChanges
-		webhookReq["status_change_only_fixed"] = statusChange.OnlyFixed
+		webhookReq["status_change_only_fixable"] = statusChange.OnlyFixable
 	} else {
 		// If status change not configured, disable it
 		webhookReq["status_change_enabled"] = false
 		webhookReq["status_change_min_severity"] = "High"
 		webhookReq["status_change_transitions"] = []string{}
 		webhookReq["status_change_include_notes"] = false
-		webhookReq["status_change_only_fixed"] = false
+		webhookReq["status_change_only_fixable"] = false
 	}
 
 	// Marshal request
