@@ -11,6 +11,85 @@ import { Pagination } from '../ui/Pagination';
 import { formatDate, daysSince, calculateSLAStatus } from '../../lib/utils/formatters';
 import type { Vulnerability } from '../../lib/api/types';
 
+// Copyable text component with visual feedback
+const CopyableText: FC<{ text: string; className?: string; mono?: boolean }> = ({ text, className = '', mono = false }) => {
+	const [copied, setCopied] = useState(false);
+
+	const handleCopy = async (e: React.MouseEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
+
+		try {
+			await navigator.clipboard.writeText(text);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		} catch (err) {
+			console.error('Failed to copy:', err);
+			// Fallback for older browsers or non-HTTPS contexts
+			const textArea = document.createElement('textarea');
+			textArea.value = text;
+			textArea.style.position = 'fixed';
+			textArea.style.left = '-999999px';
+			document.body.appendChild(textArea);
+			textArea.select();
+			try {
+				document.execCommand('copy');
+				setCopied(true);
+				setTimeout(() => setCopied(false), 2000);
+			} catch (fallbackErr) {
+				console.error('Fallback copy failed:', fallbackErr);
+				alert('Failed to copy to clipboard');
+			}
+			document.body.removeChild(textArea);
+		}
+	};
+
+	return (
+		<button
+			type="button"
+			onClick={handleCopy}
+			className={`group relative inline-flex items-center gap-2 cursor-pointer hover:bg-blue-50 active:bg-blue-100 rounded px-2 py-1 -mx-2 -my-1 transition-colors border-0 bg-transparent text-left ${className}`}
+			title="Click to copy"
+		>
+			<span className={mono ? 'font-mono break-all' : ''}>{text}</span>
+			{copied ? (
+				<svg
+					className="w-4 h-4 text-green-600 flex-shrink-0"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
+					<path
+						strokeLinecap="round"
+						strokeLinejoin="round"
+						strokeWidth={2}
+						d="M5 13l4 4L19 7"
+					/>
+				</svg>
+			) : (
+				<svg
+					className="w-4 h-4 text-gray-400 group-hover:text-blue-600 flex-shrink-0"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
+					<path
+						strokeLinecap="round"
+						strokeLinejoin="round"
+						strokeWidth={2}
+						d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+					/>
+				</svg>
+			)}
+			{copied && (
+				<span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white text-xs px-3 py-1.5 rounded shadow-lg whitespace-nowrap z-10">
+					Copied!
+				</span>
+			)}
+		</button>
+	);
+};
+
 export const ScanDetails: FC = () => {
 	const { id } = useParams<{ id: string }>();
 	const navigate = useNavigate();
@@ -228,17 +307,25 @@ export const ScanDetails: FC = () => {
 						<dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
 							<div>
 								<dt className="text-sm font-medium text-gray-500">Image</dt>
-								<dd className="mt-1 text-sm text-gray-900">{scan.image_name}</dd>
+								<dd className="mt-1 text-sm text-gray-900">
+									<CopyableText text={scan.image_name} />
+								</dd>
 							</div>
 							<div>
 								<dt className="text-sm font-medium text-gray-500">Image Digest</dt>
-								<dd className="mt-1 text-sm text-gray-900 font-mono break-all">
-									{scan.image_digest || 'N/A'}
+								<dd className="mt-1 text-sm text-gray-900">
+									{scan.image_digest ? (
+										<CopyableText text={scan.image_digest} mono={true} />
+									) : (
+										<span className="text-gray-500">N/A</span>
+									)}
 								</dd>
 							</div>
 							<div>
 								<dt className="text-sm font-medium text-gray-500">Scan Date</dt>
-								<dd className="mt-1 text-sm text-gray-900">{formatDate(scan.scan_date)}</dd>
+								<dd className="mt-1 text-sm text-gray-900">
+									<CopyableText text={formatDate(scan.scan_date)} />
+								</dd>
 							</div>
 							<div>
 								<dt className="text-sm font-medium text-gray-500">Grype Version</dt>
