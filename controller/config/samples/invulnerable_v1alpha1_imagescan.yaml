@@ -21,8 +21,9 @@ spec:
   # WEBHOOK NOTIFICATIONS
   # ==========================================
   #
-  # Configure webhook notifications for scan completion and status changes.
-  # Each notification type can have its own URL (e.g., different Slack channels).
+  #
+  # SECURITY: For production use with sensitive webhook URLs (containing tokens),
+  # use Secret references instead of inline URLs. See examples below.
   #
   # How to get webhook URLs:
   #   Slack: https://api.slack.com/messaging/webhooks
@@ -30,14 +31,29 @@ spec:
   #   Test: https://webhook.site or https://webhook.cool (for testing)
   #
   webhooks:
+    # Webhook URL - shared by both scanCompletion and statusChange notifications
+    # Option 1: Inline URL (for testing/non-sensitive webhooks)
+    # url: https://hooks.slack.com/services/YOUR/WEBHOOK/TOKEN
+
+    # Option 2: Secret reference (recommended for production)
+    # Create secret first:
+    #   kubectl create secret generic slack-webhook \
+    #     --from-literal=url='https://hooks.slack.com/services/YOUR/WEBHOOK/TOKEN' \
+    #     -n invulnerable
+    # Then reference it instead of inline URL:
+    secretRef:
+      name: slack-webhook
+      key: url  # optional, defaults to "url"
+
+    # Webhook format - used for all notification types
+    format: slack  # or "teams"
+
     # Scan completion notifications
     # Sent after each scan with vulnerability summary
     # NOTE: Only counts "actionable" vulnerabilities (excludes ignored/accepted CVEs)
     # If all detected CVEs are marked as ignored or accepted, no notification is sent
     scanCompletion:
       enabled: true
-      url: https://merry-dolphin-15.webhook.cool
-      format: slack  # or "teams"
       minSeverity: High  # Critical, High, Medium, Low, Negligible
 
       # Only notify for vulnerabilities with fixes available (optional)
@@ -52,8 +68,6 @@ spec:
     # Sent when vulnerability statuses are changed via UI/API
     statusChange:
       enabled: true
-      url: https://merry-dolphin-15.webhook.cool  # Can be different!
-      format: slack  # or "teams"
       minSeverity: High  # Only notify for High+ severity
 
       # Only notify for vulnerabilities with fixes available (optional)

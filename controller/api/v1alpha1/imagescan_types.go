@@ -120,7 +120,28 @@ type SLAConfig struct {
 }
 
 // WebhooksConfig defines configuration for multiple webhook notification types
+// Both scanCompletion and statusChange webhooks share the same URL and format
 type WebhooksConfig struct {
+	// URL is the webhook endpoint URL used for all notification types
+	// Either URL or SecretRef must be specified, but not both
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:Pattern=`^https?://.*$`
+	URL string `json:"url,omitempty"`
+
+	// SecretRef references a Secret containing the webhook URL
+	// The Secret must be in the same namespace as the ImageScan
+	// Either URL or SecretRef must be specified, but not both
+	// +kubebuilder:validation:Optional
+	SecretRef *corev1.SecretKeySelector `json:"secretRef,omitempty"`
+
+	// Format specifies the webhook payload format (slack, teams)
+	// This format is used for all notification types
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=slack;teams
+	// +kubebuilder:default="slack"
+	Format string `json:"format,omitempty"`
+
 	// ScanCompletion configures notifications sent after each scan completes
 	// +kubebuilder:validation:Optional
 	ScanCompletion *ScanCompletionWebhookConfig `json:"scanCompletion,omitempty"`
@@ -136,18 +157,6 @@ type ScanCompletionWebhookConfig struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=true
 	Enabled bool `json:"enabled,omitempty"`
-
-	// URL is the webhook endpoint URL for scan completion notifications
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:Pattern=`^https?://.*$`
-	URL string `json:"url"`
-
-	// Format specifies the webhook payload format (slack, teams)
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Enum=slack;teams
-	// +kubebuilder:default="slack"
-	Format string `json:"format,omitempty"`
 
 	// MinSeverity is the minimum severity level to trigger notifications
 	// +kubebuilder:validation:Optional
@@ -170,19 +179,6 @@ type StatusChangeWebhookConfig struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=true
 	Enabled bool `json:"enabled,omitempty"`
-
-	// URL is the webhook endpoint URL for status change notifications
-	// Can be different from scan completion webhook
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:Pattern=`^https?://.*$`
-	URL string `json:"url"`
-
-	// Format specifies the webhook payload format (slack, teams)
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Enum=slack;teams
-	// +kubebuilder:default="slack"
-	Format string `json:"format,omitempty"`
 
 	// MinSeverity is the minimum severity to notify about (Critical, High, Medium, Low, Negligible)
 	// Only vulnerabilities at or above this severity will trigger notifications

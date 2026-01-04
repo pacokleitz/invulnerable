@@ -16,10 +16,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	invulnerablev1alpha1 "github.com/pacokleitz/invulnerable/controller/api/v1alpha1"
 )
@@ -160,6 +163,21 @@ func (r *ImageScanReconciler) reconcileCronJob(ctx context.Context, imageScan *i
 		workspaceSize = "10Gi"
 	}
 
+	// Resolve webhook URL if configured (shared by both scanCompletion and statusChange)
+	var webhookURL string
+	if imageScan.Spec.Webhooks != nil {
+		resolvedURL, err := r.resolveWebhookURL(
+			ctx,
+			imageScan.Namespace,
+			imageScan.Spec.Webhooks.URL,
+			imageScan.Spec.Webhooks.SecretRef,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve webhook URL: %w", err)
+		}
+		webhookURL = resolvedURL
+	}
+
 	// Define the desired CronJob
 	desiredCronJob := &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
@@ -202,7 +220,7 @@ func (r *ImageScanReconciler) reconcileCronJob(ctx context.Context, imageScan *i
 									Name:            "scanner",
 									Image:           scannerImage,
 									ImagePullPolicy: pullPolicy,
-									Env:             buildEnvVars(imageScan, apiEndpoint, sbomFormat),
+									Env:             buildEnvVars(imageScan, apiEndpoint, sbomFormat, webhookURL),
 									SecurityContext: &corev1.SecurityContext{
 										AllowPrivilegeEscalation: ptr(false),
 										Capabilities: &corev1.Capabilities{
@@ -341,6 +359,51 @@ func (r *ImageScanReconciler) handleDeletion(ctx context.Context, imageScan *inv
 	return ctrl.Result{}, nil
 }
 
+// resolveWebhookURL resolves a webhook URL from either direct URL or Secret reference
+// Returns the URL and any error encountered
+func (r *ImageScanReconciler) resolveWebhookURL(ctx context.Context, namespace string, url string, secretRef *corev1.SecretKeySelector) (string, error) {
+	logger := log.FromContext(ctx)
+
+	// If secretRef is provided, use it (takes precedence over direct URL)
+	if secretRef != nil {
+		secret := &corev1.Secret{}
+		secretName := types.NamespacedName{
+			Name:      secretRef.Name,
+			Namespace: namespace,
+		}
+
+		if err := r.Get(ctx, secretName, secret); err != nil {
+			if errors.IsNotFound(err) {
+				return "", fmt.Errorf("webhook secret %s not found in namespace %s", secretRef.Name, namespace)
+			}
+			return "", fmt.Errorf("failed to get webhook secret: %w", err)
+		}
+
+		// Default key is "url" if not specified
+		key := secretRef.Key
+		if key == "" {
+			key = "url"
+		}
+
+		urlBytes, ok := secret.Data[key]
+		if !ok {
+			return "", fmt.Errorf("key %s not found in secret %s", key, secretRef.Name)
+		}
+
+		resolvedURL := string(urlBytes)
+		logger.V(1).Info("Resolved webhook URL from secret", "secret", secretRef.Name, "key", key)
+		return resolvedURL, nil
+	}
+
+	// Use direct URL if provided
+	if url != "" {
+		return url, nil
+	}
+
+	// Neither URL nor SecretRef provided
+	return "", fmt.Errorf("webhook configuration must specify either url or secretRef")
+}
+
 // setCondition sets a condition on the ImageScan status
 func (r *ImageScanReconciler) setCondition(imageScan *invulnerablev1alpha1.ImageScan, conditionType string, status metav1.ConditionStatus, reason, message string) {
 	condition := metav1.Condition{
@@ -356,7 +419,7 @@ func (r *ImageScanReconciler) setCondition(imageScan *invulnerablev1alpha1.Image
 }
 
 // buildEnvVars builds the environment variables for the scanner container
-func buildEnvVars(imageScan *invulnerablev1alpha1.ImageScan, apiEndpoint, sbomFormat string) []corev1.EnvVar {
+func buildEnvVars(imageScan *invulnerablev1alpha1.ImageScan, apiEndpoint, sbomFormat, webhookURL string) []corev1.EnvVar {
 	env := []corev1.EnvVar{
 		{
 			Name:  "SCAN_IMAGE",
@@ -405,15 +468,21 @@ func buildEnvVars(imageScan *invulnerablev1alpha1.ImageScan, apiEndpoint, sbomFo
 	}
 
 	// Add scan completion webhook configuration if present and enabled
-	if imageScan.Spec.Webhooks != nil && imageScan.Spec.Webhooks.ScanCompletion != nil && imageScan.Spec.Webhooks.ScanCompletion.Enabled {
+	if webhookURL != "" && imageScan.Spec.Webhooks != nil && imageScan.Spec.Webhooks.ScanCompletion != nil && imageScan.Spec.Webhooks.ScanCompletion.Enabled {
+		// Get format from top-level webhooks config
+		format := imageScan.Spec.Webhooks.Format
+		if format == "" {
+			format = "slack"
+		}
+
 		env = append(env,
 			corev1.EnvVar{
 				Name:  "WEBHOOK_URL",
-				Value: imageScan.Spec.Webhooks.ScanCompletion.URL,
+				Value: webhookURL,
 			},
 			corev1.EnvVar{
 				Name:  "WEBHOOK_FORMAT",
-				Value: imageScan.Spec.Webhooks.ScanCompletion.Format,
+				Value: format,
 			},
 			corev1.EnvVar{
 				Name:  "WEBHOOK_MIN_SEVERITY",
@@ -480,16 +549,28 @@ func (r *ImageScanReconciler) syncWebhookConfig(ctx context.Context, imageScan *
 	// Build webhook config request
 	webhookReq := map[string]interface{}{}
 
+	// Resolve webhook URL from top-level config (shared by all notification types)
+	webhookURL, err := r.resolveWebhookURL(
+		ctx,
+		imageScan.Namespace,
+		imageScan.Spec.Webhooks.URL,
+		imageScan.Spec.Webhooks.SecretRef,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to resolve webhook URL: %w", err)
+	}
+	webhookReq["webhook_url"] = webhookURL
+
+	// Get format from top-level config
+	format := imageScan.Spec.Webhooks.Format
+	if format == "" {
+		format = "slack"
+	}
+	webhookReq["webhook_format"] = format
+
 	// Add scan completion webhook config
 	if imageScan.Spec.Webhooks.ScanCompletion != nil {
 		scanCompletion := imageScan.Spec.Webhooks.ScanCompletion
-		webhookReq["webhook_url"] = scanCompletion.URL
-
-		format := scanCompletion.Format
-		if format == "" {
-			format = "slack"
-		}
-		webhookReq["webhook_format"] = format
 
 		minSeverity := scanCompletion.MinSeverity
 		if minSeverity == "" {
@@ -610,7 +691,71 @@ func (r *ImageScanReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&invulnerablev1alpha1.ImageScan{}).
 		Owns(&batchv1.CronJob{}).
+		Watches(
+			&corev1.Secret{},
+			&secretEventHandler{
+				client: mgr.GetClient(),
+			},
+		).
 		Complete(r)
+}
+
+// secretEventHandler implements handler.EventHandler to trigger reconciliation
+// when Secrets referenced by ImageScans are updated
+type secretEventHandler struct {
+	client client.Client
+}
+
+// Create implements handler.EventHandler
+func (h *secretEventHandler) Create(ctx context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
+	// Secrets created - no action needed (ImageScan reconciliation will handle)
+}
+
+// Update implements handler.EventHandler
+func (h *secretEventHandler) Update(ctx context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+	// Secret was updated - find all ImageScans that reference it
+	h.enqueueImageScansForSecret(ctx, e.ObjectNew, q)
+}
+
+// Delete implements handler.EventHandler
+func (h *secretEventHandler) Delete(ctx context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+	// Secret deleted - trigger reconciliation so controller can report error
+	h.enqueueImageScansForSecret(ctx, e.Object, q)
+}
+
+// Generic implements handler.EventHandler
+func (h *secretEventHandler) Generic(ctx context.Context, e event.GenericEvent, q workqueue.RateLimitingInterface) {
+	// No-op
+}
+
+// enqueueImageScansForSecret finds all ImageScans that reference this Secret
+// and enqueues them for reconciliation
+func (h *secretEventHandler) enqueueImageScansForSecret(ctx context.Context, obj client.Object, q workqueue.RateLimitingInterface) {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		return
+	}
+
+	// List all ImageScans in the same namespace
+	imageScans := &invulnerablev1alpha1.ImageScanList{}
+	if err := h.client.List(ctx, imageScans, client.InNamespace(secret.Namespace)); err != nil {
+		return
+	}
+
+	// Check each ImageScan to see if it references this Secret
+	for _, imageScan := range imageScans.Items {
+		if imageScan.Spec.Webhooks != nil && imageScan.Spec.Webhooks.SecretRef != nil {
+			if imageScan.Spec.Webhooks.SecretRef.Name == secret.Name {
+				// Enqueue this ImageScan for reconciliation
+				q.Add(reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Name:      imageScan.Name,
+						Namespace: imageScan.Namespace,
+					},
+				})
+			}
+		}
+	}
 }
 
 // ptr returns a pointer to the provided value

@@ -234,6 +234,15 @@ spec:
               webhooks:
                 description: Webhooks configuration for multiple notification types
                 properties:
+                  format:
+                    default: slack
+                    description: |-
+                      Format specifies the webhook payload format (slack, teams)
+                      This format is used for all notification types
+                    enum:
+                    - slack
+                    - teams
+                    type: string
                   scanCompletion:
                     description: ScanCompletion configures notifications sent after
                       each scan completes
@@ -243,14 +252,6 @@ spec:
                         description: Enabled allows temporarily disabling scan completion
                           notifications
                         type: boolean
-                      format:
-                        default: slack
-                        description: Format specifies the webhook payload format (slack,
-                          teams)
-                        enum:
-                        - slack
-                        - teams
-                        type: string
                       minSeverity:
                         default: High
                         description: MinSeverity is the minimum severity level to
@@ -270,15 +271,30 @@ spec:
                           This is independent of the ImageScan's OnlyFixed setting - you can scan all CVEs but only notify for fixed ones.
                           Default: true (only notify for vulnerabilities with fixes)
                         type: boolean
-                      url:
-                        description: URL is the webhook endpoint URL for scan completion
-                          notifications
-                        minLength: 1
-                        pattern: ^https?://.*$
-                        type: string
-                    required:
-                    - url
                     type: object
+                  secretRef:
+                    description: |-
+                      SecretRef references a Secret containing the webhook URL
+                      The Secret must be in the same namespace as the ImageScan
+                      Either URL or SecretRef must be specified, but not both
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        description: |-
+                          Name of the referent.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
                   statusChange:
                     description: StatusChange configures notifications sent when vulnerability
                       statuses are changed
@@ -288,14 +304,6 @@ spec:
                         description: Enabled allows enabling/disabling status change
                           notifications
                         type: boolean
-                      format:
-                        default: slack
-                        description: Format specifies the webhook payload format (slack,
-                          teams)
-                        enum:
-                        - slack
-                        - teams
-                        type: string
                       includeNoteChanges:
                         default: false
                         description: IncludeNoteChanges determines if note/comment
@@ -330,16 +338,14 @@ spec:
                         items:
                           type: string
                         type: array
-                      url:
-                        description: |-
-                          URL is the webhook endpoint URL for status change notifications
-                          Can be different from scan completion webhook
-                        minLength: 1
-                        pattern: ^https?://.*$
-                        type: string
-                    required:
-                    - url
                     type: object
+                  url:
+                    description: |-
+                      URL is the webhook endpoint URL used for all notification types
+                      Either URL or SecretRef must be specified, but not both
+                    minLength: 1
+                    pattern: ^https?://.*$
+                    type: string
                 type: object
               workspaceSize:
                 default: 10Gi
