@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -185,24 +184,9 @@ func main() {
 
 // createS3Client creates an AWS S3 client with custom endpoint support
 func createS3Client(s3Config config.S3Config) (*s3.Client, error) {
-	// Create custom resolver for endpoint
-	customResolver := aws.EndpointResolverWithOptionsFunc(
-		func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-			if service == s3.ServiceID {
-				return aws.Endpoint{
-					URL:               s3Config.Endpoint,
-					HostnameImmutable: true,
-					SigningRegion:     s3Config.Region,
-				}, nil
-			}
-			return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-		},
-	)
-
 	// Load AWS config with custom credentials
 	cfg, err := awsconfig.LoadDefaultConfig(context.Background(),
 		awsconfig.WithRegion(s3Config.Region),
-		awsconfig.WithEndpointResolverWithOptions(customResolver),
 		awsconfig.WithCredentialsProvider(
 			credentials.NewStaticCredentialsProvider(
 				s3Config.AccessKey,
@@ -215,8 +199,9 @@ func createS3Client(s3Config config.S3Config) (*s3.Client, error) {
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
-	// Create S3 client with path-style addressing (required for MinIO)
+	// Create S3 client with custom endpoint and path-style addressing (required for MinIO)
 	return s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.BaseEndpoint = &s3Config.Endpoint
 		o.UsePathStyle = true
 	}), nil
 }
