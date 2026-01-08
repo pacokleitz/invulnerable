@@ -23,6 +23,9 @@ WORKDIR /
 # Copy the binary from builder
 COPY --from=builder /workspace/manager .
 
+# Copy dependency files for vulnerability scanning
+COPY --from=builder /workspace/go.mod /workspace/go.sum ./
+
 # Use non-root user
 USER 65532:65532
 

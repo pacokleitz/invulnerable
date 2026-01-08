@@ -25,6 +25,10 @@ RUN addgroup -g 1000 appuser && \
 # Copy built files
 COPY --from=builder /app/build /usr/share/nginx/html
 
+# Copy dependency files for vulnerability scanning (not served publicly)
+RUN mkdir -p /app
+COPY --from=builder /app/package.json /app/package-lock.json /app/
+
 # Copy nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 

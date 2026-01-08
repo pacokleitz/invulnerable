@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Install build dependencies and golang-migrate
 RUN apk add --no-cache git curl && \
-    curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz && \
+    curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz && \
     mv migrate /usr/local/bin/migrate
 
 # Copy go mod files
@@ -33,6 +33,9 @@ WORKDIR /home/appuser
 COPY --from=builder /app/server .
 COPY --from=builder /usr/local/bin/migrate /usr/local/bin/migrate
 COPY --from=builder /app/migrations ./migrations
+
+# Copy dependency files for vulnerability scanning
+COPY --from=builder /app/go.mod /app/go.sum ./
 
 # Change ownership to non-root user
 RUN chown -R appuser:appuser /home/appuser
