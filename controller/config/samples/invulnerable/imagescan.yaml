@@ -1,0 +1,157 @@
+#@ load("@ytt:data", "data")
+
+#! Generate ImageScan resources for all Invulnerable components
+#@ for image in data.values.images:
+---
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: #@ "invulnerable-{}-scan".format(image.name)
+  namespace: #@ data.values.namespace
+spec:
+  #! Container image to scan
+  image: #@ image.image
+
+  #! Scan schedule configuration
+  schedule:
+    enabled: true
+    cron: #@ image.schedule.cron
+    suspend: #@ image.schedule.suspend
+
+  #! Enable registry polling
+  registryPolling:
+    enabled: #@ data.values.registryPolling.enabled
+    interval: #@ data.values.registryPolling.interval
+
+  #! TimeZone for the schedule
+  timeZone: #@ data.values.timeZone
+
+  #! SBOM format (cyclonedx or spdx)
+  sbomFormat: #@ data.values.sbomFormat
+
+  #! ==========================================
+  #! WEBHOOK NOTIFICATIONS
+  #! ==========================================
+  #!
+  #! SECURITY: For production use with sensitive webhook URLs (containing tokens),
+  #! use Secret references instead of inline URLs.
+  #!
+  #! How to get webhook URLs:
+  #!   Slack: https://api.slack.com/messaging/webhooks
+  #!   Teams: https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook
+  #!   Test: https://webhook.site or https://webhook.cool (for testing)
+  #!
+  webhooks:
+    #! Webhook URL - shared by both scanCompletion and statusChange notifications
+    #! Using Secret reference (recommended for production)
+    #! Create secret first:
+    #!   kubectl create secret generic slack-webhook \
+    #!     --from-literal=url='https://hooks.slack.com/services/YOUR/WEBHOOK/TOKEN' \
+    #!     -n invulnerable
+    secretRef:
+      name: #@ data.values.webhook.secretRef.name
+      key: #@ data.values.webhook.secretRef.key
+
+    #! Webhook format - used for all notification types
+    format: #@ data.values.webhook.format
+
+    #! Scan completion notifications
+    #! Sent after each scan with vulnerability summary
+    #! NOTE: Only counts "actionable" vulnerabilities (excludes ignored/accepted CVEs)
+    #! If all detected CVEs are marked as ignored or accepted, no notification is sent
+    scanCompletion:
+      enabled: #@ data.values.webhook.scanCompletion.enabled
+      minSeverity: #@ data.values.webhook.scanCompletion.minSeverity
+
+      #! Only notify for vulnerabilities with fixes available (optional)
+      #! When true, only CVEs with fixes will trigger notifications
+      #! Note: This is independent of spec.onlyFixable (which controls scanning)
+      #! You can scan all CVEs (spec.onlyFixable=false) but only notify for fixed ones
+      #! Default: true (only notify for fixed vulnerabilities)
+      #! To notify for ALL vulnerabilities including unfixed:
+      #! onlyFixable: false
+
+    #! Status change notifications
+    #! Sent when vulnerability statuses are changed via UI/API
+    statusChange:
+      enabled: #@ data.values.webhook.statusChange.enabled
+      minSeverity: #@ data.values.webhook.statusChange.minSeverity
+
+      #! Only notify for vulnerabilities with fixes available (optional)
+      #! When true, only CVEs with fixes will trigger status change notifications
+      #! Note: This is independent of spec.onlyFixable (which controls scanning)
+      #! Default: true (only notify for fixed vulnerabilities)
+      #! To notify for ALL vulnerabilities including unfixed:
+      #! onlyFixable: false
+
+      #! Only notify for specific transitions (optional)
+      #! Format: "oldStatus→newStatus"
+      #! If not specified or empty, notifies on all transitions
+      #!
+      #! Common use cases:
+      #!   - Track fixes: ["active→fixed"]
+      #!   - Track triaged items: ["active→in_progress", "in_progress→fixed"]
+      #!   - Track all resolutions: ["active→fixed", "active→ignored", "active→accepted"]
+      statusTransitions: #@ data.values.webhook.statusChange.statusTransitions
+
+      #! Include note-only changes (default: false)
+      #! When true, notifies when only notes are updated without status change
+      #! When false, only notifies when status actually changes
+      includeNoteChanges: #@ data.values.webhook.statusChange.includeNoteChanges
+  #! ==========================================
+
+  #! Job history limits
+  successfulJobsHistoryLimit: #@ data.values.successfulJobsHistoryLimit
+  failedJobsHistoryLimit: #@ data.values.failedJobsHistoryLimit
+
+  #! Resource requests and limits
+  resources: #@ data.values.resources
+
+  #! Workspace size for image extraction (uses node disk space via emptyDir)
+  #! Recommended sizes:
+  #!   - Small images (<2GB): 5Gi
+  #!   - Medium images (2-8GB): 10Gi (default)
+  #!   - Large images (8-20GB): 20Gi
+  #!   - Very large images (20GB+): 30Gi+
+  #!
+  #! ⚠️  WARNING: Node disk space consideration
+  #! Multiple ImageScans run concurrently and share node disk:
+  #!   Example: 5 ImageScans × 20Gi = 100Gi total node disk usage
+  #!
+  #! To prevent exhausting node disk:
+  #!   1. Monitor node disk capacity
+  #!   2. Use ResourceQuotas to limit total emptyDir usage
+  #!   3. Use nodeSelector to schedule scans on nodes with large disks
+  #!   4. Keep workspaceSize reasonable for your use case
+  workspaceSize: #@ image.workspaceSize
+
+  #! API endpoint (optional, auto-detected if not specified)
+  #! apiEndpoint: "http://invulnerable-backend.invulnerable.svc.cluster.local:8080"
+
+  #! Scanner image configuration (optional)
+  scannerImage: #@ data.values.scannerImage
+
+  #! Private Registry Authentication (optional)
+  #!
+  #! To scan images from private Docker registries, create a docker-registry secret:
+  #!
+  #!   kubectl create secret docker-registry my-registry-secret \
+  #!     --docker-server=myregistry.example.com \
+  #!     --docker-username=myuser \
+  #!     --docker-password=mypassword \
+  #!     --docker-email=myemail@example.com \
+  #!     -n invulnerable
+  #!
+  #! Then reference the secret(s) here:
+  #! imagePullSecrets:
+  #!   - name: my-registry-secret
+
+  #! Filter unfixed vulnerabilities (optional)
+  #!
+  #! Only report vulnerabilities that have fixes available.
+  #! When enabled, Grype will skip CVEs with no known fix.
+  #!
+  #! Default: false (report all vulnerabilities)
+  #! onlyFixable: true
+
+#@ end

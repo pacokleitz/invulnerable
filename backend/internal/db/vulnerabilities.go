@@ -44,8 +44,12 @@ func (r *VulnerabilityRepository) Upsert(ctx context.Context, vuln *models.Vulne
 			fix_version = EXCLUDED.fix_version,
 			url = EXCLUDED.url,
 			description = EXCLUDED.description,
+			-- Always update ImageScan context to current scanner
+			-- This prevents orphaned CVEs when ImageScans are renamed/moved
+			-- and enables webhooks for old vulnerabilities without context
+			imagescan_namespace = EXCLUDED.imagescan_namespace,
+			imagescan_name = EXCLUDED.imagescan_name,
 			updated_at = NOW()
-			-- Note: NOT updating imagescan_namespace/name - keep original discoverer
 		RETURNING id, created_at, updated_at, imagescan_namespace, imagescan_name
 	`
 	return r.db.QueryRowContext(ctx, query,

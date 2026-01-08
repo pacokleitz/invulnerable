@@ -1,0 +1,80 @@
+#@data/values
+---
+#! Invulnerable component images to scan
+images:
+  - name: backend
+    image: ghcr.io/pacokleitz/invulnerable-backend:0.1.0
+    schedule:
+      cron: "*/5 * * * *"
+      suspend: false
+    workspaceSize: "10Gi"
+
+  - name: frontend
+    image: ghcr.io/pacokleitz/invulnerable-frontend:0.1.0
+    schedule:
+      cron: "*/5 * * * *"
+      suspend: false
+    workspaceSize: "10Gi"
+
+  - name: controller
+    image: ghcr.io/pacokleitz/invulnerable-controller:0.1.0
+    schedule:
+      cron: "*/5 * * * *"
+      suspend: false
+    workspaceSize: "10Gi"
+
+  - name: scanner
+    image: ghcr.io/pacokleitz/invulnerable-scanner:0.1.0
+    schedule:
+      cron: "*/5 * * * *"
+      suspend: false
+    workspaceSize: "10Gi"
+
+#! Common webhook configuration for all scans
+webhook:
+  secretRef:
+    name: slack-webhook
+    key: url
+  format: slack
+  scanCompletion:
+    enabled: true
+    minSeverity: High
+  statusChange:
+    enabled: true
+    minSeverity: High
+    statusTransitions:
+      - "active→fixed"
+      - "active→ignored"
+      - "active→accepted"
+      - "active→in_progress"
+      - "in_progress→fixed"
+    includeNoteChanges: false
+
+#! Common configuration
+namespace: invulnerable
+timeZone: "Europe/Paris"
+sbomFormat: "cyclonedx"
+
+#! Registry polling configuration
+registryPolling:
+  enabled: true
+  interval: 5m
+
+#! Resource limits
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "200m"
+  limits:
+    memory: "1Gi"
+    cpu: "1000m"
+
+#! Job history
+successfulJobsHistoryLimit: 3
+failedJobsHistoryLimit: 3
+
+#! Scanner image
+scannerImage:
+  repository: "invulnerable-scanner"
+  tag: "latest"
+  pullPolicy: "Always"

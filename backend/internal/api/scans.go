@@ -81,6 +81,17 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
 
+	// Log ImageScan context for debugging
+	if req.ImageScanContext != nil {
+		h.logger.Info("received scan with ImageScan context",
+			zap.String("namespace", req.ImageScanContext.Namespace),
+			zap.String("name", req.ImageScanContext.Name),
+			zap.String("image", req.Image))
+	} else {
+		h.logger.Warn("received scan WITHOUT ImageScan context",
+			zap.String("image", req.Image))
+	}
+
 	ctx := c.Request().Context()
 
 	// Parse image name (registry/repository:tag)
@@ -181,10 +192,17 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 			LastSeenAt:      time.Now(),
 		}
 
-		// Add ImageScan context if provided (only set on first discovery)
+		// Add ImageScan context if provided (will update on every scan via Upsert)
 		if req.ImageScanContext != nil {
 			vuln.ImageScanNamespace = &req.ImageScanContext.Namespace
 			vuln.ImageScanName = &req.ImageScanContext.Name
+			h.logger.Debug("assigning ImageScan context to vulnerability",
+				zap.String("cve_id", vuln.CVEID),
+				zap.String("namespace", req.ImageScanContext.Namespace),
+				zap.String("name", req.ImageScanContext.Name))
+		} else {
+			h.logger.Warn("no ImageScan context to assign to vulnerability",
+				zap.String("cve_id", vuln.CVEID))
 		}
 
 		// Check if vulnerability already exists

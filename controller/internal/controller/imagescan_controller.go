@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/go-containerregistry/pkg/authn"
+	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -80,15 +83,40 @@ func (r *ImageScanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	// Get or create CronJob
-	cronJob, err := r.reconcileCronJob(ctx, imageScan)
-	if err != nil {
-		logger.Error(err, "Failed to reconcile CronJob")
-		r.setCondition(imageScan, conditionTypeReady, metav1.ConditionFalse, "ReconcileFailed", err.Error())
+	// Validate that at least one trigger method is enabled
+	scheduleEnabled := imageScan.Spec.Schedule != nil && imageScan.Spec.Schedule.Enabled
+	registryPollingEnabled := imageScan.Spec.RegistryPolling != nil && imageScan.Spec.RegistryPolling.Enabled
+
+	if !scheduleEnabled && !registryPollingEnabled {
+		err := fmt.Errorf("at least one of schedule or registryPolling must be enabled")
+		logger.Error(err, "Invalid ImageScan configuration")
+		r.setCondition(imageScan, conditionTypeReady, metav1.ConditionFalse, "InvalidConfig", err.Error())
 		if statusErr := r.Status().Update(ctx, imageScan); statusErr != nil {
 			logger.Error(statusErr, "Failed to update ImageScan status")
 		}
 		return ctrl.Result{}, err
+	}
+
+	// Reconcile CronJob (create/update if enabled, delete if disabled)
+	var cronJobName string
+	if scheduleEnabled {
+		cronJob, err := r.reconcileCronJob(ctx, imageScan)
+		if err != nil {
+			logger.Error(err, "Failed to reconcile CronJob")
+			r.setCondition(imageScan, conditionTypeReady, metav1.ConditionFalse, "ReconcileFailed", err.Error())
+			if statusErr := r.Status().Update(ctx, imageScan); statusErr != nil {
+				logger.Error(statusErr, "Failed to update ImageScan status")
+			}
+			return ctrl.Result{}, err
+		}
+		cronJobName = cronJob.Name
+	} else {
+		// Schedule disabled - ensure CronJob is deleted if it exists
+		if err := r.deleteCronJobIfExists(ctx, imageScan); err != nil {
+			logger.Error(err, "Failed to delete CronJob")
+			return ctrl.Result{}, err
+		}
+		cronJobName = ""
 	}
 
 	// Sync webhook config to backend (if webhook is configured)
@@ -97,18 +125,67 @@ func (r *ImageScanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		// Don't fail reconciliation if webhook sync fails
 	}
 
+	// Reconcile registry polling (if enabled)
+	requeueAfter, err := r.reconcileRegistryPolling(ctx, imageScan)
+	if err != nil {
+		logger.Error(err, "Failed to reconcile registry polling")
+		r.setCondition(imageScan, conditionTypeReady, metav1.ConditionFalse, "RegistryPollingFailed", err.Error())
+		if statusErr := r.Status().Update(ctx, imageScan); statusErr != nil {
+			logger.Error(statusErr, "Failed to update ImageScan status")
+		}
+		return ctrl.Result{}, err
+	}
+
 	// Update status
-	imageScan.Status.CronJobName = cronJob.Name
+	imageScan.Status.CronJobName = cronJobName
 	imageScan.Status.ObservedGeneration = imageScan.Generation
-	r.setCondition(imageScan, conditionTypeReady, metav1.ConditionTrue, "ReconcileSuccess", "CronJob successfully reconciled")
+
+	if scheduleEnabled {
+		r.setCondition(imageScan, conditionTypeReady, metav1.ConditionTrue, "ReconcileSuccess", "CronJob successfully reconciled")
+	} else {
+		r.setCondition(imageScan, conditionTypeReady, metav1.ConditionTrue, "ReconcileSuccess", "Registry polling configured (schedule disabled)")
+	}
 
 	if err := r.Status().Update(ctx, imageScan); err != nil {
 		logger.Error(err, "Failed to update ImageScan status")
 		return ctrl.Result{}, err
 	}
 
-	logger.Info("Successfully reconciled ImageScan", "cronJob", cronJob.Name)
+	if scheduleEnabled {
+		logger.Info("Successfully reconciled ImageScan", "cronJob", cronJobName)
+	} else {
+		logger.Info("Successfully reconciled ImageScan (registry polling only)")
+	}
+
+	// If registry polling is enabled, requeue after interval
+	if requeueAfter > 0 {
+		logger.V(1).Info("Requeuing for registry polling", "after", requeueAfter)
+		return ctrl.Result{RequeueAfter: requeueAfter}, nil
+	}
+
 	return ctrl.Result{}, nil
+}
+
+// deleteCronJobIfExists deletes the CronJob for an ImageScan if it exists
+func (r *ImageScanReconciler) deleteCronJobIfExists(ctx context.Context, imageScan *invulnerablev1alpha1.ImageScan) error {
+	logger := log.FromContext(ctx)
+
+	cronJobName := fmt.Sprintf("%s-scanner", imageScan.Name)
+	cronJob := &batchv1.CronJob{}
+	err := r.Get(ctx, types.NamespacedName{Name: cronJobName, Namespace: imageScan.Namespace}, cronJob)
+
+	if err == nil {
+		// CronJob exists - delete it
+		logger.Info("Deleting CronJob (schedule disabled)", "name", cronJobName)
+		if err := r.Delete(ctx, cronJob); err != nil {
+			return fmt.Errorf("failed to delete CronJob: %w", err)
+		}
+	} else if !errors.IsNotFound(err) {
+		return fmt.Errorf("failed to check for existing CronJob: %w", err)
+	}
+	// If NotFound, nothing to delete
+
+	return nil
 }
 
 // reconcileCronJob creates or updates the CronJob for an ImageScan
@@ -119,12 +196,7 @@ func (r *ImageScanReconciler) reconcileCronJob(ctx context.Context, imageScan *i
 	cronJob := &batchv1.CronJob{}
 	err := r.Get(ctx, types.NamespacedName{Name: cronJobName, Namespace: imageScan.Namespace}, cronJob)
 
-	// Set defaults
-	sbomFormat := imageScan.Spec.SBOMFormat
-	if sbomFormat == "" {
-		sbomFormat = "cyclonedx"
-	}
-
+	// Set defaults for CronJob-specific fields
 	successfulJobsHistoryLimit := int32(3)
 	if imageScan.Spec.SuccessfulJobsHistoryLimit != nil {
 		successfulJobsHistoryLimit = *imageScan.Spec.SuccessfulJobsHistoryLimit
@@ -135,50 +207,7 @@ func (r *ImageScanReconciler) reconcileCronJob(ctx context.Context, imageScan *i
 		failedJobsHistoryLimit = *imageScan.Spec.FailedJobsHistoryLimit
 	}
 
-	scannerImage := "invulnerable-scanner:latest"
-	pullPolicy := corev1.PullIfNotPresent
-	if imageScan.Spec.ScannerImage != nil {
-		repo := imageScan.Spec.ScannerImage.Repository
-		if repo == "" {
-			repo = "invulnerable-scanner"
-		}
-		tag := imageScan.Spec.ScannerImage.Tag
-		if tag == "" {
-			tag = "latest"
-		}
-		scannerImage = fmt.Sprintf("%s:%s", repo, tag)
-		if imageScan.Spec.ScannerImage.PullPolicy != "" {
-			pullPolicy = imageScan.Spec.ScannerImage.PullPolicy
-		}
-	}
-
-	apiEndpoint := imageScan.Spec.APIEndpoint
-	if apiEndpoint == "" {
-		// Default to backend service in same namespace
-		apiEndpoint = fmt.Sprintf("http://invulnerable-backend.%s.svc.cluster.local:8080", imageScan.Namespace)
-	}
-
-	workspaceSize := imageScan.Spec.WorkspaceSize
-	if workspaceSize == "" {
-		workspaceSize = "10Gi"
-	}
-
-	// Resolve webhook URL if configured (shared by both scanCompletion and statusChange)
-	var webhookURL string
-	if imageScan.Spec.Webhooks != nil {
-		resolvedURL, err := r.resolveWebhookURL(
-			ctx,
-			imageScan.Namespace,
-			imageScan.Spec.Webhooks.URL,
-			imageScan.Spec.Webhooks.SecretRef,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve webhook URL: %w", err)
-		}
-		webhookURL = resolvedURL
-	}
-
-	// Define the desired CronJob
+	// Define the desired CronJob using buildJobSpec for the job template
 	desiredCronJob := &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cronJobName,
@@ -191,112 +220,16 @@ func (r *ImageScanReconciler) reconcileCronJob(ctx context.Context, imageScan *i
 			},
 		},
 		Spec: batchv1.CronJobSpec{
-			Schedule:                   imageScan.Spec.Schedule,
+			Schedule:                   imageScan.Spec.Schedule.Cron,
 			TimeZone:                   imageScan.Spec.TimeZone,
-			Suspend:                    &imageScan.Spec.Suspend,
+			Suspend:                    &imageScan.Spec.Schedule.Suspend,
 			SuccessfulJobsHistoryLimit: &successfulJobsHistoryLimit,
 			FailedJobsHistoryLimit:     &failedJobsHistoryLimit,
 			ConcurrencyPolicy:          batchv1.ForbidConcurrent,
 			JobTemplate: batchv1.JobTemplateSpec{
-				Spec: batchv1.JobSpec{
-					Template: corev1.PodTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{
-							Labels: map[string]string{
-								"app.kubernetes.io/name":      "invulnerable-scanner",
-								"app.kubernetes.io/instance":  imageScan.Name,
-								"app.kubernetes.io/component": "scanner",
-							},
-						},
-						Spec: corev1.PodSpec{
-							RestartPolicy: corev1.RestartPolicyOnFailure,
-							SecurityContext: &corev1.PodSecurityContext{
-								RunAsNonRoot: ptr(true),
-								RunAsUser:    ptr(int64(1000)),
-								RunAsGroup:   ptr(int64(1000)),
-								FSGroup:      ptr(int64(1000)),
-							},
-							Containers: []corev1.Container{
-								{
-									Name:            "scanner",
-									Image:           scannerImage,
-									ImagePullPolicy: pullPolicy,
-									Env:             buildEnvVars(imageScan, apiEndpoint, sbomFormat, webhookURL),
-									SecurityContext: &corev1.SecurityContext{
-										AllowPrivilegeEscalation: ptr(false),
-										Capabilities: &corev1.Capabilities{
-											Drop: []corev1.Capability{"ALL"},
-										},
-										ReadOnlyRootFilesystem: ptr(false),
-										RunAsNonRoot:           ptr(true),
-										RunAsUser:              ptr(int64(1000)),
-									},
-									VolumeMounts: []corev1.VolumeMount{
-										{
-											Name:      "scan-workspace",
-											MountPath: "/tmp/syft",
-										},
-									},
-								},
-							},
-							Volumes: []corev1.Volume{
-								{
-									Name: "scan-workspace",
-									VolumeSource: corev1.VolumeSource{
-										EmptyDir: &corev1.EmptyDirVolumeSource{
-											SizeLimit: resourceQuantityPtr(workspaceSize),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
+				Spec: r.buildJobSpec(imageScan),
 			},
 		},
-	}
-
-	// Set resources if specified
-	if imageScan.Spec.Resources != nil {
-		desiredCronJob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Resources = *imageScan.Spec.Resources
-	}
-
-	// Set ImagePullSecrets if specified (allows pulling private scanner image)
-	if len(imageScan.Spec.ImagePullSecrets) > 0 {
-		desiredCronJob.Spec.JobTemplate.Spec.Template.Spec.ImagePullSecrets = imageScan.Spec.ImagePullSecrets
-
-		// Mount docker config secrets as volumes for Syft to use
-		for i, secretRef := range imageScan.Spec.ImagePullSecrets {
-			volumeName := fmt.Sprintf("docker-config-%d", i)
-
-			// Add volume
-			desiredCronJob.Spec.JobTemplate.Spec.Template.Spec.Volumes = append(
-				desiredCronJob.Spec.JobTemplate.Spec.Template.Spec.Volumes,
-				corev1.Volume{
-					Name: volumeName,
-					VolumeSource: corev1.VolumeSource{
-						Secret: &corev1.SecretVolumeSource{
-							SecretName: secretRef.Name,
-							Items: []corev1.KeyToPath{
-								{
-									Key:  ".dockerconfigjson",
-									Path: "config.json",
-								},
-							},
-						},
-					},
-				},
-			)
-
-			// Add volume mount
-			desiredCronJob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].VolumeMounts = append(
-				desiredCronJob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].VolumeMounts,
-				corev1.VolumeMount{
-					Name:      volumeName,
-					MountPath: fmt.Sprintf("/docker-config/%d", i),
-					ReadOnly:  true,
-				},
-			)
-		}
 	}
 
 	// Set owner reference
@@ -686,6 +619,300 @@ func (r *ImageScanReconciler) deleteWebhookConfig(ctx context.Context, imageScan
 	return nil
 }
 
+// fetchImageDigest fetches the current digest of an image from the registry
+func (r *ImageScanReconciler) fetchImageDigest(ctx context.Context, imageScan *invulnerablev1alpha1.ImageScan) (string, error) {
+	logger := log.FromContext(ctx)
+
+	// Parse image reference
+	ref, err := name.ParseReference(imageScan.Spec.Image)
+	if err != nil {
+		return "", fmt.Errorf("invalid image reference: %w", err)
+	}
+
+	// Use default keychain for authentication
+	// This will use local Docker credentials and works for both public and private registries
+	var kc authn.Keychain = authn.DefaultKeychain
+
+	// Fetch image descriptor (HEAD request - minimal bandwidth)
+	desc, err := remote.Head(ref, remote.WithAuthFromKeychain(kc), remote.WithContext(ctx))
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch image descriptor: %w", err)
+	}
+
+	digest := desc.Digest.String()
+	logger.V(1).Info("Fetched image digest from registry", "image", imageScan.Spec.Image, "digest", digest)
+	return digest, nil
+}
+
+// reconcileRegistryPolling handles registry polling logic and triggers scans on digest changes
+func (r *ImageScanReconciler) reconcileRegistryPolling(ctx context.Context, imageScan *invulnerablev1alpha1.ImageScan) (time.Duration, error) {
+	logger := log.FromContext(ctx)
+
+	// Skip if registry polling not enabled
+	if imageScan.Spec.RegistryPolling == nil || !imageScan.Spec.RegistryPolling.Enabled {
+		return 0, nil
+	}
+
+	// Note: Registry polling is independent of schedule.suspend
+	// It will continue checking for image updates even if scheduled scans are paused
+
+	// Get polling interval (default 5 minutes)
+	interval := 5 * time.Minute
+	if imageScan.Spec.RegistryPolling.Interval != nil {
+		interval = imageScan.Spec.RegistryPolling.Interval.Duration
+	}
+	if interval < time.Minute {
+		interval = time.Minute // Minimum 1 minute to prevent rate limiting
+	}
+
+	// Check if it's time to poll
+	now := time.Now()
+	if imageScan.Status.LastRegistryCheckTime != nil {
+		nextCheck := imageScan.Status.LastRegistryCheckTime.Add(interval)
+		if now.Before(nextCheck) {
+			// Not time yet, requeue for next check
+			remainingTime := time.Until(nextCheck)
+			logger.V(1).Info("Registry polling scheduled", "nextCheck", nextCheck, "remainingTime", remainingTime)
+			return remainingTime, nil
+		}
+	}
+
+	// Fetch current digest from registry
+	currentDigest, err := r.fetchImageDigest(ctx, imageScan)
+	if err != nil {
+		logger.Error(err, "Failed to fetch image digest from registry", "image", imageScan.Spec.Image)
+		// Don't return error - just log and retry later
+		// Update status to show we attempted a check
+		imageScan.Status.LastRegistryCheckTime = &metav1.Time{Time: now}
+		imageScan.Status.NextRegistryCheckTime = &metav1.Time{Time: now.Add(interval)}
+		if statusErr := r.Status().Update(ctx, imageScan); statusErr != nil {
+			logger.Error(statusErr, "Failed to update status after registry check failure")
+		}
+		return interval, nil
+	}
+
+	// Check if digest changed
+	digestChanged := false
+	if imageScan.Status.LastCheckedDigest != "" && imageScan.Status.LastCheckedDigest != currentDigest {
+		digestChanged = true
+		logger.Info("Image digest changed, triggering immediate scan",
+			"image", imageScan.Spec.Image,
+			"oldDigest", imageScan.Status.LastCheckedDigest,
+			"newDigest", currentDigest,
+		)
+
+		// Trigger immediate scan by creating a Job directly
+		if err := r.triggerImmediateScan(ctx, imageScan, "RegistryUpdate"); err != nil {
+			logger.Error(err, "Failed to trigger immediate scan")
+			return interval, err
+		}
+	}
+
+	// Update status with current digest and check times
+	imageScan.Status.LastCheckedDigest = currentDigest
+	imageScan.Status.LastRegistryCheckTime = &metav1.Time{Time: now}
+	imageScan.Status.NextRegistryCheckTime = &metav1.Time{Time: now.Add(interval)}
+
+	if err := r.Status().Update(ctx, imageScan); err != nil {
+		logger.Error(err, "Failed to update ImageScan status after registry check")
+		return interval, err
+	}
+
+	if digestChanged {
+		logger.Info("Registry polling triggered scan due to digest change", "image", imageScan.Spec.Image)
+	} else {
+		logger.V(1).Info("Registry polling check completed, no changes detected", "image", imageScan.Spec.Image, "digest", currentDigest)
+	}
+
+	// Requeue after interval
+	return interval, nil
+}
+
+// triggerImmediateScan creates a Job directly (not via CronJob) for immediate execution
+func (r *ImageScanReconciler) triggerImmediateScan(ctx context.Context, imageScan *invulnerablev1alpha1.ImageScan, reason string) error {
+	logger := log.FromContext(ctx)
+
+	// Create a Job directly for immediate execution
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: imageScan.Name + "-registry-",
+			Namespace:    imageScan.Namespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/name":       "invulnerable-scanner",
+				"app.kubernetes.io/instance":   imageScan.Name,
+				"app.kubernetes.io/managed-by": "imagescan-controller",
+				"invulnerable.io/trigger":      reason,
+			},
+			Annotations: map[string]string{
+				"invulnerable.io/imagescan": imageScan.Name,
+				"invulnerable.io/trigger":   reason,
+			},
+		},
+		Spec: r.buildJobSpec(imageScan),
+	}
+
+	// Set owner reference
+	if err := controllerutil.SetControllerReference(imageScan, job, r.Scheme); err != nil {
+		return fmt.Errorf("failed to set controller reference: %w", err)
+	}
+
+	// Create the Job
+	if err := r.Create(ctx, job); err != nil {
+		return fmt.Errorf("failed to create immediate scan job: %w", err)
+	}
+
+	logger.Info("Triggered immediate scan", "job", job.Name, "reason", reason)
+	return nil
+}
+
+// buildJobSpec builds the JobSpec for scanner jobs
+// This is extracted from reconcileCronJob to be reusable for both CronJobs and direct Jobs
+func (r *ImageScanReconciler) buildJobSpec(imageScan *invulnerablev1alpha1.ImageScan) batchv1.JobSpec {
+	// Set defaults
+	sbomFormat := imageScan.Spec.SBOMFormat
+	if sbomFormat == "" {
+		sbomFormat = "cyclonedx"
+	}
+
+	scannerImage := "invulnerable-scanner:latest"
+	pullPolicy := corev1.PullIfNotPresent
+	if imageScan.Spec.ScannerImage != nil {
+		repo := imageScan.Spec.ScannerImage.Repository
+		if repo == "" {
+			repo = "invulnerable-scanner"
+		}
+		tag := imageScan.Spec.ScannerImage.Tag
+		if tag == "" {
+			tag = "latest"
+		}
+		scannerImage = fmt.Sprintf("%s:%s", repo, tag)
+		if imageScan.Spec.ScannerImage.PullPolicy != "" {
+			pullPolicy = imageScan.Spec.ScannerImage.PullPolicy
+		}
+	}
+
+	apiEndpoint := imageScan.Spec.APIEndpoint
+	if apiEndpoint == "" {
+		// Default to backend service in same namespace
+		apiEndpoint = fmt.Sprintf("http://invulnerable-backend.%s.svc.cluster.local:8080", imageScan.Namespace)
+	}
+
+	workspaceSize := imageScan.Spec.WorkspaceSize
+	if workspaceSize == "" {
+		workspaceSize = "10Gi"
+	}
+
+	// Resolve webhook URL if configured
+	var webhookURL string
+	if imageScan.Spec.Webhooks != nil {
+		resolvedURL, _ := r.resolveWebhookURL(
+			context.Background(),
+			imageScan.Namespace,
+			imageScan.Spec.Webhooks.URL,
+			imageScan.Spec.Webhooks.SecretRef,
+		)
+		webhookURL = resolvedURL
+	}
+
+	// Build pod spec
+	podSpec := corev1.PodSpec{
+		RestartPolicy: corev1.RestartPolicyOnFailure,
+		SecurityContext: &corev1.PodSecurityContext{
+			RunAsNonRoot: ptr(true),
+			RunAsUser:    ptr(int64(1000)),
+			RunAsGroup:   ptr(int64(1000)),
+			FSGroup:      ptr(int64(1000)),
+		},
+		Containers: []corev1.Container{
+			{
+				Name:            "scanner",
+				Image:           scannerImage,
+				ImagePullPolicy: pullPolicy,
+				Env:             buildEnvVars(imageScan, apiEndpoint, sbomFormat, webhookURL),
+				SecurityContext: &corev1.SecurityContext{
+					AllowPrivilegeEscalation: ptr(false),
+					Capabilities: &corev1.Capabilities{
+						Drop: []corev1.Capability{"ALL"},
+					},
+					ReadOnlyRootFilesystem: ptr(false),
+					RunAsNonRoot:           ptr(true),
+					RunAsUser:              ptr(int64(1000)),
+				},
+				VolumeMounts: []corev1.VolumeMount{
+					{
+						Name:      "scan-workspace",
+						MountPath: "/tmp/syft",
+					},
+				},
+			},
+		},
+		Volumes: []corev1.Volume{
+			{
+				Name: "scan-workspace",
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{
+						SizeLimit: resourceQuantityPtr(workspaceSize),
+					},
+				},
+			},
+		},
+	}
+
+	// Set resources if specified
+	if imageScan.Spec.Resources != nil {
+		podSpec.Containers[0].Resources = *imageScan.Spec.Resources
+	}
+
+	// Set ImagePullSecrets if specified
+	if len(imageScan.Spec.ImagePullSecrets) > 0 {
+		podSpec.ImagePullSecrets = imageScan.Spec.ImagePullSecrets
+
+		// Mount docker config secrets as volumes for Syft to use
+		for i, secretRef := range imageScan.Spec.ImagePullSecrets {
+			volumeName := fmt.Sprintf("docker-config-%d", i)
+
+			// Add volume
+			podSpec.Volumes = append(podSpec.Volumes, corev1.Volume{
+				Name: volumeName,
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: secretRef.Name,
+						Items: []corev1.KeyToPath{
+							{
+								Key:  ".dockerconfigjson",
+								Path: "config.json",
+							},
+						},
+					},
+				},
+			})
+
+			// Add volume mount
+			podSpec.Containers[0].VolumeMounts = append(
+				podSpec.Containers[0].VolumeMounts,
+				corev1.VolumeMount{
+					Name:      volumeName,
+					MountPath: fmt.Sprintf("/docker-config/%d", i),
+					ReadOnly:  true,
+				},
+			)
+		}
+	}
+
+	return batchv1.JobSpec{
+		Template: corev1.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"app.kubernetes.io/name":      "invulnerable-scanner",
+					"app.kubernetes.io/instance":  imageScan.Name,
+					"app.kubernetes.io/component": "scanner",
+				},
+			},
+			Spec: podSpec,
+		},
+	}
+}
+
 // SetupWithManager sets up the controller with the Manager
 func (r *ImageScanReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
@@ -706,31 +933,33 @@ type secretEventHandler struct {
 	client client.Client
 }
 
-// Create implements handler.EventHandler
-func (h *secretEventHandler) Create(ctx context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
-	// Secrets created - no action needed (ImageScan reconciliation will handle)
+// Create implements handler.TypedEventHandler
+func (h *secretEventHandler) Create(ctx context.Context, e event.TypedCreateEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+	// Secret was created - find all ImageScans that reference it
+	// This handles the case where ImageScans were created before the webhook secret
+	h.enqueueImageScansForSecret(ctx, e.Object, q)
 }
 
-// Update implements handler.EventHandler
-func (h *secretEventHandler) Update(ctx context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+// Update implements handler.TypedEventHandler
+func (h *secretEventHandler) Update(ctx context.Context, e event.TypedUpdateEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// Secret was updated - find all ImageScans that reference it
 	h.enqueueImageScansForSecret(ctx, e.ObjectNew, q)
 }
 
-// Delete implements handler.EventHandler
-func (h *secretEventHandler) Delete(ctx context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+// Delete implements handler.TypedEventHandler
+func (h *secretEventHandler) Delete(ctx context.Context, e event.TypedDeleteEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// Secret deleted - trigger reconciliation so controller can report error
 	h.enqueueImageScansForSecret(ctx, e.Object, q)
 }
 
-// Generic implements handler.EventHandler
-func (h *secretEventHandler) Generic(ctx context.Context, e event.GenericEvent, q workqueue.RateLimitingInterface) {
+// Generic implements handler.TypedEventHandler
+func (h *secretEventHandler) Generic(ctx context.Context, e event.TypedGenericEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// No-op
 }
 
 // enqueueImageScansForSecret finds all ImageScans that reference this Secret
 // and enqueues them for reconciliation
-func (h *secretEventHandler) enqueueImageScansForSecret(ctx context.Context, obj client.Object, q workqueue.RateLimitingInterface) {
+func (h *secretEventHandler) enqueueImageScansForSecret(ctx context.Context, obj client.Object, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
 		return

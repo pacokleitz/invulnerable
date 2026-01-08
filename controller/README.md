@@ -10,6 +10,7 @@ The Invulnerable Scanner Controller watches for `ImageScan` custom resources and
 
 - **Declarative Image Scanning**: Define what images to scan using Kubernetes CRDs
 - **Per-Image Schedules**: Each image can have its own cron schedule
+- **Registry Polling**: Automatically trigger scans when new images are pushed to registries
 - **Automatic CronJob Management**: Controller creates and updates CronJobs automatically
 - **Resource Control**: Specify CPU/memory limits per image scan
 - **SLA Compliance Tracking**: Configure remediation SLAs per severity with visual tracking
@@ -67,7 +68,9 @@ metadata:
   namespace: invulnerable
 spec:
   image: "nginx:latest"
-  schedule: "0 2 * * *"  # Daily at 2 AM
+  schedule:
+    enabled: true
+    cron: "0 2 * * *"  # Daily at 2 AM
   sbomFormat: "cyclonedx"
   resources:
     requests:
@@ -224,7 +227,9 @@ metadata:
   namespace: invulnerable
 spec:
   image: "myregistry.io/api:prod"
-  schedule: "0 */6 * * *"
+  schedule:
+    enabled: true
+    cron: "0 */6 * * *"
 EOF
 
 # Development images - scan daily
@@ -236,26 +241,180 @@ metadata:
   namespace: invulnerable
 spec:
   image: "myregistry.io/api:dev"
-  schedule: "0 3 * * *"
+  schedule:
+    enabled: true
+    cron: "0 3 * * *"
 EOF
 ```
 
-### Temporarily Suspend Scanning
+### Temporarily Suspend Scheduled Scanning
+
+Suspend scheduled scans without affecting registry polling:
 
 ```bash
 kubectl patch imagescan nginx-scan -n invulnerable \
-  --type merge -p '{"spec":{"suspend":true}}'
+  --type merge -p '{"spec":{"schedule":{"suspend":true}}}'
 
-# Resume scanning
+# Resume scheduled scanning
 kubectl patch imagescan nginx-scan -n invulnerable \
-  --type merge -p '{"spec":{"suspend":false}}'
+  --type merge -p '{"spec":{"schedule":{"suspend":false}}}'
 ```
+
+**Note**: Suspending the schedule only pauses time-based CronJob scans. Registry polling (if enabled) continues to monitor for image changes and trigger scans.
 
 ### Update Scan Schedule
 
 ```bash
 kubectl patch imagescan nginx-scan -n invulnerable \
-  --type merge -p '{"spec":{"schedule":"0 4 * * *"}}'
+  --type merge -p '{"spec":{"schedule":{"cron":"0 4 * * *"}}}'
+```
+
+### Disable Scheduled Scanning
+
+Disable time-based scanning to use registry polling only:
+
+```bash
+kubectl patch imagescan nginx-scan -n invulnerable \
+  --type merge -p '{"spec":{"schedule":{"enabled":false}}}'
+```
+
+**Note**: When schedule is disabled, you must have registry polling enabled. At least one trigger method (schedule or registryPolling) must be active.
+
+### Registry Polling
+
+Automatically trigger scans when new images are published to registries.
+
+#### Operating Modes
+
+ImageScan supports three operating modes:
+
+1. **Schedule Only** (Traditional)
+   - Time-based scanning via CronJob
+   - Scans run at fixed intervals regardless of image changes
+
+2. **Registry Polling Only** (Event-Driven)
+   - Scans triggered ONLY when new images are pushed
+   - No time-based scanning
+   - Minimizes redundant scans of unchanged images
+
+3. **Hybrid** (Recommended)
+   - Combines both scheduled and event-driven scanning
+   - Baseline scheduled scans + immediate scans on image updates
+   - Best of both worlds
+
+#### How It Works
+
+1. Controller periodically checks the registry for the image digest
+2. When the digest changes (new image pushed with same tag), an immediate scan is triggered
+3. If schedule is enabled, CronJob continues running independently
+4. Schedule and registry polling are independent - you can suspend one without affecting the other
+
+#### Configuration Examples
+
+**Hybrid Mode** (schedule + registry polling):
+```yaml
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: nginx-hybrid
+spec:
+  image: "nginx:latest"
+
+  # Scheduled scanning
+  schedule:
+    enabled: true
+    cron: "0 2 * * *"  # Daily baseline scan
+    suspend: false
+
+  # Registry polling
+  registryPolling:
+    enabled: true
+    interval: 5m
+```
+
+**Registry Polling Only** (event-driven):
+```yaml
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: nginx-polling-only
+spec:
+  image: "nginx:latest"
+
+  # Disable scheduled scanning
+  schedule:
+    enabled: false
+
+  # Enable registry polling
+  registryPolling:
+    enabled: true
+    interval: 5m
+```
+
+#### Interval Guidelines
+
+Choose the polling interval based on your update frequency:
+
+- **High frequency** (CI/CD pipelines): `2m` - `5m`
+- **Moderate updates**: `10m` - `30m`
+- **Low frequency**: `1h` - `6h`
+
+**Note**: Minimum interval is 1 minute to prevent API rate limiting.
+
+#### Use Cases
+
+1. **CI/CD Integration**: Automatically scan images pushed by your pipeline
+   ```yaml
+   image: "myregistry.io/app:staging"
+   registryPolling:
+     enabled: true
+     interval: 2m  # Fast detection for active development
+   ```
+
+2. **Production Monitoring**: Detect unexpected image changes
+   ```yaml
+   image: "nginx:1.25"
+   registryPolling:
+     enabled: true
+     interval: 1h  # Periodic checks for production stability
+   ```
+
+3. **Private Registry**: Works with `imagePullSecrets`
+   ```yaml
+   image: "myregistry.io/app:latest"
+   imagePullSecrets:
+     - name: my-registry-secret
+   registryPolling:
+     enabled: true
+     interval: 5m
+   ```
+
+#### Status Tracking
+
+View registry polling status:
+
+```bash
+kubectl get imagescan nginx-with-polling -o yaml
+```
+
+Status fields:
+```yaml
+status:
+  lastCheckedDigest: "sha256:abc123..."
+  lastRegistryCheckTime: "2026-01-04T10:30:00Z"
+  nextRegistryCheckTime: "2026-01-04T10:35:00Z"
+```
+
+#### Triggered Jobs
+
+Registry-triggered jobs are labeled differently from scheduled jobs:
+
+```bash
+# View all scanner jobs
+kubectl get jobs -l app.kubernetes.io/name=invulnerable-scanner
+
+# View only registry-triggered jobs
+kubectl get jobs -l invulnerable.io/trigger=RegistryUpdate
 ```
 
 ## Controller Configuration

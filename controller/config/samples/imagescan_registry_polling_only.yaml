@@ -1,0 +1,73 @@
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: nginx-polling-only
+  namespace: invulnerable
+spec:
+  # Container image to scan
+  image: "nginx:latest"
+
+  # ==========================================
+  # REGISTRY POLLING ONLY MODE
+  # ==========================================
+  #
+  # This example shows event-driven scanning WITHOUT any time-based schedule
+  # Scans are ONLY triggered when new images are pushed to the registry
+  #
+  # Use this mode when:
+  #   - You want scans only when images actually change
+  #   - Your CI/CD pipeline pushes images frequently
+  #   - You don't need periodic rescanning of the same image
+  #   - You want to minimize resource usage (no redundant scans)
+
+  # Disable scheduled scanning (no CronJob will be created)
+  schedule:
+    enabled: false
+
+  # Enable registry polling
+  registryPolling:
+    enabled: true
+    interval: 5m  # Check every 5 minutes for new images
+
+  # SBOM format
+  sbomFormat: "cyclonedx"
+
+  # ==========================================
+  # WEBHOOK NOTIFICATIONS
+  # ==========================================
+  webhooks:
+    url: https://webhook.site/your-unique-url
+    format: slack
+
+    scanCompletion:
+      enabled: true
+      minSeverity: High
+      onlyFixable: true
+
+    statusChange:
+      enabled: true
+      minSeverity: High
+      onlyFixable: true
+      statusTransitions:
+        - "active→fixed"
+        - "active→ignored"
+
+  # Other settings
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+  workspaceSize: "10Gi"
+
+  scannerImage:
+    repository: "invulnerable-scanner"
+    tag: "latest"
+    pullPolicy: "IfNotPresent"
+
+  # For private registries
+  # imagePullSecrets:
+  #   - name: my-registry-secret

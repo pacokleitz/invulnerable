@@ -87,8 +87,12 @@ spec:
                     referenced object inside the same namespace.
                   properties:
                     name:
+                      default: ""
                       description: |-
                         Name of the referent.
+                        This field is effectively required, but due to backwards compatibility is
+                        allowed to be empty. Instances of this type with an empty value here are
+                        almost certainly wrong.
                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                       type: string
                   type: object
@@ -101,6 +105,27 @@ spec:
                   When true, Grype will skip vulnerabilities that have no fix available.
                   Default: false (report all vulnerabilities)
                 type: boolean
+              registryPolling:
+                description: |-
+                  RegistryPolling configures automatic scanning when image updates are detected in the registry
+                  This is a hybrid approach - both scheduled CronJobs and registry-triggered scans can coexist
+                  When enabled, the controller periodically checks the registry for digest changes and triggers immediate scans
+                properties:
+                  enabled:
+                    default: false
+                    description: |-
+                      Enabled determines if registry polling is active
+                      When enabled, the controller will periodically check the registry for new image versions
+                      and automatically trigger scans when the image digest changes
+                    type: boolean
+                  interval:
+                    default: 5m
+                    description: |-
+                      Interval is how often to check the registry for updates
+                      Must be at least 1 minute to prevent API rate limiting
+                      Default: 5m (5 minutes)
+                    type: string
+                type: object
               resources:
                 description: Resources defines the resource requirements for the scanner
                   job
@@ -110,7 +135,7 @@ spec:
                       Claims lists the names of resources, defined in spec.resourceClaims,
                       that are used by this container.
 
-                      This is an alpha field and requires enabling the
+                      This field depends on the
                       DynamicResourceAllocation feature gate.
 
                       This field is immutable. It can only be set for containers.
@@ -122,6 +147,12 @@ spec:
                             Name must match the name of one entry in pod.spec.resourceClaims of
                             the Pod where this field is used. It makes that resource available
                             inside a container.
+                          type: string
+                        request:
+                          description: |-
+                            Request is the name chosen for a request in the referenced claim.
+                            If empty, everything from the claim is made available, otherwise
+                            only the result of this request.
                           type: string
                       required:
                       - name
@@ -184,10 +215,33 @@ spec:
                     type: string
                 type: object
               schedule:
-                description: Schedule in Cron format for when to run the scan
-                example: 0 2 * * *
-                minLength: 1
-                type: string
+                description: |-
+                  Schedule configures time-based scanning via CronJob
+                  If disabled or not specified, only registry polling will trigger scans
+                properties:
+                  cron:
+                    description: |-
+                      Cron schedule in cron format for when to run the scan
+                      Required if enabled is true
+                      Example: "0 2 * * *" (daily at 2 AM)
+                    example: 0 2 * * *
+                    minLength: 1
+                    type: string
+                  enabled:
+                    default: true
+                    description: |-
+                      Enabled determines if scheduled scanning via CronJob is active
+                      When false, only registry polling (if enabled) will trigger scans
+                      Default: true
+                    type: boolean
+                  suspend:
+                    default: false
+                    description: |-
+                      Suspend temporarily pauses scheduled scans without disabling the schedule
+                      When true, the CronJob will not trigger new scans, but registry polling (if enabled) continues
+                      Default: false
+                    type: boolean
+                type: object
               sla:
                 description: |-
                   SLA defines Service Level Agreement for vulnerability remediation in days per severity.
@@ -222,10 +276,6 @@ spec:
                 format: int32
                 minimum: 0
                 type: integer
-              suspend:
-                default: false
-                description: Suspend tells the controller to suspend subsequent scans
-                type: boolean
               timeZone:
                 description: |-
                   TimeZone for the CronJob schedule (e.g., "America/New_York", "UTC")
@@ -283,8 +333,12 @@ spec:
                           a valid secret key.
                         type: string
                       name:
+                        default: ""
                         description: |-
                           Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                         type: string
                       optional:
@@ -357,7 +411,6 @@ spec:
                 type: string
             required:
             - image
-            - schedule
             type: object
           status:
             description: ImageScanStatus defines the observed state of ImageScan
@@ -423,9 +476,24 @@ spec:
               cronJobName:
                 description: CronJobName is the name of the managed CronJob
                 type: string
+              lastCheckedDigest:
+                description: |-
+                  LastCheckedDigest is the image digest from the last registry check
+                  Used to detect when a new image version has been pushed with the same tag
+                type: string
+              lastRegistryCheckTime:
+                description: LastRegistryCheckTime is when we last polled the registry
+                  for image updates
+                format: date-time
+                type: string
               lastSuccessfulTime:
                 description: LastSuccessfulTime is the last time a scan completed
                   successfully
+                format: date-time
+                type: string
+              nextRegistryCheckTime:
+                description: NextRegistryCheckTime is when the next registry poll
+                  is scheduled
                 format: date-time
                 type: string
               observedGeneration:

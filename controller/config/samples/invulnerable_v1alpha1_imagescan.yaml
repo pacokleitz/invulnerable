@@ -7,8 +7,16 @@ spec:
   # Container image to scan
   image: "vulnerables/web-dvwa:latest"
 
-  # Scan schedule in cron format (daily at 2 AM)
-  schedule: "*/5 * * * *"
+  # Scan schedule configuration
+  schedule:
+    enabled: true
+    cron: "*/5 * * * *"  # Every 5 minutes for testing
+    suspend: false  # Temporarily pause scheduled scans (registry polling unaffected)
+  
+  # Enable registry polling
+  registryPolling:
+    enabled: true
+    interval: 5m  # Check every 5 minutes for new images
 
   # TimeZone for the schedule (optional, e.g., "America/New_York", "Europe/Paris")
   # If not specified, uses the system timezone
@@ -95,9 +103,6 @@ spec:
       # When false, only notifies when status actually changes
       includeNoteChanges: false
   # ==========================================
-
-  # Suspend scanning (set to true to pause)
-  suspend: false
 
   # Job history limits
   successfulJobsHistoryLimit: 3

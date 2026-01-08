@@ -1,0 +1,109 @@
+apiVersion: invulnerable.io/v1alpha1
+kind: ImageScan
+metadata:
+  name: nginx-with-polling
+  namespace: invulnerable
+spec:
+  # Container image to scan
+  image: "nginx:latest"
+
+  # ==========================================
+  # SCHEDULE CONFIGURATION
+  # ==========================================
+  #
+  # Option 1: HYBRID - Both schedule + registry polling (recommended for most cases)
+  # Provides baseline scheduled scans + event-driven scans on image updates
+  schedule:
+    enabled: true
+    cron: "0 2 * * *"  # Daily at 2 AM
+    suspend: false  # Set to true to temporarily pause scheduled scans
+
+  # Option 2: REGISTRY POLLING ONLY - Disable schedule entirely
+  # Only scans when new images are pushed (no time-based scanning)
+  # To use this option, set enabled: false or comment out the schedule block:
+  #
+  # schedule:
+  #   enabled: false
+  #
+  # Note: At least one of schedule or registryPolling must be enabled
+
+  # SBOM format
+  sbomFormat: "cyclonedx"
+
+  # ==========================================
+  # REGISTRY POLLING
+  # ==========================================
+  #
+  # Automatically trigger scans when new images are pushed to the registry
+  # Works independently or alongside scheduled scans
+  #
+  # Use cases:
+  #   - Development environments with frequent image updates
+  #   - CI/CD pipelines that push to the same tag (e.g., "latest", "staging")
+  #   - Monitoring production images for unexpected changes
+  #   - Event-driven scanning without time-based triggers
+  #
+  registryPolling:
+    # Enable registry polling
+    enabled: true
+
+    # How often to check the registry for updates
+    # Minimum: 1 minute (to prevent API rate limiting)
+    # Default: 5 minutes
+    #
+    # Choose based on your update frequency:
+    #   - High frequency updates (CI/CD): 2-5 minutes
+    #   - Moderate updates: 10-30 minutes
+    #   - Low frequency: 1-6 hours
+    #
+    interval: 5m
+
+  # ==========================================
+  # WEBHOOK NOTIFICATIONS
+  # ==========================================
+  #
+  # Webhooks work for BOTH scheduled AND registry-triggered scans
+  #
+  webhooks:
+    # For testing, use webhook.site or webhook.cool
+    url: https://webhook.site/your-unique-url
+
+    format: slack  # or "teams"
+
+    # Scan completion notifications
+    scanCompletion:
+      enabled: true
+      minSeverity: High
+      onlyFixable: true  # Only notify for CVEs with fixes
+
+    # Status change notifications
+    statusChange:
+      enabled: true
+      minSeverity: High
+      onlyFixable: true
+      statusTransitions:
+        - "active→fixed"
+        - "active→ignored"
+
+  # Other settings
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+  workspaceSize: "10Gi"
+
+  scannerImage:
+    repository: "invulnerable-scanner"
+    tag: "latest"
+    pullPolicy: "IfNotPresent"
+
+  # For private registries, add imagePullSecrets:
+  # imagePullSecrets:
+  #   - name: my-registry-secret

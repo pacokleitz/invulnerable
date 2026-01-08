@@ -12,11 +12,10 @@ type ImageScanSpec struct {
 	// +kubebuilder:validation:MinLength=1
 	Image string `json:"image"`
 
-	// Schedule in Cron format for when to run the scan
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:example="0 2 * * *"
-	Schedule string `json:"schedule"`
+	// Schedule configures time-based scanning via CronJob
+	// If disabled or not specified, only registry polling will trigger scans
+	// +kubebuilder:validation:Optional
+	Schedule *ScheduleConfig `json:"schedule,omitempty"`
 
 	// TimeZone for the CronJob schedule (e.g., "America/New_York", "UTC")
 	// If not specified, defaults to the system timezone
@@ -28,11 +27,6 @@ type ImageScanSpec struct {
 	// +kubebuilder:default="cyclonedx"
 	// +kubebuilder:validation:Enum=cyclonedx;spdx
 	SBOMFormat string `json:"sbomFormat,omitempty"`
-
-	// Suspend tells the controller to suspend subsequent scans
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default=false
-	Suspend bool `json:"suspend,omitempty"`
 
 	// SuccessfulJobsHistoryLimit is the number of successful jobs to retain
 	// +kubebuilder:validation:Optional
@@ -90,6 +84,12 @@ type ImageScanSpec struct {
 	// If not specified, default SLA values are used: Critical=7, High=30, Medium=90, Low=180
 	// +kubebuilder:validation:Optional
 	SLA *SLAConfig `json:"sla,omitempty"`
+
+	// RegistryPolling configures automatic scanning when image updates are detected in the registry
+	// This is a hybrid approach - both scheduled CronJobs and registry-triggered scans can coexist
+	// When enabled, the controller periodically checks the registry for digest changes and triggers immediate scans
+	// +kubebuilder:validation:Optional
+	RegistryPolling *RegistryPollingConfig `json:"registryPolling,omitempty"`
 }
 
 // SLAConfig defines remediation SLA in days for each severity level
@@ -117,6 +117,50 @@ type SLAConfig struct {
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:default=180
 	Low int `json:"low,omitempty"`
+}
+
+// ScheduleConfig defines time-based scanning configuration
+type ScheduleConfig struct {
+	// Enabled determines if scheduled scanning via CronJob is active
+	// When false, only registry polling (if enabled) will trigger scans
+	// Default: true
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=true
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Cron schedule in cron format for when to run the scan
+	// Required if enabled is true
+	// Example: "0 2 * * *" (daily at 2 AM)
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:example="0 2 * * *"
+	Cron string `json:"cron,omitempty"`
+
+	// Suspend temporarily pauses scheduled scans without disabling the schedule
+	// When true, the CronJob will not trigger new scans, but registry polling (if enabled) continues
+	// Default: false
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	Suspend bool `json:"suspend,omitempty"`
+}
+
+// RegistryPollingConfig defines configuration for automatic registry monitoring
+// When enabled, the controller periodically checks the registry for image updates
+// and triggers scans when the image digest changes
+type RegistryPollingConfig struct {
+	// Enabled determines if registry polling is active
+	// When enabled, the controller will periodically check the registry for new image versions
+	// and automatically trigger scans when the image digest changes
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Interval is how often to check the registry for updates
+	// Must be at least 1 minute to prevent API rate limiting
+	// Default: 5m (5 minutes)
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default="5m"
+	Interval *metav1.Duration `json:"interval,omitempty"`
 }
 
 // WebhooksConfig defines configuration for multiple webhook notification types
@@ -244,6 +288,19 @@ type ImageScanStatus struct {
 	// ObservedGeneration reflects the generation most recently observed by the controller
 	// +kubebuilder:validation:Optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// LastCheckedDigest is the image digest from the last registry check
+	// Used to detect when a new image version has been pushed with the same tag
+	// +kubebuilder:validation:Optional
+	LastCheckedDigest string `json:"lastCheckedDigest,omitempty"`
+
+	// LastRegistryCheckTime is when we last polled the registry for image updates
+	// +kubebuilder:validation:Optional
+	LastRegistryCheckTime *metav1.Time `json:"lastRegistryCheckTime,omitempty"`
+
+	// NextRegistryCheckTime is when the next registry poll is scheduled
+	// +kubebuilder:validation:Optional
+	NextRegistryCheckTime *metav1.Time `json:"nextRegistryCheckTime,omitempty"`
 }
 
 // +kubebuilder:object:root=true

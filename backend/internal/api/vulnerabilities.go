@@ -253,7 +253,7 @@ func (h *VulnerabilityHandler) sendStatusChangeWebhook(ctx context.Context, vuln
 
 	// If no ImageScan context, skip webhook (vulnerability wasn't discovered by an ImageScan)
 	if imageScanCtx == nil {
-		h.logger.Debug("no ImageScan context for vulnerability, skipping webhook",
+		h.logger.Info("no ImageScan context for vulnerability, skipping webhook",
 			zap.Int("vulnerability_id", vulnID))
 		return
 	}
@@ -270,9 +270,11 @@ func (h *VulnerabilityHandler) sendStatusChangeWebhook(ctx context.Context, vuln
 
 	// If no config or status change webhooks not enabled, skip
 	if webhookConfig == nil || !webhookConfig.StatusChangeEnabled {
-		h.logger.Debug("status change webhooks not enabled, skipping",
+		h.logger.Info("status change webhooks not enabled, skipping",
 			zap.String("namespace", imageScanCtx.Namespace),
-			zap.String("name", imageScanCtx.Name))
+			zap.String("name", imageScanCtx.Name),
+			zap.Bool("config_exists", webhookConfig != nil),
+			zap.Bool("enabled", webhookConfig != nil && webhookConfig.StatusChangeEnabled))
 		return
 	}
 
