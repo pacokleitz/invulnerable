@@ -227,10 +227,198 @@ export const VulnerabilitiesList: FC = () => {
 		}
 	};
 
+	const exportToCSV = useCallback(async () => {
+		try {
+			// Properly escape CSV values - handles quotes, newlines, and special characters
+			const escapeCSV = (str: string) => {
+				if (!str) return '';
+				// Replace line breaks with spaces and escape quotes
+				return str
+					.replace(/\r?\n|\r/g, ' ') // Replace newlines with spaces
+					.replace(/"/g, '""') // Escape quotes by doubling them
+					.trim();
+			};
+
+			// Fetch ALL vulnerabilities with current filters (no pagination)
+			const params: { severity?: string; status?: string; image_name?: string; cve_id?: string; has_fix?: boolean } = {};
+			if (severityFilter) params.severity = severityFilter;
+			if (statusFilter) params.status = statusFilter;
+			if (imageFilter) params.image_name = imageFilter;
+			if (cveFilter) params.cve_id = cveFilter;
+			if (!showUnfixable) params.has_fix = true;
+
+			const response = await api.vulnerabilities.list(params);
+			let allVulnerabilities = response.data;
+
+			// Apply client-side package category filter
+			if (packageCategoryFilter) {
+				allVulnerabilities = allVulnerabilities.filter(vuln => {
+					const category = categorizePackageType(vuln.package_type).category;
+					return category === packageCategoryFilter;
+				});
+			}
+
+			// Metadata rows at the top of the CSV
+			const metadata = [
+				['Vulnerability Export'],
+				['Export Date', new Date().toISOString()],
+				['Total Vulnerabilities', allVulnerabilities.length.toString()],
+				['Filters Applied', [
+					severityFilter && `Severity: ${severityFilter}`,
+					statusFilter && `Status: ${statusFilter}`,
+					imageFilter && `Image: ${imageFilter}`,
+					cveFilter && `CVE: ${cveFilter}`,
+					packageCategoryFilter && `Package Type: ${packageCategoryFilter}`,
+					!showUnfixable && 'Only Fixable'
+				].filter(Boolean).join(', ') || 'None'],
+			];
+
+			// CSV header
+			const headers = [
+				'Image',
+				'CVE ID',
+				'Severity',
+				'Package Name',
+				'Package Version',
+				'Package Type',
+				'Fixed Version',
+				'Status',
+				'First Detected',
+				'Days Since Detection',
+				'SLA Days',
+				'Days Remaining',
+				'SLA Status',
+				'Notes',
+				'Description',
+				'URL'
+			];
+
+			// Number of columns in the data table
+			const numColumns = headers.length;
+
+			// Pad metadata rows to match the number of columns in the data table
+			const paddedMetadata = metadata.map(row => {
+				const padded = [...row];
+				while (padded.length < numColumns) {
+					padded.push('');
+				}
+				return padded;
+			});
+
+			// Convert vulnerabilities to CSV rows
+			const rows = allVulnerabilities.map(vuln => {
+				const daysSinceDetection = daysSince(vuln.first_detected_at);
+
+				// Get SLA limit based on severity
+				let slaDays: number = 0;
+				if (vuln.sla_critical && vuln.sla_high && vuln.sla_medium && vuln.sla_low) {
+					switch (vuln.severity) {
+						case 'Critical':
+							slaDays = vuln.sla_critical;
+							break;
+						case 'High':
+							slaDays = vuln.sla_high;
+							break;
+						case 'Medium':
+							slaDays = vuln.sla_medium;
+							break;
+						case 'Low':
+							slaDays = vuln.sla_low;
+							break;
+					}
+				}
+
+				const slaStatus = vuln.sla_critical && vuln.sla_high && vuln.sla_medium && vuln.sla_low
+					? calculateSLAStatus(
+							vuln.first_detected_at,
+							vuln.severity,
+							{
+								critical: vuln.sla_critical,
+								high: vuln.sla_high,
+								medium: vuln.sla_medium,
+								low: vuln.sla_low,
+							},
+							vuln.status,
+							vuln.remediation_date,
+							vuln.updated_at
+					  )
+					: null;
+
+				return [
+					vuln.image_name || 'N/A',
+					vuln.cve_id,
+					vuln.severity,
+					vuln.package_name,
+					vuln.package_version,
+					vuln.package_type || 'unknown',
+					vuln.fix_version || 'N/A',
+					vuln.status,
+					formatDate(vuln.first_detected_at),
+					daysSinceDetection.toString(),
+					slaDays.toString(),
+					slaStatus ? slaStatus.daysRemaining.toString() : 'N/A',
+					slaStatus ? slaStatus.status : 'N/A',
+					vuln.notes || '',
+					vuln.description || '',
+					vuln.url || ''
+				];
+			});
+
+			// Combine metadata, headers, and rows with proper CSV escaping
+			const csvContent = [
+				// Add padded metadata rows (escape content, then wrap in quotes)
+				...paddedMetadata
+					.filter(row => row.length > 0)
+					.map(row => row.map(cell => `"${escapeCSV(cell)}"`).join(',')),
+				// Empty line separator (also pad to match column count)
+				Array(numColumns).fill('""').join(','),
+				// Add vulnerability data table (escape headers and data)
+				headers.map(h => `"${escapeCSV(h)}"`).join(','),
+				...rows.map(row => row.map(cell => `"${escapeCSV(cell)}"`).join(','))
+			].join('\n');
+
+			// Generate safe filename
+			const dateStr = new Date().toISOString().split('T')[0];
+			const filterParts = [
+				severityFilter && severityFilter.toLowerCase(),
+				statusFilter && statusFilter.toLowerCase(),
+				imageFilter && imageFilter.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_'),
+			].filter(Boolean);
+
+			const filename = filterParts.length > 0
+				? `vulnerabilities_${filterParts.join('_')}-${dateStr}.csv`
+				: `vulnerabilities-${dateStr}.csv`;
+
+			// Create blob and download
+			const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+			const url = URL.createObjectURL(blob);
+			const link = document.createElement('a');
+			link.setAttribute('href', url);
+			link.setAttribute('download', filename);
+			link.style.visibility = 'hidden';
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+		} catch (e) {
+			alert(e instanceof Error ? e.message : 'Failed to export CSV');
+		}
+	}, [severityFilter, statusFilter, imageFilter, cveFilter, packageCategoryFilter, showUnfixable]);
+
 	return (
 		<div className="space-y-6">
 			<div className="flex justify-between items-center">
 				<h1 className="text-3xl font-bold text-gray-900">Vulnerabilities</h1>
+				<button
+					onClick={exportToCSV}
+					className="btn btn-secondary"
+					disabled={loading || total === 0}
+					title="Export all filtered vulnerabilities to CSV"
+				>
+					<svg className="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+					</svg>
+					Export CSV
+				</button>
 			</div>
 
 			{/* Filters */}
