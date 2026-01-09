@@ -488,14 +488,24 @@ func (h *ScanHandler) GetSBOM(c echo.Context) error {
 	return c.JSONBlob(http.StatusOK, document)
 }
 
-// GetScanDiff handles GET /api/v1/scans/:id/diff
+// GetScanDiff handles GET /api/v1/scans/:id/diff?previous_scan_id=<id>
 func (h *ScanHandler) GetScanDiff(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid scan ID")
 	}
 
-	diff, err := h.analyzer.CompareScan(c.Request().Context(), id)
+	// Optional previous_scan_id query parameter
+	var previousScanID *int
+	if prevIDStr := c.QueryParam("previous_scan_id"); prevIDStr != "" {
+		prevID, err := strconv.Atoi(prevIDStr)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid previous_scan_id")
+		}
+		previousScanID = &prevID
+	}
+
+	diff, err := h.analyzer.CompareScanWith(c.Request().Context(), id, previousScanID)
 	if err != nil {
 		h.logger.Error("failed to compare scan", zap.Error(err))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to compare scan")

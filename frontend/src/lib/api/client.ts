@@ -65,8 +65,9 @@ export const api = {
 			return fetchAPI<any>(`/scans/${id}/sbom`);
 		},
 
-		getDiff: (id: number) => {
-			return fetchAPI<ScanDiff>(`/scans/${id}/diff`);
+		getDiff: (id: number, previousScanId?: number) => {
+			const params = previousScanId ? `?previous_scan_id=${previousScanId}` : '';
+			return fetchAPI<ScanDiff>(`/scans/${id}/diff${params}`);
 		}
 	},
 

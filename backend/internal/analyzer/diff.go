@@ -42,16 +42,35 @@ func NewWithRepositories(scanRepo *db.ScanRepository, vulnRepo *db.Vulnerability
 
 // CompareScan compares a scan with the previous scan for the same image
 func (a *Analyzer) CompareScan(ctx context.Context, scanID int) (*models.ScanDiff, error) {
+	return a.CompareScanWith(ctx, scanID, nil)
+}
+
+// CompareScanWith compares a scan with a specified previous scan, or the immediate previous scan if not specified
+func (a *Analyzer) CompareScanWith(ctx context.Context, scanID int, previousScanID *int) (*models.ScanDiff, error) {
 	// Get current scan
 	currentScan, err := a.scanRepo.GetByID(ctx, scanID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current scan: %w", err)
 	}
 
-	// Get previous scan for the same image
-	previousScan, err := a.scanRepo.GetPreviousScan(ctx, currentScan.ImageID, currentScan.ScanDate.Format("2006-01-02 15:04:05"))
-	if err != nil {
-		return nil, fmt.Errorf("failed to get previous scan: %w", err)
+	// Get previous scan
+	var previousScan *models.Scan
+	if previousScanID != nil {
+		// Use specified previous scan
+		previousScan, err = a.scanRepo.GetByID(ctx, *previousScanID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get specified previous scan: %w", err)
+		}
+		// Verify it's for the same image
+		if previousScan.ImageID != currentScan.ImageID {
+			return nil, fmt.Errorf("previous scan is for a different image")
+		}
+	} else {
+		// Get the immediate previous scan for the same image
+		previousScan, err = a.scanRepo.GetPreviousScan(ctx, currentScan.ImageID, currentScan.ScanDate.Format("2006-01-02 15:04:05"))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get previous scan: %w", err)
+		}
 	}
 
 	// If no previous scan, all vulnerabilities are new

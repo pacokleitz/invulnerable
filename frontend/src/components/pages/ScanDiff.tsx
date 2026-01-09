@@ -15,6 +15,8 @@ export const ScanDiff: FC = () => {
 	const scanId = parseInt(id || '0', 10);
 	const [diff, setDiff] = useState<ScanDiffType | null>(null);
 	const [scan, setScan] = useState<Scan | null>(null);
+	const [allScans, setAllScans] = useState<Scan[]>([]);
+	const [selectedPreviousScanId, setSelectedPreviousScanId] = useState<number | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [showUnfixable, setShowUnfixed] = useState(false);
@@ -35,13 +37,28 @@ export const ScanDiff: FC = () => {
 		document.title = `Scan Diff - Scan ${scanId} - Invulnerable`;
 
 		const fetchData = async () => {
+			setLoading(true);
 			try {
-				const [diffData, scanResult] = await Promise.all([
-					api.scans.getDiff(scanId),
-					api.scans.get(scanId)
-				]);
-				setDiff(diffData);
+				// First get the scan to know which image we're dealing with
+				const scanResult = await api.scans.get(scanId);
 				setScan(scanResult.scan);
+
+				// Fetch all scans for this image
+				const imageId = scanResult.scan.image_id;
+				const scansResponse = await api.images.getHistory(imageId, 1000, 0);
+				const scansForImage = scansResponse.data
+					.filter(s => s.id !== scanId) // Exclude current scan
+					.sort((a, b) => new Date(b.scan_date).getTime() - new Date(a.scan_date).getTime()); // Most recent first
+				setAllScans(scansForImage);
+
+				// Fetch diff with selected previous scan (or default)
+				const diffData = await api.scans.getDiff(scanId, selectedPreviousScanId || undefined);
+				setDiff(diffData);
+
+				// Set default selected previous scan if not already set
+				if (!selectedPreviousScanId && diffData.previous_scan_id) {
+					setSelectedPreviousScanId(diffData.previous_scan_id);
+				}
 			} catch (e) {
 				setError(e instanceof Error ? e.message : 'Failed to load scan diff');
 			} finally {
@@ -50,7 +67,7 @@ export const ScanDiff: FC = () => {
 		};
 
 		fetchData();
-	}, [scanId]);
+	}, [scanId, selectedPreviousScanId]);
 
 	// Reset to page 1 when filters change
 	useEffect(() => {
@@ -225,16 +242,26 @@ export const ScanDiff: FC = () => {
 					</div>
 
 					<div className="card">
-						<p className="text-sm text-gray-600">
-							Comparing{' '}
-							<Link to={`/scans/${diff.scan_id}`} className="text-blue-600 hover:text-blue-800 hover:underline">
-								Scan #{diff.scan_id}
-							</Link>
-							{' '}with{' '}
-							<Link to={`/scans/${diff.previous_scan_id}`} className="text-blue-600 hover:text-blue-800 hover:underline">
-								Scan #{diff.previous_scan_id}
-							</Link>
-						</p>
+						<div className="flex items-center flex-wrap gap-2">
+							<span className="text-sm text-gray-600">
+								Comparing{' '}
+								<Link to={`/scans/${diff.scan_id}`} className="text-blue-600 hover:text-blue-800 hover:underline font-semibold">
+									Scan #{diff.scan_id}
+								</Link>
+								{' '}with
+							</span>
+							<select
+								value={selectedPreviousScanId || diff.previous_scan_id}
+								onChange={(e) => setSelectedPreviousScanId(parseInt(e.target.value, 10))}
+								className="text-sm rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							>
+								{allScans.map((s) => (
+									<option key={s.id} value={s.id}>
+										Scan #{s.id} ({formatDate(s.scan_date)})
+									</option>
+								))}
+							</select>
+						</div>
 					</div>
 				</>
 			)}

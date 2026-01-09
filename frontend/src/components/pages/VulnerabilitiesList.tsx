@@ -46,7 +46,7 @@ export const VulnerabilitiesList: FC = () => {
 				limit: itemsPerPage,
 				offset: (currentPage - 1) * itemsPerPage
 			};
-			if (severityFilter) params.severity = severityFilter;
+			// Don't send severity filter to backend - we'll filter client-side to support "X or higher"
 			if (statusFilter) params.status = statusFilter;
 			if (imageFilter) params.image_name = imageFilter;
 			if (cveFilter) params.cve_id = cveFilter;
@@ -55,7 +55,23 @@ export const VulnerabilitiesList: FC = () => {
 
 			const response = await api.vulnerabilities.list(params);
 			let data = response.data;
-			setTotal(response.total);
+
+			// Apply client-side severity filter (X or higher)
+			if (severityFilter) {
+				const severityOrder: { [key: string]: number } = {
+					'Critical': 4,
+					'High': 3,
+					'Medium': 2,
+					'Low': 1
+				};
+				const minSeverityLevel = severityOrder[severityFilter];
+				data = data.filter(vuln => {
+					const vulnLevel = severityOrder[vuln.severity] || 0;
+					return vulnLevel >= minSeverityLevel;
+				});
+			}
+
+			setTotal(data.length);
 
 			// Apply client-side package category filter
 			if (packageCategoryFilter) {
@@ -241,7 +257,7 @@ export const VulnerabilitiesList: FC = () => {
 
 			// Fetch ALL vulnerabilities with current filters (no pagination)
 			const params: { severity?: string; status?: string; image_name?: string; cve_id?: string; has_fix?: boolean } = {};
-			if (severityFilter) params.severity = severityFilter;
+			// Don't send severity filter to backend - we'll filter client-side to support "X or higher"
 			if (statusFilter) params.status = statusFilter;
 			if (imageFilter) params.image_name = imageFilter;
 			if (cveFilter) params.cve_id = cveFilter;
@@ -249,6 +265,21 @@ export const VulnerabilitiesList: FC = () => {
 
 			const response = await api.vulnerabilities.list(params);
 			let allVulnerabilities = response.data;
+
+			// Apply client-side severity filter (X or higher)
+			if (severityFilter) {
+				const severityOrder: { [key: string]: number } = {
+					'Critical': 4,
+					'High': 3,
+					'Medium': 2,
+					'Low': 1
+				};
+				const minSeverityLevel = severityOrder[severityFilter];
+				allVulnerabilities = allVulnerabilities.filter(vuln => {
+					const vulnLevel = severityOrder[vuln.severity] || 0;
+					return vulnLevel >= minSeverityLevel;
+				});
+			}
 
 			// Apply client-side package category filter
 			if (packageCategoryFilter) {
@@ -264,7 +295,7 @@ export const VulnerabilitiesList: FC = () => {
 				['Export Date', new Date().toISOString()],
 				['Total Vulnerabilities', allVulnerabilities.length.toString()],
 				['Filters Applied', [
-					severityFilter && `Severity: ${severityFilter}`,
+					severityFilter && `Severity: ${severityFilter}${severityFilter === 'Critical' ? ' only' : ' or higher'}`,
 					statusFilter && `Status: ${statusFilter}`,
 					imageFilter && `Image: ${imageFilter}`,
 					cveFilter && `CVE: ${cveFilter}`,
@@ -436,10 +467,10 @@ export const VulnerabilitiesList: FC = () => {
 							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						>
 							<option value="">All</option>
-							<option value="Critical">Critical</option>
-							<option value="High">High</option>
-							<option value="Medium">Medium</option>
-							<option value="Low">Low</option>
+							<option value="Critical">Critical only</option>
+							<option value="High">High or higher</option>
+							<option value="Medium">Medium or higher</option>
+							<option value="Low">Low or higher</option>
 						</select>
 					</div>
 
