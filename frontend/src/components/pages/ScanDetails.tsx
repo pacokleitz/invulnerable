@@ -283,6 +283,168 @@ export const ScanDetails: FC = () => {
 		return filteredVulnerabilities.slice(startIndex, endIndex);
 	}, [filteredVulnerabilities, currentPage, itemsPerPage]);
 
+	const exportToCSV = useCallback(() => {
+		if (!currentScan) return;
+
+		const { scan, vulnerabilities } = currentScan;
+
+		// Properly escape CSV values - handles quotes, newlines, and special characters
+		const escapeCSV = (str: string) => {
+			if (!str) return '';
+			// Replace line breaks with spaces and escape quotes
+			return str
+				.replace(/\r?\n|\r/g, ' ') // Replace newlines with spaces
+				.replace(/"/g, '""') // Escape quotes by doubling them
+				.trim();
+		};
+
+		// Metadata rows at the top of the CSV
+		const metadata = [
+			['Scan Information'],
+			['Scan ID', scan.id.toString()],
+			['Image', scan.image_name],
+			['Image Digest', scan.image_digest || 'N/A'],
+			['Scan Date', formatDate(scan.scan_date)],
+			['Syft Version', scan.syft_version || 'N/A'],
+			['Grype Version', scan.grype_version || 'N/A'],
+			['Total Vulnerabilities', vulnerabilities.length.toString()],
+			['Filtered Vulnerabilities', filteredVulnerabilities.length.toString()],
+			['SLA Limits', `Critical: ${scan.sla_critical}d, High: ${scan.sla_high}d, Medium: ${scan.sla_medium}d, Low: ${scan.sla_low}d`],
+		];
+
+		// CSV header
+		const headers = [
+			'CVE ID',
+			'Severity',
+			'Package Name',
+			'Installed Version',
+			'Fixed Version',
+			'Status',
+			'First Detected',
+			'Days Since Detection',
+			'SLA Days',
+			'Days Remaining',
+			'SLA Status',
+			'Notes',
+			'Description',
+			'URL'
+		];
+
+		// Number of columns in the data table
+		const numColumns = headers.length;
+
+		// Pad metadata rows to match the number of columns in the data table
+		const paddedMetadata = metadata.map(row => {
+			const padded = [...row];
+			while (padded.length < numColumns) {
+				padded.push('');
+			}
+			return padded;
+		});
+
+		// Convert vulnerabilities to CSV rows
+		const rows = filteredVulnerabilities.map(vuln => {
+			const daysSinceDetection = daysSince(vuln.first_detected_at);
+
+			// Get SLA limit based on severity
+			let slaDays: number;
+			switch (vuln.severity) {
+				case 'Critical':
+					slaDays = scan.sla_critical;
+					break;
+				case 'High':
+					slaDays = scan.sla_high;
+					break;
+				case 'Medium':
+					slaDays = scan.sla_medium;
+					break;
+				case 'Low':
+					slaDays = scan.sla_low;
+					break;
+				default:
+					slaDays = 0;
+			}
+
+			const slaStatus = calculateSLAStatus(
+				vuln.first_detected_at,
+				vuln.severity,
+				{
+					critical: scan.sla_critical,
+					high: scan.sla_high,
+					medium: scan.sla_medium,
+					low: scan.sla_low,
+				},
+				vuln.status,
+				vuln.remediation_date,
+				vuln.updated_at
+			);
+
+			return [
+				vuln.cve_id,
+				vuln.severity,
+				vuln.package_name,
+				vuln.package_version,
+				vuln.fix_version || 'N/A',
+				vuln.status,
+				formatDate(vuln.first_detected_at),
+				daysSinceDetection.toString(),
+				slaDays.toString(),
+				slaStatus.daysRemaining.toString(),
+				slaStatus.status,
+				vuln.notes || '',
+				vuln.description || '',
+				vuln.url || ''
+			];
+		});
+
+		// Combine metadata, headers, and rows with proper CSV escaping
+		const csvContent = [
+			// Add padded metadata rows (escape content, then wrap in quotes)
+			...paddedMetadata
+				.filter(row => row.length > 0)
+				.map(row => row.map(cell => `"${escapeCSV(cell)}"`).join(',')),
+			// Empty line separator (also pad to match column count)
+			Array(numColumns).fill('""').join(','),
+			// Add vulnerability data table (escape headers and data)
+			headers.map(h => `"${escapeCSV(h)}"`).join(','),
+			...rows.map(row => row.map(cell => `"${escapeCSV(cell)}"`).join(','))
+		].join('\n');
+
+		// Generate safe filename from image name
+		// Parse image name to extract name and tag (format: registry/repo:tag or repo:tag)
+		const imageParts = scan.image_name.split(':');
+		const tag = imageParts.length > 1 ? imageParts[imageParts.length - 1] : 'latest';
+		const imageNamePart = imageParts.slice(0, -1).join(':') || imageParts[0];
+
+		// Extract just the repo name (remove registry if present)
+		const repoName = imageNamePart.split('/').pop() || imageNamePart;
+
+		// Sanitize for filesystem safety (remove/replace invalid characters)
+		// Invalid characters: < > : " / \ | ? * and control characters
+		const sanitize = (str: string) => str
+			.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_') // Replace invalid chars with underscore
+			.replace(/\s+/g, '_') // Replace whitespace with underscore
+			.replace(/_{2,}/g, '_') // Replace multiple underscores with single
+			.replace(/^_+|_+$/g, ''); // Trim underscores from start/end
+
+		const safeRepoName = sanitize(repoName);
+		const safeTag = sanitize(tag);
+		const dateStr = new Date().toISOString().split('T')[0];
+
+		const filename = `${safeRepoName}_${safeTag}-${dateStr}.csv`;
+
+		// Create blob and download
+		const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement('a');
+		link.setAttribute('href', url);
+		link.setAttribute('download', filename);
+		link.style.visibility = 'hidden';
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+	}, [currentScan, filteredVulnerabilities, scanId]);
+
 	const { scan, vulnerabilities } = currentScan || { scan: null, vulnerabilities: [] };
 
 	return (
@@ -290,6 +452,17 @@ export const ScanDetails: FC = () => {
 			<div className="flex justify-between items-center">
 				<h1 className="text-3xl font-bold text-gray-900">Scan #{scan?.id || scanId}</h1>
 				<div className="space-x-2">
+					<button
+						onClick={exportToCSV}
+						className="btn btn-secondary"
+						disabled={!scan}
+						title="Export filtered vulnerabilities to CSV"
+					>
+						<svg className="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+						</svg>
+						Export CSV
+					</button>
 					<button onClick={viewSBOM} className="btn btn-secondary" disabled={!scan}>
 						View SBOM
 					</button>

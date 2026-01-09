@@ -54,6 +54,7 @@ type ScanRequest struct {
 	SBOM             json.RawMessage          `json:"sbom"`
 	SBOMFormat       string                   `json:"sbom_format"`
 	SBOMVersion      *string                  `json:"sbom_version,omitempty"`
+	SyftVersion      *string                  `json:"syft_version,omitempty"`
 	WebhookConfig    *WebhookConfig           `json:"webhook_config,omitempty"`
 	SLAConfig        *SLAConfig               `json:"sla_config,omitempty"`
 	ImageScanContext *models.ImageScanContext `json:"imagescan_context,omitempty"`
@@ -110,8 +111,14 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 	}
 
 	// Create scan record
-	syftVersion := "unknown"
-	grypeVersion := req.GrypeResult.Descriptor.Version
+	// Use Syft version from request if provided
+	var syftVersion *string
+	if req.SyftVersion != nil && *req.SyftVersion != "" {
+		syftVersion = req.SyftVersion
+	}
+
+	// Grype version comes from the Grype result descriptor
+	grypeVersion := &req.GrypeResult.Descriptor.Version
 
 	// Set SLA values with defaults
 	slaCritical := 7
@@ -128,8 +135,8 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 	scan := &models.Scan{
 		ImageID:      image.ID,
 		ScanDate:     time.Now(),
-		SyftVersion:  &syftVersion,
-		GrypeVersion: &grypeVersion,
+		SyftVersion:  syftVersion,
+		GrypeVersion: grypeVersion,
 		Status:       "completed",
 		SLACritical:  slaCritical,
 		SLAHigh:      slaHigh,

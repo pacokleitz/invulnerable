@@ -69,6 +69,10 @@ echo "Step 3: Preparing payload for API..."
 # Extract SBOM version if available
 SBOM_VERSION=$(jq -r '.bomFormat + " " + .specVersion' "$SBOM_FILE" 2>/dev/null || echo "unknown")
 
+# Get Syft version (Grype version is already in grype_result.descriptor.version)
+# Use awk for better compatibility with Alpine/BusyBox
+SYFT_VERSION=$(syft version 2>/dev/null | awk '/^Version:/ {print $2}' || echo "unknown")
+
 # Extract image digest from Grype source target
 IMAGE_DIGEST=$(jq -r '.source.target.imageID // .source.target.repoDigests[0] // empty' "$GRYPE_FILE" 2>/dev/null || echo "")
 
@@ -81,6 +85,7 @@ jq -n \
     --arg image "$IMAGE" \
     --arg sbom_format "$SBOM_FORMAT" \
     --arg sbom_version "$SBOM_VERSION" \
+    --arg syft_version "$SYFT_VERSION" \
     --arg image_digest "$IMAGE_DIGEST" \
     --arg webhook_url "${WEBHOOK_URL:-}" \
     --arg webhook_format "${WEBHOOK_FORMAT:-}" \
@@ -96,6 +101,7 @@ jq -n \
         image: $image,
         sbom_format: $sbom_format,
         sbom_version: $sbom_version,
+        syft_version: $syft_version,
         image_digest: (if $image_digest != "" then $image_digest else null end),
         webhook_config: (
             if $webhook_url != "" then {
