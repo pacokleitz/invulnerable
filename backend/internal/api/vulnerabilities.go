@@ -296,18 +296,22 @@ func (h *VulnerabilityHandler) sendStatusChangeWebhook(ctx context.Context, vuln
 		return
 	}
 
-	// Find previous status from history
+	// Find previous status from history - look for the most recent status change entry
 	var oldStatus string
-	if len(history) >= 2 {
-		// Most recent entry is the current status, second most recent is old status
-		if history[1].NewValue != nil {
-			oldStatus = *history[1].NewValue
-		} else {
-			oldStatus = "active" // Default if no value
+	found := false
+	for _, entry := range history {
+		if entry.FieldName == "status" {
+			// Found the most recent status change, use its old_value
+			if entry.OldValue != nil {
+				oldStatus = *entry.OldValue
+				found = true
+			}
+			break
 		}
-	} else {
-		// If only one history entry, it was the initial status
-		oldStatus = "active" // Default initial status
+	}
+	if !found {
+		// If no status history found, assume it was initially active
+		oldStatus = "active"
 	}
 
 	// Get a representative image name for this vulnerability

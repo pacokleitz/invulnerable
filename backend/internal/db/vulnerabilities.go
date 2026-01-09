@@ -309,15 +309,17 @@ func (r *VulnerabilityRepository) Update(ctx context.Context, id int, update *mo
 		args = append(args, *update.Status)
 		argCount++
 
-		// Auto-set remediation_date when marking as fixed
-		if *update.Status == models.StatusFixed && current.RemediationDate == nil {
+		// Auto-set remediation_date when marking as fixed, accepted, or ignored (if not already set)
+		if (*update.Status == models.StatusFixed || *update.Status == models.StatusAccepted || *update.Status == models.StatusIgnored) && current.RemediationDate == nil {
 			query += fmt.Sprintf(", remediation_date = $%d", argCount)
 			args = append(args, time.Now())
 			argCount++
 		}
 
-		// Clear remediation_date when reverting from fixed to active
-		if *update.Status == models.StatusActive && current.Status == models.StatusFixed && current.RemediationDate != nil {
+		// Clear remediation_date when reverting from fixed/accepted/ignored to active or in_progress
+		if (*update.Status == models.StatusActive || *update.Status == models.StatusInProgress) &&
+			(current.Status == models.StatusFixed || current.Status == models.StatusAccepted || current.Status == models.StatusIgnored) &&
+			current.RemediationDate != nil {
 			query += ", remediation_date = NULL"
 		}
 	}
@@ -398,15 +400,15 @@ func (r *VulnerabilityRepository) BulkUpdate(ctx context.Context, ids []int, upd
 		args = append(args, *update.Status)
 		argCount++
 
-		// Auto-set remediation_date when marking as fixed (only if not already set)
-		if *update.Status == models.StatusFixed {
+		// Auto-set remediation_date when marking as fixed, accepted, or ignored (only if not already set)
+		if *update.Status == models.StatusFixed || *update.Status == models.StatusAccepted || *update.Status == models.StatusIgnored {
 			query += fmt.Sprintf(", remediation_date = COALESCE(remediation_date, $%d)", argCount)
 			args = append(args, time.Now())
 			argCount++
 		}
 
-		// Clear remediation_date when changing to active (for vulnerabilities that were previously fixed)
-		if *update.Status == models.StatusActive {
+		// Clear remediation_date when changing to active or in_progress (for vulnerabilities that were previously resolved)
+		if *update.Status == models.StatusActive || *update.Status == models.StatusInProgress {
 			query += ", remediation_date = NULL"
 		}
 	}
