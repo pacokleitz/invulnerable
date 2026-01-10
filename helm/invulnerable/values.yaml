@@ -195,6 +195,18 @@ oauth2Proxy:
     # OIDC configuration (for generic OIDC providers like Keycloak, Auth0, etc.)
     oidcIssuerUrl: ""  # e.g., "https://keycloak.example.com/realms/myrealm"
 
+    # OIDC JWKS URL (optional - override for cluster-internal access)
+    # If your OIDC provider uses external DNS that isn't resolvable from inside the cluster,
+    # set this to the cluster-internal service URL for JWKS fetching
+    # Example: "http://dex.dex.svc.cluster.local:5556/dex/keys"
+    # Leave empty to auto-derive from oidcIssuerUrl (default)
+    oidcJwksUrl: ""
+
+    # OIDC audience claim (optional - enables JWT token validation in backend)
+    # If set, backend will cryptographically validate access tokens
+    # This provides defense-in-depth beyond network policies
+    oidcAudience: ""  # e.g., "invulnerable" or your OAuth client ID
+
     # For non-OIDC providers, set these manually
     loginUrl: ""
     redeemUrl: ""
@@ -257,6 +269,47 @@ oauth2Proxy:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+
+# Network Policies for enhanced security
+# CRITICAL: When OAuth2 is enabled, network policies MUST be enabled to prevent bypass attacks
+# Network policies ensure backend can only be accessed through the authenticated ingress
+networkPolicy:
+  # Enable network policies (REQUIRED for production with OAuth2)
+  # WARNING: Setting to false allows pods to bypass OAuth2 authentication
+  enabled: false  # Set to true for production
+
+  # Ingress controller namespace label selector
+  # Adjust based on your ingress controller installation
+  ingressControllerNamespaceLabel:
+    kubernetes.io/metadata.name: ingress-nginx
+    # Alternative for other ingress controllers:
+    # name: ingress-nginx
+    # Or for multiple namespaces, use pod selectors instead
+
+  # Optional: Ingress controller pod label selector (more specific)
+  ingressControllerPodLabel: {}
+    # app.kubernetes.io/name: ingress-nginx
+
+  # Allow monitoring/metrics scraping (optional)
+  allowMonitoring: false
+
+  # Monitoring namespace label (if allowMonitoring=true)
+  monitoringNamespaceLabel: {}
+    # name: monitoring
+
+  # Monitoring pod label (if allowMonitoring=true)
+  monitoringPodLabel: {}
+    # app: prometheus
+
+  # Additional custom ingress rules (advanced)
+  additionalIngressRules: []
+    # - from:
+    #   - podSelector:
+    #       matchLabels:
+    #         app: custom-app
+    #   ports:
+    #   - protocol: TCP
+    #     port: 8080
 
 # Ingress configuration
 # IMPORTANT: Ingress is REQUIRED for the application to function (routes frontend and backend traffic)

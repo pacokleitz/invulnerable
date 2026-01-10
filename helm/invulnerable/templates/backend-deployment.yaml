@@ -117,6 +117,21 @@ spec:
           {{- end }}
         - name: SBOM_S3_USE_SSL
           value: {{ .Values.backend.s3.useSSL | quote }}
+        {{- if and .Values.oauth2Proxy.enabled .Values.oauth2Proxy.config.oidcIssuerUrl }}
+        # OIDC configuration for JWT validation
+        # Only set if oidcIssuerUrl is actually configured (non-empty)
+        - name: OIDC_ISSUER_URL
+          value: {{ .Values.oauth2Proxy.config.oidcIssuerUrl | quote }}
+        {{- if .Values.oauth2Proxy.config.oidcJwksUrl }}
+        # Optional: Override JWKS URL for cluster-internal access
+        - name: OIDC_JWKS_URL
+          value: {{ .Values.oauth2Proxy.config.oidcJwksUrl | quote }}
+        {{- end }}
+        {{- if .Values.oauth2Proxy.config.oidcAudience }}
+        - name: OIDC_AUDIENCE
+          value: {{ .Values.oauth2Proxy.config.oidcAudience | quote }}
+        {{- end }}
+        {{- end }}
         livenessProbe:
           {{- toYaml .Values.backend.livenessProbe | nindent 12 }}
         readinessProbe:

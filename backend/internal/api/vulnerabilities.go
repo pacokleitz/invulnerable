@@ -35,6 +35,10 @@ func NewVulnerabilityHandler(
 	}
 }
 
+// getUserFromHeaders extracts user identity from OAuth2 Proxy headers for audit trails
+// NOTE: This function is for audit logging only, NOT for authentication/authorization.
+// For authentication, use the access token validation pattern (see user.go GetCurrentUser).
+// It's safe to return "unknown" here since this is just for tracking who made changes.
 func getUserFromHeaders(c echo.Context) string {
 	// Try X-Auth-Request-Email first (more specific)
 	if email := c.Request().Header.Get("X-Auth-Request-Email"); email != "" {
@@ -44,6 +48,7 @@ func getUserFromHeaders(c echo.Context) string {
 	if user := c.Request().Header.Get("X-Auth-Request-User"); user != "" {
 		return user
 	}
+	// When OAuth2 Proxy is not deployed, return "unknown" (not an error)
 	return "unknown"
 }
 

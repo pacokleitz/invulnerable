@@ -89,7 +89,12 @@ oauth2Proxy:
     provider: "oidc"
 
     # Dex OIDC issuer - use external URL that browser can access
+    # This is the 'iss' claim in JWT tokens
     oidcIssuerUrl: "http://dex.invulnerable.local:8080/dex"
+
+    # Backend JWKS URL - use cluster-internal service for JWKS fetching
+    # Backend validates issuer claim but fetches JWKS from cluster-internal URL
+    oidcJwksUrl: "http://dex.dex.svc.cluster.local:5556/dex/keys"
 
     # Manually configure OIDC endpoints (skip discovery to avoid DNS issues)
     loginUrl: "http://dex.invulnerable.local:8080/dex/auth"
@@ -131,6 +136,12 @@ oauth2Proxy:
     limits:
       memory: "128Mi"
       cpu: "100m"
+
+# Network Policies - Enable for security testing with OIDC
+networkPolicy:
+  enabled: true
+  ingressControllerNamespaceLabel:
+    kubernetes.io/metadata.name: ingress-nginx
 
 # Ingress configuration
 ingress:

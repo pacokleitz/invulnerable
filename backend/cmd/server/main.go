@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/invulnerable/backend/internal/analyzer"
 	"github.com/invulnerable/backend/internal/api"
+	"github.com/invulnerable/backend/internal/auth"
 	"github.com/invulnerable/backend/internal/config"
 	"github.com/invulnerable/backend/internal/db"
 	"github.com/invulnerable/backend/internal/metrics"
@@ -82,13 +83,28 @@ func main() {
 	frontendURL := getEnv("FRONTEND_URL", "")
 	notifierSvc := notifier.New(logger, frontendURL)
 
+	// Initialize JWT validator (optional - only if OIDC is configured)
+	var jwtValidator *auth.JWTValidator
+	if issuerURL := getEnv("OIDC_ISSUER_URL", ""); issuerURL != "" {
+		audience := getEnv("OIDC_AUDIENCE", "")     // Optional
+		jwksURL := getEnv("OIDC_JWKS_URL", "")      // Optional - for cluster-internal access
+		jwtValidator = auth.NewJWTValidator(issuerURL, jwksURL, audience, logger)
+		logger.Info("JWT validation enabled",
+			zap.String("issuer", issuerURL),
+			zap.String("jwks_url", jwksURL),
+			zap.String("audience", audience))
+	} else {
+		logger.Warn("JWT validation disabled - using token presence check only. " +
+			"Set OIDC_ISSUER_URL to enable cryptographic token validation.")
+	}
+
 	// Initialize handlers
 	healthHandler := api.NewHealthHandler(database)
 	scanHandler := api.NewScanHandler(logger, imageRepo, scanRepo, vulnRepo, sbomRepo, analyzerSvc, notifierSvc)
 	vulnHandler := api.NewVulnerabilityHandler(logger, vulnRepo, notifierSvc, webhookConfigRepo)
 	imageHandler := api.NewImageHandler(logger, imageRepo)
 	metricsHandler := api.NewMetricsHandler(logger, metricsSvc)
-	userHandler := api.NewUserHandler(logger)
+	userHandler := api.NewUserHandler(logger, jwtValidator)
 	webhookConfigHandler := api.NewWebhookConfigHandler(webhookConfigRepo, logger)
 
 	// Initialize Echo

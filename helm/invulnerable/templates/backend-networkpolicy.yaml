@@ -1,0 +1,60 @@
+{{- if and .Values.oauth2Proxy.enabled .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "invulnerable.fullname" . }}-backend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "invulnerable.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "invulnerable.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow traffic from ingress controller (which enforces OAuth2 authentication)
+  - from:
+    {{- if .Values.networkPolicy.ingressControllerNamespaceLabel }}
+    - namespaceSelector:
+        matchLabels:
+          {{- .Values.networkPolicy.ingressControllerNamespaceLabel | toYaml | nindent 10 }}
+    {{- else }}
+    # If no namespace label specified, allow from ingress-nginx namespace by default
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+    {{- end }}
+    {{- if .Values.networkPolicy.ingressControllerPodLabel }}
+      podSelector:
+        matchLabels:
+          {{- .Values.networkPolicy.ingressControllerPodLabel | toYaml | nindent 10 }}
+    {{- end }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.backend.service.port }}
+
+  {{- if .Values.networkPolicy.allowMonitoring }}
+  # Allow metrics scraping from monitoring (e.g., Prometheus)
+  - from:
+    {{- if .Values.networkPolicy.monitoringNamespaceLabel }}
+    - namespaceSelector:
+        matchLabels:
+          {{- .Values.networkPolicy.monitoringNamespaceLabel | toYaml | nindent 10 }}
+    {{- end }}
+    {{- if .Values.networkPolicy.monitoringPodLabel }}
+      podSelector:
+        matchLabels:
+          {{- .Values.networkPolicy.monitoringPodLabel | toYaml | nindent 10 }}
+    {{- end }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.backend.service.port }}
+  {{- end }}
+
+  {{- if .Values.networkPolicy.additionalIngressRules }}
+  {{- toYaml .Values.networkPolicy.additionalIngressRules | nindent 2 }}
+  {{- end }}
+{{- end }}
