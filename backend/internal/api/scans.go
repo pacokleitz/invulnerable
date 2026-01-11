@@ -283,6 +283,15 @@ func (h *ScanHandler) CreateScan(c echo.Context) error {
 		}
 	}
 
+	// Automatically compare with previous scan to mark fixed vulnerabilities
+	// This must happen synchronously before webhook notification to ensure accurate counts
+	if _, err := h.analyzer.CompareScan(ctx, scan.ID); err != nil {
+		// Log error but don't fail the scan - this is a best-effort optimization
+		h.logger.Warn("failed to auto-compare scan with previous scan",
+			zap.Error(err),
+			zap.Int("scan_id", scan.ID))
+	}
+
 	// Send webhook notification if configured
 	if req.WebhookConfig != nil && req.WebhookConfig.URL != "" {
 		go func() {
