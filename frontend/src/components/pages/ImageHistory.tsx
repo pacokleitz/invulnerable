@@ -68,11 +68,8 @@ export const ImageHistory: FC = () => {
 
 	return (
 		<div className="space-y-6">
-			<div className="flex justify-between items-center">
+			<div className="flex items-center">
 				<h1 className="text-3xl font-bold text-gray-900">Image Scan History</h1>
-				<Link to="/images" className="text-blue-600 hover:text-blue-800">
-					← Back to Images
-				</Link>
 			</div>
 
 			{/* Info Card - Always visible */}

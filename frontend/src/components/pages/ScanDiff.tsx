@@ -221,19 +221,19 @@ export const ScanDiff: FC = () => {
 					<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 						<div className="card bg-green-50">
 							<h3 className="text-sm font-medium text-green-800">Fixed Vulnerabilities</h3>
-							<p className="mt-2 text-3xl font-bold text-green-900">{diff.summary.fixed_count}</p>
+							<p className="mt-2 text-3xl font-bold text-green-900">{filteredFixedVulns.length}</p>
 							<p className="mt-1 text-xs text-green-700">Resolved since previous scan</p>
 						</div>
 
 						<div className="card bg-red-50">
 							<h3 className="text-sm font-medium text-red-800">New Vulnerabilities</h3>
-							<p className="mt-2 text-3xl font-bold text-red-900">{diff.summary.new_count}</p>
+							<p className="mt-2 text-3xl font-bold text-red-900">{filteredNewVulns.length}</p>
 							<p className="mt-1 text-xs text-red-700">Introduced since previous scan</p>
 						</div>
 
 						<div className="card bg-gray-50">
 							<h3 className="text-sm font-medium text-gray-800">Persistent Vulnerabilities</h3>
-							<p className="mt-2 text-3xl font-bold text-gray-900">{diff.summary.persistent_count}</p>
+							<p className="mt-2 text-3xl font-bold text-gray-900">{filteredPersistentVulns.length}</p>
 							<p className="mt-1 text-xs text-gray-700">Still present from previous scan</p>
 						</div>
 					</div>
