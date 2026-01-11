@@ -12,12 +12,14 @@ import (
 type UserHandler struct {
 	logger       *zap.Logger
 	jwtValidator *auth.JWTValidator
+	oauthEnabled bool // Whether OAuth2 Proxy is enabled in deployment
 }
 
-func NewUserHandler(logger *zap.Logger, jwtValidator *auth.JWTValidator) *UserHandler {
+func NewUserHandler(logger *zap.Logger, jwtValidator *auth.JWTValidator, oauthEnabled bool) *UserHandler {
 	return &UserHandler{
 		logger:       logger,
 		jwtValidator: jwtValidator,
+		oauthEnabled: oauthEnabled,
 	}
 }
 
@@ -33,15 +35,23 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 	username := c.Request().Header.Get("X-Auth-Request-User")
 	accessToken := c.Request().Header.Get("X-Auth-Request-Access-Token")
 
-	// If no email header, OAuth2 Proxy is not deployed (no authentication)
-	if email == "" {
-		h.logger.Debug("no X-Auth-Request-Email header found, OAuth2 Proxy not deployed")
+	// If OAuth is not enabled, return 204 (no user info available)
+	if !h.oauthEnabled {
+		h.logger.Debug("OAuth2 not enabled - no authentication required")
 		return c.NoContent(http.StatusNoContent)
 	}
 
-	// Security: ALWAYS require JWT validation - no weak fallbacks
+	// OAuth is enabled - authentication is REQUIRED
+	// If no email header, OAuth2 Proxy is misconfigured
+	if email == "" {
+		h.logger.Warn("OAuth2 enabled but no authentication headers present",
+			zap.String("remote_addr", c.RealIP()))
+		return echo.NewHTTPError(http.StatusUnauthorized, "authentication required")
+	}
+
+	// Security: When OAuth is enabled, JWT validation is MANDATORY
 	if h.jwtValidator == nil {
-		h.logger.Error("JWT validator not configured - authentication required",
+		h.logger.Error("OAuth2 enabled but JWT validator not configured - this is a configuration error",
 			zap.String("email", email),
 			zap.String("remote_addr", c.RealIP()))
 		return echo.NewHTTPError(http.StatusInternalServerError, "authentication not properly configured")

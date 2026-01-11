@@ -76,10 +76,11 @@ scanner:
     repository: "invulnerable-scanner"
     tag: "latest"
 
-# OAuth2 Proxy - Configured for local development
-# Using a simple setup that allows access from localhost
+# OAuth2 Proxy - Disabled by default for local development
+# To enable OAuth with OIDC, use: tilt up -- --enable-oidc
+# This will use tilt/values-oidc.yaml which has full OIDC configuration
 oauth2Proxy:
-  enabled: true
+  enabled: false
   replicaCount: 1
 
   # Local dev credentials (insecure - DO NOT use in production!)

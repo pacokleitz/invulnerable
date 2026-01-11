@@ -60,8 +60,10 @@ if accessToken == "" {
 - `/helm/invulnerable/values.yaml` (updated)
 
 Added Kubernetes NetworkPolicy to enforce traffic flow through OAuth2 Proxy:
-- Restricts backend ingress to ingress controller only
+- Restricts backend ingress to authorized sources only
 - Prevents pod-to-pod bypass of authentication
+- Allows ingress controller (enforces OAuth2)
+- Allows scanner pods (need to POST scan results)
 - Optional monitoring exception for Prometheus
 - Configurable for different ingress controllers
 
@@ -262,11 +264,15 @@ kubectl run test-pod --rm -it --image=curlimages/curl -n invulnerable -- \
 
 ### After Enabling Network Policies
 ```bash
-# Should timeout - blocked by network policy
+# Regular pods should timeout - blocked by network policy
 kubectl run test-pod --rm -it --image=curlimages/curl -n invulnerable -- \
   curl --connect-timeout 5 http://invulnerable-backend:8080/api/v1/metrics
 
 # Output: "curl: (28) Connection timeout after 5000 ms"
+
+# Scanner pods should still work (they have app.kubernetes.io/name=invulnerable-scanner label)
+# Check scanner job logs to verify they can POST results:
+kubectl logs -n invulnerable -l app.kubernetes.io/name=invulnerable-scanner --tail=50
 ```
 
 ### Allow Traffic from Specific Pod

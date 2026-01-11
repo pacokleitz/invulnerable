@@ -83,19 +83,26 @@ func main() {
 	frontendURL := getEnv("FRONTEND_URL", "")
 	notifierSvc := notifier.New(logger, frontendURL)
 
-	// Initialize JWT validator (optional - only if OIDC is configured)
+	// Check if OAuth2 is enabled in deployment
+	oauthEnabled := getEnv("OAUTH_ENABLED", "false") == "true"
+
+	// Initialize JWT validator (required if OAuth is enabled)
 	var jwtValidator *auth.JWTValidator
-	if issuerURL := getEnv("OIDC_ISSUER_URL", ""); issuerURL != "" {
+	if oauthEnabled {
+		issuerURL := getEnv("OIDC_ISSUER_URL", "")
+		if issuerURL == "" {
+			logger.Fatal("OAUTH_ENABLED=true but OIDC_ISSUER_URL not set - JWT validation is required when OAuth is enabled")
+		}
+
 		audience := getEnv("OIDC_AUDIENCE", "")     // Optional
 		jwksURL := getEnv("OIDC_JWKS_URL", "")      // Optional - for cluster-internal access
 		jwtValidator = auth.NewJWTValidator(issuerURL, jwksURL, audience, logger)
-		logger.Info("JWT validation enabled",
+		logger.Info("OAuth2 enabled - JWT validation active",
 			zap.String("issuer", issuerURL),
 			zap.String("jwks_url", jwksURL),
 			zap.String("audience", audience))
 	} else {
-		logger.Warn("JWT validation disabled - using token presence check only. " +
-			"Set OIDC_ISSUER_URL to enable cryptographic token validation.")
+		logger.Info("OAuth2 disabled - application running without authentication")
 	}
 
 	// Initialize handlers
@@ -104,7 +111,7 @@ func main() {
 	vulnHandler := api.NewVulnerabilityHandler(logger, vulnRepo, notifierSvc, webhookConfigRepo)
 	imageHandler := api.NewImageHandler(logger, imageRepo)
 	metricsHandler := api.NewMetricsHandler(logger, metricsSvc)
-	userHandler := api.NewUserHandler(logger, jwtValidator)
+	userHandler := api.NewUserHandler(logger, jwtValidator, oauthEnabled)
 	webhookConfigHandler := api.NewWebhookConfigHandler(webhookConfigRepo, logger)
 
 	// Initialize Echo

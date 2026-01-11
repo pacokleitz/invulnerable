@@ -2,15 +2,43 @@
 
 ## ✅ Implementation Status
 
-**JWT validation has been fully implemented!** The backend now cryptographically validates access tokens when OIDC is configured.
+**JWT validation has been fully implemented!** The backend now cryptographically validates access tokens when OAuth2 is enabled.
 
 ## Current Security Posture
 
-**Implementation:** The backend validates access tokens using JWT signature verification with JWKS public keys.
+The application operates in two distinct modes based on Helm configuration:
 
-**Security:** Cryptographic proof of authenticity prevents token forgery, even if network policies are bypassed.
+### Mode 1: OAuth Disabled (Development/Testing)
+**Configuration:** `oauth2Proxy.enabled: false`
 
-**Fallback:** If OIDC is not configured, backend falls back to token presence check (weak protection).
+**Behavior:**
+- ✅ No authentication required
+- ✅ Application works without OAuth2 Proxy
+- ✅ `/api/v1/user/me` returns 204 No Content
+- ⚠️ **NOT SECURE** - Do not expose publicly!
+
+**Use case:** Local development, internal testing
+
+### Mode 2: OAuth Enabled (Production)
+**Configuration:** `oauth2Proxy.enabled: true` + `oidcIssuerUrl` configured
+
+**Behavior:**
+- ✅ Authentication REQUIRED
+- ✅ JWT validation MANDATORY (no fallbacks)
+- ✅ Cryptographic proof of authenticity
+- ✅ Email cross-check (JWT vs headers)
+- ✅ Defense-in-depth with Network Policies
+- ❌ Fails fast if OIDC not properly configured
+
+**Use case:** Production deployments, internet-facing applications
+
+### Security Enforcement
+
+When `oauth2Proxy.enabled=true`:
+1. **Helm validation:** Fails if `oidcIssuerUrl` not set
+2. **Backend startup:** Fails if `OIDC_ISSUER_URL` not provided
+3. **Request handling:** Returns 401 if JWT validation fails
+4. **No fallbacks:** JWT must be valid - no weak checks
 
 ## Security Layers (Defense in Depth)
 

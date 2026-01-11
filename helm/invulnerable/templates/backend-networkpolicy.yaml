@@ -36,6 +36,16 @@ spec:
     - protocol: TCP
       port: {{ .Values.backend.service.port }}
 
+  # Allow traffic from scanner pods (they need to POST scan results)
+  # Scanner pods run as Jobs created by the ImageScan controller
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: invulnerable-scanner
+    ports:
+    - protocol: TCP
+      port: {{ .Values.backend.service.port }}
+
   {{- if .Values.networkPolicy.allowMonitoring }}
   # Allow metrics scraping from monitoring (e.g., Prometheus)
   - from:

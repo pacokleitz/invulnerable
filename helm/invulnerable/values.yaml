@@ -170,6 +170,11 @@ scanner:
 # SECURITY: For production deployments, you MUST enable oauth2Proxy and configure credentials
 # Default: disabled (development/testing only - enable for production!)
 # Never expose the application publicly without authentication!
+#
+# IMPORTANT: When oauth2Proxy.enabled=true, you MUST configure:
+#   1. oauth2Proxy.config.oidcIssuerUrl (required for JWT validation)
+#   2. OAuth client credentials (clientID, clientSecret, cookieSecret)
+#   The backend will ENFORCE JWT validation when OAuth is enabled.
 oauth2Proxy:
   enabled: false
   replicaCount: 2
@@ -273,6 +278,11 @@ oauth2Proxy:
 # Network Policies for enhanced security
 # CRITICAL: When OAuth2 is enabled, network policies MUST be enabled to prevent bypass attacks
 # Network policies ensure backend can only be accessed through the authenticated ingress
+#
+# Allowed traffic to backend when enabled:
+#   1. Ingress controller (enforces OAuth2)
+#   2. Scanner pods (need to POST scan results)
+#   3. Monitoring pods (optional, if allowMonitoring=true)
 networkPolicy:
   # Enable network policies (REQUIRED for production with OAuth2)
   # WARNING: Setting to false allows pods to bypass OAuth2 authentication

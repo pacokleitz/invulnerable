@@ -21,6 +21,16 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
 		...options
 	});
 
+	// Handle authentication failures - redirect to OAuth login
+	if (response.status === 401) {
+		// OAuth2 is enabled but user is not authenticated
+		// Redirect to OAuth2 Proxy login with return URL
+		const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+		window.location.href = `/oauth2/start?rd=${returnUrl}`;
+		// Throw to prevent further processing
+		throw new Error('Authentication required - redirecting to login');
+	}
+
 	if (!response.ok) {
 		const error = await response.text();
 		throw new Error(`API Error: ${response.status} - ${error}`);
@@ -175,9 +185,19 @@ export const api = {
 				}
 			});
 
-			// 204 No Content means OAuth2 Proxy is not deployed
+			// 204 No Content means OAuth2 Proxy is not deployed (OAuth disabled)
 			if (response.status === 204) {
 				return null;
+			}
+
+			// Handle authentication failures - redirect to OAuth login
+			if (response.status === 401) {
+				// OAuth2 is enabled but user is not authenticated
+				// Redirect to OAuth2 Proxy login with return URL
+				const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+				window.location.href = `/oauth2/start?rd=${returnUrl}`;
+				// Throw to prevent further processing
+				throw new Error('Authentication required - redirecting to login');
 			}
 
 			if (!response.ok) {

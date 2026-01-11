@@ -117,9 +117,14 @@ spec:
           {{- end }}
         - name: SBOM_S3_USE_SSL
           value: {{ .Values.backend.s3.useSSL | quote }}
-        {{- if and .Values.oauth2Proxy.enabled .Values.oauth2Proxy.config.oidcIssuerUrl }}
-        # OIDC configuration for JWT validation
-        # Only set if oidcIssuerUrl is actually configured (non-empty)
+        # OAuth2 configuration
+        - name: OAUTH_ENABLED
+          value: {{ .Values.oauth2Proxy.enabled | quote }}
+        {{- if .Values.oauth2Proxy.enabled }}
+        {{- if not .Values.oauth2Proxy.config.oidcIssuerUrl }}
+        {{- fail "ERROR: oauth2Proxy.enabled=true but oauth2Proxy.config.oidcIssuerUrl is not set. JWT validation requires OIDC issuer URL. Please configure oauth2Proxy.config.oidcIssuerUrl in your values." }}
+        {{- end }}
+        # OIDC configuration for JWT validation (required when OAuth is enabled)
         - name: OIDC_ISSUER_URL
           value: {{ .Values.oauth2Proxy.config.oidcIssuerUrl | quote }}
         {{- if .Values.oauth2Proxy.config.oidcJwksUrl }}
