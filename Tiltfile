@@ -164,6 +164,7 @@ docker_build(
     # Only rebuild when these files change (relative to context)
     only=[
         'src/',
+        'public/',
         'index.html',
         'package.json',
         'package-lock.json',

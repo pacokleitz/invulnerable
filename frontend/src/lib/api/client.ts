@@ -168,9 +168,10 @@ export const api = {
 
 	// Metrics
 	metrics: {
-		getDashboard: (has_fix?: boolean) => {
+		getDashboard: (has_fix?: boolean, image_name?: string) => {
 			const searchParams = new URLSearchParams();
 			if (has_fix !== undefined) searchParams.set('has_fix', has_fix.toString());
+			if (image_name) searchParams.set('image_name', image_name);
 			const query = searchParams.toString();
 			return fetchAPI<DashboardMetrics>(`/metrics${query ? `?${query}` : ''}`);
 		}

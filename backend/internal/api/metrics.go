@@ -33,7 +33,13 @@ func (h *MetricsHandler) GetMetrics(c echo.Context) error {
 		hasFix = &hasFixBool
 	}
 
-	metrics, err := h.metricsService.GetDashboardMetrics(c.Request().Context(), hasFix)
+	// Parse image_name parameter
+	var imageName *string
+	if imageNameStr := c.QueryParam("image_name"); imageNameStr != "" {
+		imageName = &imageNameStr
+	}
+
+	metrics, err := h.metricsService.GetDashboardMetrics(c.Request().Context(), hasFix, imageName)
 	if err != nil {
 		h.logger.Error("failed to get metrics", zap.Error(err))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get metrics")

@@ -79,7 +79,7 @@ func main() {
 
 	// Initialize services
 	analyzerSvc := analyzer.New(scanRepo, vulnRepo)
-	metricsSvc := metrics.New(database)
+	metricsSvc := metrics.New(database, logger)
 	frontendURL := getEnv("FRONTEND_URL", "")
 	notifierSvc := notifier.New(logger, frontendURL)
 

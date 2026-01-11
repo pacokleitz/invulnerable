@@ -146,6 +146,13 @@ spec:
               name: {{ include "invulnerable.fullname" $ }}-frontend
               port:
                 number: {{ $.Values.frontend.service.port }}
+        - path: /site.webmanifest
+          pathType: Exact
+          backend:
+            service:
+              name: {{ include "invulnerable.fullname" $ }}-frontend
+              port:
+                number: {{ $.Values.frontend.service.port }}
     {{- end }}
 {{- end }}
 

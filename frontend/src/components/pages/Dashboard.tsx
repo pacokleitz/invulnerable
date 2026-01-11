@@ -1,8 +1,10 @@
 import { FC, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../../store';
 import { SeverityBadge } from '../ui/SeverityBadge';
 
 export const Dashboard: FC = () => {
+	const [searchParams, setSearchParams] = useSearchParams();
 	const [showUnfixable, setShowUnfixed] = useState(false);
 	const { data: metrics, loading, loadMetrics } = useStore((state) => ({
 		data: state.data,
@@ -10,13 +12,44 @@ export const Dashboard: FC = () => {
 		loadMetrics: state.loadMetrics
 	}));
 
+	// Read image filter from URL
+	const imageFilter = searchParams.get('image') || '';
+	const [imageInput, setImageInput] = useState(imageFilter);
+
 	useEffect(() => {
 		document.title = 'Dashboard - Invulnerable';
 	}, []);
 
 	useEffect(() => {
-		loadMetrics(showUnfixable ? undefined : true);
-	}, [loadMetrics, showUnfixable]);
+		// Sync input with URL parameter
+		setImageInput(imageFilter);
+	}, [imageFilter]);
+
+	useEffect(() => {
+		loadMetrics(showUnfixable ? undefined : true, imageFilter || undefined);
+	}, [loadMetrics, showUnfixable, imageFilter]);
+
+	const handleImageFilterChange = (value: string) => {
+		setImageInput(value);
+	};
+
+	const handleImageFilterSubmit = (e: React.FormEvent) => {
+		e.preventDefault();
+		const newParams = new URLSearchParams(searchParams);
+		if (imageInput.trim()) {
+			newParams.set('image', imageInput.trim());
+		} else {
+			newParams.delete('image');
+		}
+		setSearchParams(newParams);
+	};
+
+	const clearImageFilter = () => {
+		setImageInput('');
+		const newParams = new URLSearchParams(searchParams);
+		newParams.delete('image');
+		setSearchParams(newParams);
+	};
 
 	if (loading) {
 		return (
@@ -36,8 +69,46 @@ export const Dashboard: FC = () => {
 
 	return (
 		<div className="space-y-6">
-			<div className="flex justify-between items-center">
-				<h1 className="text-3xl font-bold text-gray-900" tabIndex={-1}>Dashboard</h1>
+			<div className="flex justify-between items-start">
+				<div>
+					<h1 className="text-3xl font-bold text-gray-900 mb-4" tabIndex={-1}>Dashboard</h1>
+
+					{/* Image Name Filter */}
+					<form onSubmit={handleImageFilterSubmit} className="flex items-center gap-2">
+						<div className="relative">
+							<input
+								type="text"
+								value={imageInput}
+								onChange={(e) => handleImageFilterChange(e.target.value)}
+								placeholder="Filter by image name..."
+								className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+								style={{ width: '300px' }}
+							/>
+							{imageFilter && (
+								<button
+									type="button"
+									onClick={clearImageFilter}
+									className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600"
+									aria-label="Clear image filter"
+								>
+									×
+								</button>
+							)}
+						</div>
+						<button
+							type="submit"
+							className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500"
+						>
+							Apply
+						</button>
+						{imageFilter && (
+							<span className="text-sm text-gray-600">
+								Filtering by: <span className="font-medium">{imageFilter}</span>
+							</span>
+						)}
+					</form>
+				</div>
+
 				<label className="flex items-center space-x-2 text-sm">
 					<input
 						type="checkbox"

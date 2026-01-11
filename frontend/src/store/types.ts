@@ -10,7 +10,7 @@ export interface MetricsState {
 	data: DashboardMetrics | null;
 	loading: boolean;
 	error: string | null;
-	loadMetrics: (hasFix?: boolean) => Promise<void>;
+	loadMetrics: (hasFix?: boolean, imageName?: string) => Promise<void>;
 }
 
 export interface ScansState {
