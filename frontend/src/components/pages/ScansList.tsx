@@ -142,7 +142,7 @@ export const ScansList: FC = () => {
 							id="imageFilter"
 							value={imageFilter}
 							onChange={(e) => updateFilter('image', e.target.value)}
-							placeholder="Search by image..."
+							placeholder="e.g., nginx:latest"
 							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						/>
 					</div>
@@ -175,7 +175,7 @@ export const ScansList: FC = () => {
 
 					<div>
 						<label htmlFor="minSeverity" className="block text-sm font-medium text-gray-700">
-							Min Severity
+							Severity
 						</label>
 						<select
 							id="minSeverity"
@@ -183,11 +183,11 @@ export const ScansList: FC = () => {
 							onChange={(e) => updateFilter('minSeverity', e.target.value)}
 							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						>
-							<option value="">All Severities</option>
+							<option value="">All</option>
 							<option value="Critical">Critical</option>
-							<option value="High">High or above</option>
-							<option value="Medium">Medium or above</option>
-							<option value="Low">Low or above</option>
+							<option value="High">High or higher</option>
+							<option value="Medium">Medium or higher</option>
+							<option value="Low">Low or higher</option>
 						</select>
 					</div>
 				</div>

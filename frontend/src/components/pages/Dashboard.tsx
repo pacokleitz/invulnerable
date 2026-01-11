@@ -14,14 +14,15 @@ export const Dashboard: FC = () => {
 
 	// Read image filter from URL
 	const imageFilter = searchParams.get('image') || '';
+	// Local state for input to avoid freezing while typing
 	const [imageInput, setImageInput] = useState(imageFilter);
 
 	useEffect(() => {
 		document.title = 'Dashboard - Invulnerable';
 	}, []);
 
+	// Sync input with URL parameter when it changes externally
 	useEffect(() => {
-		// Sync input with URL parameter
 		setImageInput(imageFilter);
 	}, [imageFilter]);
 
@@ -29,26 +30,33 @@ export const Dashboard: FC = () => {
 		loadMetrics(showUnfixable ? undefined : true, imageFilter || undefined);
 	}, [loadMetrics, showUnfixable, imageFilter]);
 
-	const handleImageFilterChange = (value: string) => {
-		setImageInput(value);
-	};
-
-	const handleImageFilterSubmit = (e: React.FormEvent) => {
-		e.preventDefault();
+	const updateFilter = (key: string, value: string) => {
 		const newParams = new URLSearchParams(searchParams);
-		if (imageInput.trim()) {
-			newParams.set('image', imageInput.trim());
+		if (value) {
+			newParams.set(key, value);
 		} else {
-			newParams.delete('image');
+			newParams.delete(key);
 		}
 		setSearchParams(newParams);
 	};
 
-	const clearImageFilter = () => {
+	const handleImageFilterBlur = () => {
+		// Only update URL when user leaves the input field
+		if (imageInput !== imageFilter) {
+			updateFilter('image', imageInput);
+		}
+	};
+
+	const handleImageFilterKeyDown = (e: React.KeyboardEvent) => {
+		// Update URL on Enter key
+		if (e.key === 'Enter') {
+			updateFilter('image', imageInput);
+		}
+	};
+
+	const handleClearFilters = () => {
 		setImageInput('');
-		const newParams = new URLSearchParams(searchParams);
-		newParams.delete('image');
-		setSearchParams(newParams);
+		setSearchParams({});
 	};
 
 	if (loading) {
@@ -69,55 +77,45 @@ export const Dashboard: FC = () => {
 
 	return (
 		<div className="space-y-6">
-			<div className="flex justify-between items-start">
-				<div>
-					<h1 className="text-3xl font-bold text-gray-900 mb-4" tabIndex={-1}>Dashboard</h1>
+			<h1 className="text-3xl font-bold text-gray-900" tabIndex={-1}>Dashboard</h1>
 
-					{/* Image Name Filter */}
-					<form onSubmit={handleImageFilterSubmit} className="flex items-center gap-2">
-						<div className="relative">
-							<input
-								type="text"
-								value={imageInput}
-								onChange={(e) => handleImageFilterChange(e.target.value)}
-								placeholder="Filter by image name..."
-								className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-								style={{ width: '300px' }}
-							/>
-							{imageFilter && (
-								<button
-									type="button"
-									onClick={clearImageFilter}
-									className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600"
-									aria-label="Clear image filter"
-								>
-									×
-								</button>
-							)}
-						</div>
-						<button
-							type="submit"
-							className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500"
-						>
-							Apply
-						</button>
-						{imageFilter && (
-							<span className="text-sm text-gray-600">
-								Filtering by: <span className="font-medium">{imageFilter}</span>
-							</span>
-						)}
-					</form>
+			{/* Filters */}
+			<div className="card">
+				<h3 className="text-sm font-semibold text-gray-700 mb-3">Filters</h3>
+				<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+					<div>
+						<label htmlFor="imageFilter" className="block text-sm font-medium text-gray-700">
+							Image Name
+						</label>
+						<input
+							type="text"
+							id="imageFilter"
+							value={imageInput}
+							onChange={(e) => setImageInput(e.target.value)}
+							onBlur={handleImageFilterBlur}
+							onKeyDown={handleImageFilterKeyDown}
+							placeholder="e.g., nginx:latest"
+							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+						/>
+					</div>
 				</div>
 
-				<label className="flex items-center space-x-2 text-sm">
-					<input
-						type="checkbox"
-						checked={showUnfixable}
-						onChange={(e) => setShowUnfixed(e.target.checked)}
-						className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-					/>
-					<span className="text-gray-700">Show unfixable CVEs</span>
-				</label>
+				<div className="mt-4 flex justify-between items-center">
+					<label className="flex items-center space-x-2 text-sm">
+						<input
+							type="checkbox"
+							checked={showUnfixable}
+							onChange={(e) => setShowUnfixed(e.target.checked)}
+							className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+						/>
+						<span className="text-gray-700">Show unfixable CVEs</span>
+					</label>
+					{imageFilter && (
+						<button onClick={handleClearFilters} className="btn btn-secondary text-sm">
+							Clear Filters
+						</button>
+					)}
+				</div>
 			</div>
 
 			{/* Summary Cards */}

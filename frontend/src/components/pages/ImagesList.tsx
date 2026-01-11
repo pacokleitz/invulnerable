@@ -12,9 +12,7 @@ export const ImagesList: FC = () => {
 	const { sortKey, sortDirection, handleSort } = useSortState('last_scan_date', 'desc');
 
 	// Filters from URL
-	const registryFilter = searchParams.get('registry') || '';
-	const repositoryFilter = searchParams.get('repository') || '';
-	const tagFilter = searchParams.get('tag') || '';
+	const imageFilter = searchParams.get('image') || '';
 	const minSeverity = searchParams.get('minSeverity') || '';
 	const showUnfixable = searchParams.get('show_unfixable') === 'true'; // Default to false
 
@@ -59,22 +57,17 @@ export const ImagesList: FC = () => {
 	// Reset to page 1 when filters change
 	useEffect(() => {
 		setCurrentPage(1);
-	}, [registryFilter, repositoryFilter, tagFilter, minSeverity, showUnfixable]);
+	}, [imageFilter, minSeverity, showUnfixable]);
 
 	// Client-side filtering
 	const filteredImages = useMemo(() => {
 		let filtered = images.filter((image) => {
-			// Filter by registry
-			if (registryFilter && !image.registry.toLowerCase().includes(registryFilter.toLowerCase())) {
-				return false;
-			}
-			// Filter by repository
-			if (repositoryFilter && !image.repository.toLowerCase().includes(repositoryFilter.toLowerCase())) {
-				return false;
-			}
-			// Filter by tag
-			if (tagFilter && !image.tag.toLowerCase().includes(tagFilter.toLowerCase())) {
-				return false;
+			// Filter by image name (full name: registry/repository:tag)
+			if (imageFilter) {
+				const fullImageName = `${image.registry}/${image.repository}:${image.tag}`.toLowerCase();
+				if (!fullImageName.includes(imageFilter.toLowerCase())) {
+					return false;
+				}
 			}
 			// Filter by minimum severity
 			if (minSeverity) {
@@ -118,7 +111,7 @@ export const ImagesList: FC = () => {
 		}
 
 		return filtered;
-	}, [images, registryFilter, repositoryFilter, tagFilter, minSeverity, sortKey, sortDirection]);
+	}, [images, imageFilter, minSeverity, sortKey, sortDirection]);
 
 	// Server-side pagination - images already contains only the current page
 	const paginatedImages = filteredImages;
@@ -132,55 +125,24 @@ export const ImagesList: FC = () => {
 			{/* Filters */}
 			<div className="card">
 				<h3 className="text-sm font-semibold text-gray-700 mb-3">Filters</h3>
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+				<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 					<div>
-						<label htmlFor="registryFilter" className="block text-sm font-medium text-gray-700">
-							Registry
+						<label htmlFor="imageFilter" className="block text-sm font-medium text-gray-700">
+							Image Name
 						</label>
 						<input
 							type="text"
-							id="registryFilter"
-							value={registryFilter}
-							onChange={(e) => updateFilter('registry', e.target.value)}
-							placeholder="e.g., docker.io"
-							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-						/>
-					</div>
-
-					<div>
-						<label
-							htmlFor="repositoryFilter"
-							className="block text-sm font-medium text-gray-700"
-						>
-							Repository
-						</label>
-						<input
-							type="text"
-							id="repositoryFilter"
-							value={repositoryFilter}
-							onChange={(e) => updateFilter('repository', e.target.value)}
-							placeholder="e.g., library/nginx"
-							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-						/>
-					</div>
-
-					<div>
-						<label htmlFor="tagFilter" className="block text-sm font-medium text-gray-700">
-							Tag
-						</label>
-						<input
-							type="text"
-							id="tagFilter"
-							value={tagFilter}
-							onChange={(e) => updateFilter('tag', e.target.value)}
-							placeholder="e.g., latest"
+							id="imageFilter"
+							value={imageFilter}
+							onChange={(e) => updateFilter('image', e.target.value)}
+							placeholder="e.g., nginx:latest"
 							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						/>
 					</div>
 
 					<div>
 						<label htmlFor="minSeverity" className="block text-sm font-medium text-gray-700">
-							Min Severity
+							Severity
 						</label>
 						<select
 							id="minSeverity"
@@ -188,11 +150,11 @@ export const ImagesList: FC = () => {
 							onChange={(e) => updateFilter('minSeverity', e.target.value)}
 							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						>
-							<option value="">All Severities</option>
+							<option value="">All</option>
 							<option value="Critical">Critical</option>
-							<option value="High">High or above</option>
-							<option value="Medium">Medium or above</option>
-							<option value="Low">Low or above</option>
+							<option value="High">High or higher</option>
+							<option value="Medium">Medium or higher</option>
+							<option value="Low">Low or higher</option>
 						</select>
 					</div>
 				</div>
@@ -212,9 +174,11 @@ export const ImagesList: FC = () => {
 							<span className="text-gray-700">Show unfixable CVEs</span>
 						</label>
 					</div>
-					<button onClick={handleClearFilters} className="btn btn-secondary text-sm">
-						Clear Filters
-					</button>
+					{(imageFilter || minSeverity) && (
+						<button onClick={handleClearFilters} className="btn btn-secondary text-sm">
+							Clear Filters
+						</button>
+					)}
 				</div>
 			</div>
 
