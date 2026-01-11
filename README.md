@@ -13,7 +13,9 @@
 
 Invulnerable is a Kubernetes-native vulnerability management platform that provides automated container image scanning, SBOM generation, and vulnerability lifecycle tracking. Built on top of Anchore's industry-standard tools (Syft and Grype), it offers a modern web interface and comprehensive API for managing security at scale.
 
-![Invulnerable Dashboard](docs/images/dashboard-screenshot.png)
+![Scan Details](docs/images/scan-details-screenshot.png)
+![Scan Diff](docs/images/scan-diff-screenshot.png)
+![Vulnerabilities History](docs/images/vulnerabilities-history-screenshot.png)
 
 ## ✨ Key Features
 
