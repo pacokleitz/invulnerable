@@ -13,7 +13,7 @@ export const ImagesList: FC = () => {
 
 	// Filters from URL
 	const imageFilter = searchParams.get('image') || '';
-	const minSeverity = searchParams.get('minSeverity') || '';
+	const severityFilter = searchParams.get('severity') || '';
 	const showUnfixable = searchParams.get('show_unfixable') === 'true'; // Default to false
 
 	const { images, total, loading, error, reload } = useStore((state) => ({
@@ -57,7 +57,7 @@ export const ImagesList: FC = () => {
 	// Reset to page 1 when filters change
 	useEffect(() => {
 		setCurrentPage(1);
-	}, [imageFilter, minSeverity, showUnfixable]);
+	}, [imageFilter, severityFilter, showUnfixable]);
 
 	// Client-side filtering
 	const filteredImages = useMemo(() => {
@@ -70,8 +70,8 @@ export const ImagesList: FC = () => {
 				}
 			}
 			// Filter by minimum severity
-			if (minSeverity) {
-				switch (minSeverity) {
+			if (severityFilter) {
+				switch (severityFilter) {
 					case 'Critical':
 						if (image.critical_count === 0) return false;
 						break;
@@ -111,7 +111,7 @@ export const ImagesList: FC = () => {
 		}
 
 		return filtered;
-	}, [images, imageFilter, minSeverity, sortKey, sortDirection]);
+	}, [images, imageFilter, severityFilter, sortKey, sortDirection]);
 
 	// Server-side pagination - images already contains only the current page
 	const paginatedImages = filteredImages;
@@ -141,13 +141,13 @@ export const ImagesList: FC = () => {
 					</div>
 
 					<div>
-						<label htmlFor="minSeverity" className="block text-sm font-medium text-gray-700">
+						<label htmlFor="severityFilter" className="block text-sm font-medium text-gray-700">
 							Severity
 						</label>
 						<select
-							id="minSeverity"
-							value={minSeverity}
-							onChange={(e) => updateFilter('minSeverity', e.target.value)}
+							id="severityFilter"
+							value={severityFilter}
+							onChange={(e) => updateFilter('severity', e.target.value)}
 							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						>
 							<option value="">All</option>
@@ -174,7 +174,7 @@ export const ImagesList: FC = () => {
 							<span className="text-gray-700">Show unfixable CVEs</span>
 						</label>
 					</div>
-					{(imageFilter || minSeverity) && (
+					{(imageFilter || severityFilter) && (
 						<button onClick={handleClearFilters} className="btn btn-secondary text-sm">
 							Clear Filters
 						</button>

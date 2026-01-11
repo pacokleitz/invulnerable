@@ -17,7 +17,7 @@ export const ScansList: FC = () => {
 	const imageFilter = searchParams.get('image') || '';
 	const fromDate = searchParams.get('from') || '';
 	const toDate = searchParams.get('to') || '';
-	const minSeverity = searchParams.get('minSeverity') || '';
+	const severityFilter = searchParams.get('severity') || '';
 	const showUnfixable = searchParams.get('show_unfixable') === 'true'; // Default to false
 
 	const { scans, total, loading, error, reload } = useStore((state) => ({
@@ -62,9 +62,9 @@ export const ScansList: FC = () => {
 	// Reset to page 1 when filters change
 	useEffect(() => {
 		setCurrentPage(1);
-	}, [imageFilter, fromDate, toDate, minSeverity, showUnfixable]);
+	}, [imageFilter, fromDate, toDate, severityFilter, showUnfixable]);
 
-	// Apply client-side filters that are not yet supported by backend (date filters and minSeverity)
+	// Apply client-side filters that are not yet supported by backend (date filters and severityFilter)
 	// Image filter is now handled server-side
 	const filteredScans = useMemo(() => {
 		let filtered = scans.filter((scan) => {
@@ -77,8 +77,8 @@ export const ScansList: FC = () => {
 				return false;
 			}
 			// Filter by minimum severity
-			if (minSeverity) {
-				switch (minSeverity) {
+			if (severityFilter) {
+				switch (severityFilter) {
 					case 'Critical':
 						if (scan.critical_count === 0) return false;
 						break;
@@ -121,7 +121,7 @@ export const ScansList: FC = () => {
 		}
 
 		return filtered;
-	}, [scans, fromDate, toDate, minSeverity, sortKey, sortDirection]);
+	}, [scans, fromDate, toDate, severityFilter, sortKey, sortDirection]);
 
 	return (
 		<div className="space-y-6">
@@ -174,13 +174,13 @@ export const ScansList: FC = () => {
 					</div>
 
 					<div>
-						<label htmlFor="minSeverity" className="block text-sm font-medium text-gray-700">
+						<label htmlFor="severityFilter" className="block text-sm font-medium text-gray-700">
 							Severity
 						</label>
 						<select
-							id="minSeverity"
-							value={minSeverity}
-							onChange={(e) => updateFilter('minSeverity', e.target.value)}
+							id="severityFilter"
+							value={severityFilter}
+							onChange={(e) => updateFilter('severity', e.target.value)}
 							className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						>
 							<option value="">All</option>
