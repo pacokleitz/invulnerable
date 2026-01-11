@@ -501,12 +501,16 @@ export const ScanDetails: FC = () => {
 								</dd>
 							</div>
 							<div>
-								<dt className="text-sm font-medium text-gray-500">Grype Version</dt>
-								<dd className="mt-1 text-sm text-gray-900">{scan.grype_version || 'N/A'}</dd>
+								<dt className="text-sm font-medium text-gray-500">Syft Version</dt>
+								<dd className="mt-1 text-sm text-gray-900">{scan.syft_version || 'N/A'}</dd>
 							</div>
 							<div>
 								<dt className="text-sm font-medium text-gray-500">Total Vulnerabilities</dt>
 								<dd className="mt-1 text-sm text-gray-900">{scan.vulnerability_count}</dd>
+							</div>
+							<div>
+								<dt className="text-sm font-medium text-gray-500">Grype Version</dt>
+								<dd className="mt-1 text-sm text-gray-900">{scan.grype_version || 'N/A'}</dd>
 							</div>
 						</dl>
 					</div>
