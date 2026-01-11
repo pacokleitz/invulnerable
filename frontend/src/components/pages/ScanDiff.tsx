@@ -206,9 +206,6 @@ export const ScanDiff: FC = () => {
 						/>
 						<span className="text-gray-700">Show unfixable CVEs</span>
 					</label>
-					<Link to={`/scans/${scanId}`} className="text-blue-600 hover:text-blue-800">
-						← Back to Scan
-					</Link>
 				</div>
 			</div>
 
